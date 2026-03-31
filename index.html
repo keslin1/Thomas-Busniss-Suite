@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="ht">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+<meta name="theme-color" content="#0a0a0a"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<title>Thomas Business</title>
+<link rel="manifest" href="manifest.json"/>
+<link rel="stylesheet" href="shared.css"/>
+<link rel="stylesheet" href="lcd-customers.css"/>
+<link rel="stylesheet" href="kalkimatris.css"/>
+<link rel="stylesheet" href="microcredit.css"/>
+<link rel="stylesheet" href="achiv-nimewo.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+/* ── LOCK ───────────────────────────────────── */
+#lockScreen{
+  position:fixed;inset:0;z-index:9999;background:var(--black);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:30px;transition:opacity .5s ease;
+}
+#lockScreen.hide{opacity:0;pointer-events:none;}
+.lock-logo{width:100px;height:100px;border-radius:50%;border:3px solid var(--gold);
+  overflow:hidden;background:var(--dark2);box-shadow:0 0 40px rgba(201,168,76,.4);}
+.lock-logo img{width:100%;height:100%;object-fit:cover;}
+.lock-title{font-family:var(--font-h);font-size:2.4rem;color:var(--gold);letter-spacing:4px;text-align:center;}
+.lock-sub{font-size:.75rem;color:var(--gray);letter-spacing:2px;text-transform:uppercase;}
+.lock-pin{display:flex;flex-direction:column;align-items:center;gap:16px;}
+.pin-dots{display:flex;gap:12px;}
+.pin-dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--gold3);background:transparent;transition:background .2s;}
+.pin-dot.filled{background:var(--gold);}
+.pin-pad{display:grid;grid-template-columns:repeat(3,70px);gap:10px;}
+.pin-btn{height:60px;border-radius:12px;border:1.5px solid #333;background:var(--dark2);
+  color:var(--white);font-family:var(--font-h);font-size:1.6rem;cursor:pointer;transition:all .15s;}
+.pin-btn:active{background:var(--gold3);border-color:var(--gold);}
+.pin-btn.del{font-size:1rem;color:var(--gray);}
+.pin-error{color:var(--red);font-size:.8rem;letter-spacing:1px;min-height:18px;text-align:center;}
+
+/* ── SPLASH ─────────────────────────────────── */
+#splashScreen{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;background:var(--black);overflow:hidden;}
+#splashScreen.hidden{display:none;}
+.splash-photo{flex:1;position:relative;overflow:hidden;}
+.splash-photo img{width:100%;height:100%;object-fit:cover;object-position:top center;filter:brightness(.5);}
+.splash-overlay{position:absolute;inset:0;background:linear-gradient(to bottom,transparent 25%,rgba(0,0,0,.92) 100%);}
+
+/* ── TICKER ─────────────────────────────────── */
+.splash-ticker-wrap{position:absolute;bottom:90px;left:0;right:0;overflow:hidden;}
+.splash-ticker-band{
+  background:rgba(201,168,76,.1);
+  border-top:1.5px solid rgba(201,168,76,.25);
+  border-bottom:1.5px solid rgba(201,168,76,.25);
+  padding:10px 0;white-space:nowrap;display:flex;
+  animation:tickerScroll 28s linear infinite;
+}
+.splash-ticker-band:hover{animation-play-state:paused;}
+@keyframes tickerScroll{0%{transform:translateX(0);}100%{transform:translateX(-50%);}}
+.ticker-word{
+  font-family:var(--font-h);font-size:2rem;letter-spacing:6px;color:var(--gold);
+  padding:0 28px;text-shadow:0 0 20px rgba(201,168,76,.5);display:inline-block;
+}
+.ticker-sep{font-family:var(--font-h);font-size:1rem;color:var(--gold3);padding:0 8px;display:inline-block;align-self:center;}
+.splash-name{position:absolute;bottom:42px;left:0;right:0;text-align:center;
+  font-family:var(--font-h);font-size:1.6rem;color:var(--white);letter-spacing:6px;opacity:.7;}
+.splash-tagline{position:absolute;bottom:20px;left:0;right:0;text-align:center;
+  font-size:.62rem;color:var(--gold3);letter-spacing:3px;text-transform:uppercase;}
+</style>
+</head>
+<body>
+
+
+<!-- LOCK SCREEN -->
+<div id="lockScreen">
+  <div class="lock-logo">
+    <img src="Thomas.jpg" alt="Thomas" onerror="this.style.display='none'"/>
+  </div>
+  <div style="text-align:center;">
+    <div class="lock-title">THOMAS</div>
+    <div class="lock-sub">Business Suite</div>
+  </div>
+  <div class="lock-pin">
+    <div class="pin-dots">
+      <div class="pin-dot" id="d0"></div><div class="pin-dot" id="d1"></div>
+      <div class="pin-dot" id="d2"></div><div class="pin-dot" id="d3"></div>
+      <div class="pin-dot" id="d4"></div>
+    </div>
+    <div class="pin-pad">
+      <button class="pin-btn" onclick="pinPress('1')">1</button>
+      <button class="pin-btn" onclick="pinPress('2')">2</button>
+      <button class="pin-btn" onclick="pinPress('3')">3</button>
+      <button class="pin-btn" onclick="pinPress('4')">4</button>
+      <button class="pin-btn" onclick="pinPress('5')">5</button>
+      <button class="pin-btn" onclick="pinPress('6')">6</button>
+      <button class="pin-btn" onclick="pinPress('7')">7</button>
+      <button class="pin-btn" onclick="pinPress('8')">8</button>
+      <button class="pin-btn" onclick="pinPress('9')">9</button>
+      <button class="pin-btn" style="background:transparent;border:none;"></button>
+      <button class="pin-btn" onclick="pinPress('0')">0</button>
+      <button class="pin-btn del" onclick="pinDel()">⌫</button>
+    </div>
+    <div class="pin-error" id="pinError"></div>
+  </div>
+</div>
+
+<!-- SPLASH -->
+<div id="splashScreen" class="hidden">
+  <div class="splash-photo">
+    <img src="Thomas.jpg" alt="Thomas"
+         onerror="this.style.background='linear-gradient(135deg,#1a1a1a,#0d0d0d)'"/>
+    <div class="splash-overlay"></div>
+    <div class="splash-ticker-wrap">
+      <div class="splash-ticker-band" id="tickerBand"></div>
+    </div>
+    <div class="splash-name">THOMAS KABÉ</div>
+    <div class="splash-tagline">AGENT SUD · LES CAYES DROPSHIPPING</div>
+  </div>
+</div>
+
+<!-- MENU FAB -->
+<div class="menu-fab hidden" id="menuFab" onclick="toggleDrawer()">
+  <div class="fab-bar"></div><div class="fab-bar"></div><div class="fab-bar"></div>
+</div>
+
+<!-- DRAWER -->
+<div id="drawer">
+  <div class="drawer-backdrop" onclick="closeDrawer()"></div>
+  <div class="drawer-panel">
+    <div class="drawer-head">
+      <div class="drawer-head-name">THOMAS</div>
+      <div class="drawer-head-sub">Business Suite</div>
+    </div>
+    <div class="drawer-divider"></div>
+    <nav class="drawer-nav">
+      <div class="drawer-item" onclick="goHome()">
+        <div class="drawer-item-icon">🏠</div>
+        <div><div class="drawer-item-label">Akèy</div><div class="drawer-item-sub">Paj prensipal</div></div>
+      </div>
+      <div class="drawer-item" onclick="goScreen('lcd')">
+        <div class="drawer-item-icon">👥</div>
+        <div><div class="drawer-item-label">Customers</div><div class="drawer-item-sub">Dosye kliyan yo</div></div>
+      </div>
+      <div class="drawer-item" onclick="goScreen('calc')">
+        <div class="drawer-item-icon">🧮</div>
+        <div><div class="drawer-item-label">Sistèm POS</div><div class="drawer-item-sub">Kalkil & Jenere Fich</div></div>
+      </div>
+      <div class="drawer-item" onclick="goScreen('epargne')">
+        <div class="drawer-item-icon">🏦</div>
+        <div><div class="drawer-item-label">Micro Crédit</div><div class="drawer-item-sub">Kont Epay Pèsonèl</div></div>
+      </div>
+      <div class="drawer-item" onclick="goScreen('achiv')">
+        <div class="drawer-item-icon">📒</div>
+        <div><div class="drawer-item-label">Achiv Nimewo</div><div class="drawer-item-sub">Repètwa Kontakt</div></div>
+      </div>
+    </nav>
+    <div class="drawer-footer">THOMAS BUSINESS · v1.0</div>
+  </div>
+</div>
+
+<!-- APP SHELL -->
+<div id="appShell" class="hidden">
+  <div class="app-bar">
+    <div class="app-bar-back" onclick="handleBack()">←</div>
+    <div class="app-bar-title" id="appBarTitle">THOMAS BUSINESS</div>
+  </div>
+  <div class="app-content">
+
+    <!-- LCD CUSTOMERS -->
+    <div class="screen" id="screen-lcd">
+      <div class="search-bar">
+        <input type="text" class="search-input" id="clientSearch" placeholder="Chèche kliyan..." oninput="LCD.renderClients()"/>
+        <button class="btn-add" onclick="LCD.openAddClient()">+</button>
+      </div>
+      <div class="sort-bar">
+        <button class="sort-chip active" onclick="LCD.setSort('amount',this)">💰 Pi aktif</button>
+        <button class="sort-chip" onclick="LCD.setSort('name',this)">🔤 Non</button>
+        <button class="sort-chip" onclick="LCD.setSort('recent',this)">🕐 Resan</button>
+      </div>
+      <div id="clientList"></div>
+    </div>
+
+    <!-- CLIENT DETAIL -->
+    <div class="screen" id="screen-clientDetail">
+      <div id="clientDetailContent"></div>
+    </div>
+
+    <!-- SISTÈM POS -->
+    <div class="screen" id="screen-calc">
+      <div class="dim-grid">
+        <div class="calc-input-wrap"><div class="calc-label">Longè (cm)</div>
+          <input type="number" class="calc-input" id="cL" placeholder="0" oninput="CALC.calcLive()"/></div>
+        <div class="calc-input-wrap"><div class="calc-label">Lajè (cm)</div>
+          <input type="number" class="calc-input" id="cl" placeholder="0" oninput="CALC.calcLive()"/></div>
+        <div class="calc-input-wrap"><div class="calc-label">Wotè (cm)</div>
+          <input type="number" class="calc-input" id="cH" placeholder="0" oninput="CALC.calcLive()"/></div>
+      </div>
+      <div class="calc-input-wrap" style="margin-bottom:10px;">
+        <div class="calc-label">Pwa sou balans (lb) — si genyen</div>
+        <input type="number" class="calc-input highlight-input" id="cPwa" placeholder="0.00" oninput="CALC.calcLive()"/>
+      </div>
+      <div class="calc-input-wrap" style="margin-bottom:10px;">
+        <div class="calc-label">Non Kliyan (opsyonèl)</div>
+        <input type="text" class="calc-input" id="cName" placeholder="Ex: Benoit Batraville"/>
+      </div>
+      <div class="result-panel" id="calcResultPanel">
+        <div class="result-pwa-lbl">Pwa total</div>
+        <div class="result-pwa-val" id="cPwaVal">0.00 lb</div>
+        <div class="result-price-lbl">Pri Kalkile — LCD $4.90/lb</div>
+        <div class="result-price-val">$<span id="cPriVal">0.00</span></div>
+        <div class="result-tarif" id="cTarifVal"></div>
+        <div class="custom-price-section">
+          <div class="custom-price-label">💰 Mete pri pèsonèl ou (opsyonèl)</div>
+          <div class="custom-row">
+            <input type="number" class="custom-input" id="cCustomPrice" placeholder="0.00"/>
+            <button class="btn-gen-invoice" onclick="CALC.genInvoiceLCD()">🧾 Fiche</button>
+          </div>
+        </div>
+      </div>
+      <div class="calc-btn-row">
+        <button class="btn-calc-main" onclick="CALC.runCalc()">KALKILE</button>
+        <button class="btn-calc-clear" onclick="CALC.clearCalc()">✕ Efase</button>
+      </div>
+      <div class="calc-history-title">Istorik Kalkil</div>
+      <div id="calcHistory"></div>
+    </div>
+
+    <!-- MICRO CRÉDIT -->
+    <div class="screen" id="screen-epargne">
+      <div class="epargne-cover-wrap">
+        <div class="epargne-cover-img-box">
+          <img src="epay.png" alt="Micro Crédit"
+               onerror="this.style.display='none';document.getElementById('epayFallback').style.display='flex'"/>
+          <div id="epayFallback" style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-size:5rem;">🏦</div>
+        </div>
+        <div class="epargne-title-row">
+          <div class="epargne-title">LA SÛRETÉ MICRO CRÉDIT</div>
+          <div class="epargne-sub">Kont Epay Pèsonèl · Thomas Kabé</div>
+        </div>
+      </div>
+      <div class="balance-card">
+        <div class="balance-label">Balans Kouran (HTG)</div>
+        <div class="balance-amount-htg" id="balanceHTG">0 HTG</div>
+        <div class="balance-usd" id="balanceUSD">≈ $0.00 USD</div>
+      </div>
+      <div class="epargne-btns">
+        <button class="btn-depot" onclick="EPARGNE.openTxnModal('depot')">+ Depo</button>
+        <button class="btn-retrait" onclick="EPARGNE.openTxnModal('retrait')">− Retrè</button>
+      </div>
+      <div class="epargne-table">
+        <div class="table-head">
+          <div class="table-head-cell">Dat</div>
+          <div class="table-head-cell">Depo</div>
+          <div class="table-head-cell">Retrè</div>
+          <div class="table-head-cell">Solde</div>
+        </div>
+        <div id="epargneTable"></div>
+      </div>
+    </div>
+
+    <!-- ACHIV NIMEWO -->
+    <div class="screen" id="screen-achiv">
+      <div class="achiv-search-bar">
+        <input type="text" class="search-input" id="achivSearch"
+               placeholder="Chèche non, nimewo..." oninput="ACHIV.render()"/>
+        <button class="btn-add" onclick="ACHIV.openAdd()">+</button>
+      </div>
+      <div class="achiv-sort-bar">
+        <button class="sort-chip active" onclick="ACHIV.setSort('name',this)">🔤 Non</button>
+        <button class="sort-chip" onclick="ACHIV.setSort('recent',this)">🕐 Resan</button>
+        <button class="sort-chip" onclick="ACHIV.setSort('group',this)">🏷 Gwoup</button>
+      </div>
+      <div id="achivList"></div>
+    </div>
+
+    <!-- ACHIV DETAIL -->
+    <div class="screen" id="screen-achivDetail">
+      <div id="achivDetailContent"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- MODALS -->
+<!-- LCD: Add/Edit Client -->
+<div class="modal-backdrop" id="modalAddClient">
+  <div class="modal-sheet">
+    <div class="modal-title" id="modalClientTitle">NOUVO KLIYAN</div>
+    <div class="field-group"><div class="field-label">Non Konplè *</div>
+      <input class="field-input" id="fName" placeholder="Benoit Batraville"/></div>
+    <div class="field-group"><div class="field-label">Adrès</div>
+      <input class="field-input" id="fAddr" placeholder="Cayes, Sud"/></div>
+    <div class="field-group"><div class="field-label">Telefòn</div>
+      <input class="field-input" id="fPhone" placeholder="+509 34 52 1975" type="tel"/></div>
+    <div class="field-group"><div class="field-label">Email</div>
+      <input class="field-input" id="fEmail" placeholder="client@email.com" type="email"/></div>
+    <div class="field-group"><div class="field-label">Byografi / Nòt</div>
+      <textarea class="field-input field-textarea" id="fBio" placeholder="Yon ti deskripsyon..."></textarea></div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal('modalAddClient')">Anile</button>
+      <button class="btn-confirm" onclick="LCD.saveClient()">Anrejistre</button>
+    </div>
+  </div>
+</div>
+<!-- LCD: Add Txn -->
+<div class="modal-backdrop" id="modalAddTxn">
+  <div class="modal-sheet">
+    <div class="modal-title">NOUVO TRANZAKSYON</div>
+    <div class="field-group"><div class="field-label">Dat</div>
+      <input class="field-input" id="fTxnDate" type="date"/></div>
+    <div class="field-group"><div class="field-label">Deskripsyon</div>
+      <input class="field-input" id="fTxnDesc" placeholder="Ex: 3 pakè, valiz..."/></div>
+    <div class="field-group"><div class="field-label">Montan ($)</div>
+      <input class="field-input" id="fTxnAmount" type="number" placeholder="0.00"/></div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal('modalAddTxn')">Anile</button>
+      <button class="btn-confirm" onclick="LCD.saveTxn()">Anrejistre</button>
+    </div>
+  </div>
+</div>
+<!-- LCD: Group Email -->
+<div class="modal-backdrop" id="modalEmail">
+  <div class="modal-sheet">
+    <div class="modal-title">VOYE EMAIL GWOUP</div>
+    <div class="field-group"><div class="field-label">Chwazi destinatè yo</div>
+      <div class="email-chips" id="emailChips"></div></div>
+    <div class="field-group"><div class="field-label">Sijè</div>
+      <input class="field-input" id="emailSubject" placeholder="Nouvo pakè disponib..."/></div>
+    <div class="field-group"><div class="field-label">Mesaj</div>
+      <textarea class="field-input field-textarea" id="emailBody" style="min-height:100px"
+                placeholder="Ekri mesaj ou..."></textarea></div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal('modalEmail')">Anile</button>
+      <button class="btn-confirm" onclick="LCD.sendGroupEmail()">📧 Voye</button>
+    </div>
+  </div>
+</div>
+<!-- Epargne Txn -->
+<div class="modal-backdrop" id="modalEpargne">
+  <div class="modal-sheet">
+    <div class="modal-title" id="epargneModalTitle">DEPO</div>
+    <div class="field-group"><div class="field-label">Dat</div>
+      <input class="field-input" id="eTxnDate" type="date"/></div>
+    <div class="field-group">
+      <div class="field-label">Montan (HTG)</div>
+      <input class="field-input" id="eTxnAmount" type="number" placeholder="0"
+             oninput="EPARGNE.previewConvert()"/>
+      <div id="eTxnConvert" style="font-size:.72rem;color:var(--gold3);margin-top:5px;padding-left:4px;"></div>
+    </div>
+    <div class="field-group"><div class="field-label">Nòt (opsyonèl)</div>
+      <input class="field-input" id="eTxnNote" placeholder="Rezon tranzaksyon an..."/></div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal('modalEpargne')">Anile</button>
+      <button class="btn-confirm" onclick="EPARGNE.saveEpargne()">Anrejistre</button>
+    </div>
+  </div>
+</div>
+<!-- Achiv: Add/Edit Contact -->
+<div class="modal-backdrop" id="modalAchiv">
+  <div class="modal-sheet">
+    <div class="modal-title" id="modalAchivTitle">NOUVO KONTAKT</div>
+    <div class="field-group"><div class="field-label">Non Konplè *</div>
+      <input class="field-input" id="aNom" placeholder="Marie Jean-Pierre"/></div>
+    <div class="field-group"><div class="field-label">Nimewo Telefòn * (ak kòd peyi)</div>
+      <input class="field-input" id="aPhone" placeholder="+50934521975" type="tel"/></div>
+    <div class="field-group"><div class="field-label">Nimewo 2 (opsyonèl)</div>
+      <input class="field-input" id="aPhone2" placeholder="+50934521976" type="tel"/></div>
+    <div class="field-group"><div class="field-label">Gwoup / Kategori</div>
+      <input class="field-input" id="aGroup" placeholder="Kliyan, Fanmi, Zanmi, Biznis..."/></div>
+    <div class="field-group"><div class="field-label">Adrès</div>
+      <input class="field-input" id="aAddr" placeholder="Cayes, Sud"/></div>
+    <div class="field-group"><div class="field-label">Nòt</div>
+      <textarea class="field-input field-textarea" id="aNote" placeholder="Nòt sou kontakt sa..."></textarea></div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal('modalAchiv')">Anile</button>
+      <button class="btn-confirm" onclick="ACHIV.save()">Anrejistre</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- MODULE SCRIPTS -->
+<script src="lcd-customers.js"></script>
+<script src="kalkimatris.js"></script>
+<script src="microcredit.js"></script>
+<script src="achiv-nimewo.js"></script>
+
+<!-- CORE APP -->
+<script>
+/* ─── SHARED UTILS ───────────────────────────── */
+function loadStore(key,def){try{return JSON.parse(localStorage.getItem(key))||def;}catch{return def;}}
+function saveStore(key,val){localStorage.setItem(key,JSON.stringify(val));}
+function escHtml(s){if(!s)return '';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function showToast(msg,dur=2500){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),dur);}
+function openModal(id){document.getElementById(id).classList.add('open');}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+
+/* ─── PIN ────────────────────────────────────── */
+const VALID_PINS=['56666','35608'];
+let pinBuffer='';
+function pinPress(d){if(pinBuffer.length>=5)return;pinBuffer+=d;updatePinDots();if(pinBuffer.length===5)checkPin();}
+function pinDel(){pinBuffer=pinBuffer.slice(0,-1);updatePinDots();document.getElementById('pinError').textContent='';}
+function updatePinDots(){for(let i=0;i<5;i++)document.getElementById('d'+i).classList.toggle('filled',i<pinBuffer.length);}
+function checkPin(){
+  if(VALID_PINS.includes(pinBuffer)){
+    document.getElementById('lockScreen').classList.add('hide');
+    setTimeout(()=>{document.getElementById('lockScreen').style.display='none';launchSplash();},500);
+  }else{
+    document.getElementById('pinError').textContent='KÒD ENVALID — ESEYE ANKÒ';
+    pinBuffer='';updatePinDots();
+    setTimeout(()=>document.getElementById('pinError').textContent='',2000);
+  }
+}
+
+/* ─── TICKER ─────────────────────────────────── */
+const WORDS=['DISIPLINE','DANJERE','FOKIS','AMBISJÈ','RÈZISTAN','DINADIK',
+             'PWOFESYONÈL','VIZJONÈ','INPITOYAB','TRAVAYÈ','LIDÈ','KOURAJÈ',
+             'DETÈMINE','ENPITOYAB','SOLID'];
+function launchSplash(){
+  document.getElementById('splashScreen').classList.remove('hidden');
+  document.getElementById('menuFab').classList.remove('hidden');
+  const band=document.getElementById('tickerBand');
+  const set=[...WORDS,...WORDS];
+  band.innerHTML=set.map((w,i)=>
+    `<span class="ticker-word">${w}</span><span class="ticker-sep">✦</span>`
+  ).join('');
+}
+/* ─── NAVIGATION ─────────────────────────────── */
+const SCREEN_TITLES={
+  lcd:'CUSTOMERS',calc:'SISTÈM POS',epargne:'MICRO CRÉDIT',
+  achiv:'ACHIV NIMEWO',clientDetail:'DOSYE KLIYAN',achivDetail:'PROFIL KONTAKT'
+};
+let currentScreen='';
+function goScreen(name){
+  closeDrawer();
+  document.getElementById('splashScreen').classList.add('hidden');
+  document.getElementById('appShell').classList.remove('hidden');
+  document.getElementById('appBarTitle').textContent=SCREEN_TITLES[name]||name.toUpperCase();
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  const s=document.getElementById('screen-'+name);
+  if(s)s.classList.add('active');
+  currentScreen=name;
+  if(name==='lcd')LCD.renderClients();
+  if(name==='calc')CALC.renderCalcHistory();
+  if(name==='epargne')EPARGNE.renderEpargne();
+  if(name==='achiv')ACHIV.render();
+}
+function goHome(){
+  closeDrawer();
+  document.getElementById('splashScreen').classList.remove('hidden');
+  document.getElementById('appShell').classList.add('hidden');
+}
+function handleBack(){
+  if(currentScreen==='clientDetail')goScreen('lcd');
+  else if(currentScreen==='achivDetail')goScreen('achiv');
+  else goHome();
+}
+
+/* ─── DRAWER ─────────────────────────────────── */
+function toggleDrawer(){
+  const d=document.getElementById('drawer');
+  const f=document.getElementById('menuFab');
+  if(d.classList.contains('open')){closeDrawer();}
+  else{d.classList.add('open');f.classList.add('open');}
+}
+function closeDrawer(){
+  document.getElementById('drawer').classList.remove('open');
+  document.getElementById('menuFab').classList.remove('open');
+}
+
+/* ─── SERVICE WORKER ─────────────────────────── */
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});
+}
+</script>
+</body>
+</html>

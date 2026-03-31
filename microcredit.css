@@ -1,0 +1,81 @@
+/* ═══════════════════════════════════════════════
+   MICRO CRÉDIT — Styles
+   ═══════════════════════════════════════════════ */
+
+/* ─── COVER 1:1 ───────────────────────────────── */
+.epargne-cover-wrap{
+  background:var(--dark2);border-radius:14px;border:1px solid #222;
+  overflow:hidden;margin-bottom:16px;
+}
+.epargne-cover-img-box{
+  width:100%;aspect-ratio:1/1;
+  background:linear-gradient(135deg,var(--teal) 0%,#0c4a6e 100%);
+  overflow:hidden;display:flex;align-items:center;justify-content:center;
+}
+.epargne-cover-img-box img{
+  width:100%;height:100%;object-fit:cover;
+}
+.epargne-title-row{padding:14px 16px;}
+.epargne-title{font-family:var(--font-h);font-size:1.5rem;color:var(--gold);letter-spacing:2px;}
+.epargne-sub{font-size:.72rem;color:var(--gray);margin-top:3px;}
+
+/* ─── BALANCE CARD ────────────────────────────── */
+.balance-card{
+  background:linear-gradient(135deg,var(--teal) 0%,#0c4a6e 100%);
+  border-radius:14px;padding:20px;margin-bottom:16px;
+  position:relative;overflow:hidden;
+}
+.balance-card::before{
+  content:'';position:absolute;top:-20px;right:-20px;
+  width:100px;height:100px;border-radius:50%;
+  background:rgba(255,255,255,.05);
+}
+.balance-label{font-size:.7rem;color:rgba(255,255,255,.6);letter-spacing:2px;text-transform:uppercase;}
+.balance-amount-htg{
+  font-family:var(--font-h);font-size:2.6rem;color:#fff;
+  letter-spacing:2px;margin:4px 0 2px;
+}
+.balance-usd{font-size:.8rem;color:rgba(255,255,255,.6);}
+
+/* ─── BUTTONS ─────────────────────────────────── */
+.epargne-btns{display:flex;gap:10px;margin-bottom:16px;}
+.btn-depot{
+  flex:1;padding:13px;border-radius:12px;
+  background:var(--green);border:none;color:#fff;
+  font-weight:700;font-size:.82rem;cursor:pointer;
+  transition:filter .2s;
+}
+.btn-depot:active{filter:brightness(.85);}
+.btn-retrait{
+  flex:1;padding:13px;border-radius:12px;
+  background:transparent;border:2px solid var(--red);color:var(--red);
+  font-weight:700;font-size:.82rem;cursor:pointer;
+  transition:all .2s;
+}
+.btn-retrait:active{background:var(--red);color:#fff;}
+
+/* ─── TABLE ───────────────────────────────────── */
+.epargne-table{
+  background:var(--dark2);border-radius:14px;border:1px solid #222;overflow:hidden;
+}
+.table-head{
+  display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr;
+  padding:10px 14px;background:#1a1a1a;
+  border-bottom:1px solid #222;
+}
+.table-head-cell{font-size:.62rem;font-weight:700;color:var(--gold3);letter-spacing:.5px;text-transform:uppercase;}
+.table-row{
+  display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr;
+  padding:10px 14px;border-bottom:1px solid #161616;align-items:center;
+}
+.table-row:last-child{border-bottom:none;}
+.table-cell{font-size:.7rem;color:var(--white);}
+.table-cell.money{font-family:var(--font-m);font-size:.68rem;}
+.table-cell.depot-col{color:var(--green);}
+.table-cell.retrait-col{color:var(--red);}
+.table-cell.solde-col{color:var(--gold);font-weight:700;}
+.table-cell.date-col{color:var(--gray);font-size:.63rem;}
+.empty-txn{
+  padding:30px;text-align:center;
+  color:var(--gray);font-size:.82rem;line-height:1.6;
+}
