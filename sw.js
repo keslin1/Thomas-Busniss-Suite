@@ -19,7 +19,7 @@ const ASSETS_TO_CACHE = [
   './kalkimatris.js',
   './microcredit.js',
   './achiv-nimewo.js',
-  './Thomas.jpg',
+  './Thomas.png',
   'https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Montserrat:wght@400;600;700;900&family=Dancing+Script:wght@700&family=Space+Mono:wght@400;700&display=swap',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
 ];
