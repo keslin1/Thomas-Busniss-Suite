@@ -1,20 +1,25 @@
 /* ═══════════════════════════════════════════════
    KALKIMATRIS — JavaScript (LCD uniquement $4.90/lb)
-   v2.0 — Frais minimum, Dette, Monnaie, Logo
+   v2 : Frè minimum 25$, Dette, Monnaie, Description
    ═══════════════════════════════════════════════ */
 
 const CALC = (() => {
   const RATE_LCD = 4.90;
   const RATE_BULK = 3.99; // >= 50 lb
-  const MIN_FRAIS = 25.00;
+  const MIN_PRICE = 25;
   let calcResult = null;
-  let priceManuallyAdjusted = false;
+  let priceManuallyEdited = false;
 
+  /* ─── CALCUL LIVE ──────────────────────────── */
   function calcLive() {
     const L = parseFloat(document.getElementById('cL').value) || 0;
     const l = parseFloat(document.getElementById('cl').value) || 0;
     const H = parseFloat(document.getElementById('cH').value) || 0;
     const pwaBalans = parseFloat(document.getElementById('cPwa').value) || 0;
+    const dette = parseFloat(document.getElementById('cDette').value) || 0;
+    const monnaie = parseFloat(document.getElementById('cMonnaie').value) || 0;
+    const customPriceEl = document.getElementById('cCustomPrice');
+    const customPrice = customPriceEl ? (parseFloat(customPriceEl.value) || null) : null;
 
     const pwaVol = (L * l * H) / 4000;
     const pwaFinal = pwaVol + pwaBalans;
@@ -26,67 +31,53 @@ const CALC = (() => {
     }
 
     const tarif = pwaFinal >= 50 ? RATE_BULK : RATE_LCD;
-    const prixBrut = pwaFinal * tarif;
-    const applyMin = prixBrut < MIN_FRAIS;
-    const prixService = applyMin ? MIN_FRAIS : prixBrut;
+    const prixBrut = customPrice !== null ? customPrice : pwaFinal * tarif;
+    const needsMinimum = prixBrut < MIN_PRICE && customPrice === null;
+    const prixService = needsMinimum ? MIN_PRICE : prixBrut;
+    const prixFinal = prixService + dette - monnaie;
 
-    calcResult = { pwaFinal, tarif, prixBrut, prixService, applyMin };
+    calcResult = { pwaFinal, tarif, prixBrut, prixService, prixFinal, needsMinimum, dette, monnaie, customPrice };
 
+    // Mise à jour affichage
     document.getElementById('cPwaVal').textContent = pwaFinal.toFixed(2) + ' lb';
+    document.getElementById('cPriVal').textContent = prixBrut.toFixed(2);
 
-    // Label dynamique Total/Subtotal
-    const priceLbl = document.getElementById('result-price-lbl-dyn');
-    const priceVal = document.getElementById('cPriVal');
-    const minBadge = document.getElementById('cMinBadge');
+    // Tarif label
+    let tarifTxt = `Tarif: $${tarif}/lb${pwaFinal >= 50 ? ' (gwo volim)' : ''}`;
+    if (priceManuallyEdited && customPrice !== null) tarifTxt += ' · ⚡ Pri ajiste pa ajan';
+    document.getElementById('cTarifVal').textContent = tarifTxt;
 
-    if (applyMin) {
-      priceLbl.textContent = 'Subtotal (kalkil brut)';
-      priceVal.textContent = prixBrut.toFixed(2);
-      minBadge.style.display = 'block';
-    } else {
-      priceLbl.textContent = 'Pri Kalkile — LCD $' + tarif + '/lb';
-      priceVal.textContent = prixService.toFixed(2);
-      minBadge.style.display = 'none';
+    // Subtotal / Total breakdown
+    const breakdownEl = document.getElementById('calcBreakdown');
+    if (breakdownEl) {
+      let html = '';
+      if (needsMinimum) {
+        html += `<div class="breakdown-row"><span class="bd-lbl">Subtotal</span><span class="bd-val">$${prixBrut.toFixed(2)}</span></div>`;
+        html += `<div class="breakdown-row freminimum"><span class="bd-lbl">↑ Frè minimum 25$</span><span class="bd-val bd-fix">$25.00</span></div>`;
+      }
+      if (dette > 0) {
+        html += `<div class="breakdown-row"><span class="bd-lbl">+ Dette</span><span class="bd-val bd-dette">+$${dette.toFixed(2)}</span></div>`;
+      }
+      if (monnaie > 0) {
+        html += `<div class="breakdown-row"><span class="bd-lbl">− Monnaie kliyan</span><span class="bd-val bd-monnaie">−$${monnaie.toFixed(2)}</span></div>`;
+      }
+      const totalLabel = needsMinimum || dette > 0 || monnaie > 0 ? 'TOTAL FINAL' : 'TOTAL';
+      html += `<div class="breakdown-row total-final"><span class="bd-lbl">${totalLabel}</span><span class="bd-val bd-total">$${prixFinal.toFixed(2)}</span></div>`;
+      breakdownEl.innerHTML = html;
+      breakdownEl.style.display = 'block';
     }
 
-    document.getElementById('cTarifVal').textContent =
-      `Tarif: $${tarif}/lb${pwaFinal >= 50 ? ' (gwo volim)' : ''}`;
-
-    updateFinalTotal();
     document.getElementById('calcResultPanel').classList.add('show');
   }
 
-  function updateFinalTotal() {
-    if (!calcResult) return;
-    const dette = parseFloat(document.getElementById('cDette')?.value) || 0;
-    const monnaie = parseFloat(document.getElementById('cMonnaie')?.value) || 0;
-
-    // Priorité : frais min s'applique seulement sur le service
-    const base = calcResult.prixService;
-    const total = base + dette - monnaie;
-
-    const finalEl = document.getElementById('cFinalTotal');
-    if (finalEl) {
-      finalEl.textContent = '$ ' + Math.max(0, total).toFixed(2);
-    }
-
-    // Lignes de détail
-    const detteRow = document.getElementById('cDetteRow');
-    const monnaieRow = document.getElementById('cMonnaieRow');
-    if (detteRow) detteRow.style.display = dette > 0 ? 'flex' : 'none';
-    if (monnaieRow) monnaieRow.style.display = monnaie > 0 ? 'flex' : 'none';
-
-    // Badge ajustement manuel
-    const adjBadge = document.getElementById('cAdjBadge');
-    if (adjBadge) adjBadge.style.display = priceManuallyAdjusted ? 'block' : 'none';
+  /* ─── WATCH custom price ───────────────────── */
+  function onCustomPriceChange() {
+    const el = document.getElementById('cCustomPrice');
+    priceManuallyEdited = el && el.value !== '';
+    calcLive();
   }
 
-  function onCustomPriceInput() {
-    const custom = parseFloat(document.getElementById('cCustomPrice').value);
-    priceManuallyAdjusted = !isNaN(custom) && custom > 0;
-    updateFinalTotal();
-  }
-
+  /* ─── RUN CALC ─────────────────────────────── */
   function runCalc() {
     calcLive();
     if (!calcResult) { showToast('⚠️ Antre dimansyon oswa pwa'); return; }
@@ -94,7 +85,7 @@ const CALC = (() => {
     const history = loadStore('tb_calcHistory', []);
     history.unshift({
       pwa: calcResult.pwaFinal.toFixed(2),
-      pri: calcResult.prixService.toFixed(2),
+      pri: calcResult.prixFinal.toFixed(2),
       name,
       ts: Date.now()
     });
@@ -105,12 +96,14 @@ const CALC = (() => {
   }
 
   function clearCalc() {
-    ['cL','cl','cH','cPwa','cName','cCustomPrice','cDette','cMonnaie'].forEach(id => {
+    ['cL','cl','cH','cPwa','cName','cCustomPrice','cDesc','cDette','cMonnaie'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = '';
     });
-    priceManuallyAdjusted = false;
+    priceManuallyEdited = false;
     document.getElementById('calcResultPanel').classList.remove('show');
+    const bd = document.getElementById('calcBreakdown');
+    if (bd) bd.innerHTML = '';
     calcResult = null;
   }
 
@@ -133,83 +126,64 @@ const CALC = (() => {
     `).join('');
   }
 
+  /* ─── GENERATE INVOICE ─────────────────────── */
   function genInvoiceLCD() {
     if (!calcResult) { showToast('⚠️ Kalkile anvan'); return; }
-    const customPrice = parseFloat(document.getElementById('cCustomPrice').value) || null;
-    const dette = parseFloat(document.getElementById('cDette')?.value) || 0;
-    const monnaie = parseFloat(document.getElementById('cMonnaie')?.value) || 0;
     const name = document.getElementById('cName').value.trim() || 'Kliyan';
-    const desc = document.getElementById('cDesc')?.value.trim() || 'LCD livrezon';
-
-    const servicePrice = customPrice || calcResult.prixService;
-    const isCustom = customPrice != null;
-    buildInvoicePDF(name, calcResult.pwaFinal, calcResult.tarif, servicePrice,
-                    calcResult.prixBrut, calcResult.applyMin, dette, monnaie,
-                    isCustom, desc);
+    const desc = (document.getElementById('cDesc') ? document.getElementById('cDesc').value.trim() : '') || 'Livrezon LCD';
+    buildInvoicePDF(name, calcResult.pwaFinal, calcResult.tarif, calcResult, desc);
   }
 
-  function buildInvoicePDF(clientName, pwa, tarif, servicePrice,
-                            prixBrut, applyMin, dette, monnaie, isCustom, desc) {
+  /* ─── BUILD PDF ────────────────────────────── */
+  function buildInvoicePDF(clientName, pwa, tarif, result, description) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit:'mm', format:'a5', orientation:'portrait' });
     const W = doc.internal.pageSize.getWidth();
     const TEAL=[14,116,144], GOLD=[193,140,40], WHITE=[255,255,255];
-    const DARK=[17,17,17], GRAY=[136,136,136], LIGHT=[230,245,248];
+    const DARK=[17,17,17], GRAY=[136,136,136];
 
-    /* ── HEADER ── */
+    // ── HEADER ──
     doc.setFillColor(...TEAL);
     doc.rect(0,0,W,38,'F');
     doc.setFillColor(...GOLD);
     doc.rect(0,36,W,2,'F');
 
-    // Tente de charger le logo
-    const logo = new Image();
-    logo.src = 'lescayesdropshipping.png';
-    logo.onload = () => {
-      try { doc.addImage(logo, 'PNG', 8, 4, 28, 28); } catch(e) {}
-      _writeInvoiceBody(doc, W, TEAL, GOLD, WHITE, DARK, GRAY, LIGHT,
-        clientName, pwa, tarif, servicePrice, prixBrut, applyMin, dette,
-        monnaie, isCustom, desc);
-    };
-    logo.onerror = () => {
-      _writeInvoiceBody(doc, W, TEAL, GOLD, WHITE, DARK, GRAY, LIGHT,
-        clientName, pwa, tarif, servicePrice, prixBrut, applyMin, dette,
-        monnaie, isCustom, desc);
-    };
-  }
-
-  function _writeInvoiceBody(doc, W, TEAL, GOLD, WHITE, DARK, GRAY, LIGHT,
-    clientName, pwa, tarif, servicePrice, prixBrut, applyMin, dette, monnaie,
-    isCustom, desc) {
+    // Try logo image — graceful fallback to text
+    try {
+      const logoEl = document.getElementById('__invoiceLogoCache');
+      if (logoEl && logoEl.dataset.b64) {
+        doc.addImage(logoEl.dataset.b64, 'PNG', 6, 4, 18, 18);
+      }
+    } catch(e) {}
 
     doc.setFont('helvetica','bold');
-    doc.setFontSize(13);
+    doc.setFontSize(15);
     doc.setTextColor(...WHITE);
-    doc.text('LES CAYES DROPSHIPPING', W/2+10, 12, {align:'center'});
+    doc.text('LES CAYES DROPSHIPPING', W/2, 13, {align:'center'});
     doc.setFont('helvetica','normal');
     doc.setFontSize(8);
     doc.setTextColor(...GOLD);
-    doc.text('Service de livraison & importation', W/2+10, 19, {align:'center'});
+    doc.text('Service de livraison & importation', W/2, 20, {align:'center'});
     doc.setFontSize(7.5);
     doc.setTextColor(200,220,220);
-    doc.text('+509 31 01 39 68  |  lescayesdropshipping@gmail.com', W/2, 26, {align:'center'});
-    doc.text('USA: 14030 NW 5th Pl North  |  Haïti: Camp-Perrin, Matinière', W/2, 32, {align:'center'});
+    doc.text('+509 31 01 39 68  |  lescayesdropshipping@gmail.com', W/2, 27, {align:'center'});
+    doc.text('USA: 14030 NW 5th Pl North  |  Haïti: Camp-Perrin, Matinière', W/2, 33, {align:'center'});
 
-    /* ── INVOICE LABEL ── */
+    // ── INVOICE TITLE ──
     doc.setFont('helvetica','bold');
     doc.setFontSize(20);
     doc.setTextColor(...TEAL);
-    doc.text('INVOICE', W-12, 48, {align:'right'});
+    doc.text('INVOICE', W-12, 50, {align:'right'});
     doc.setFont('helvetica','normal');
     doc.setFontSize(9);
     doc.setTextColor(...GRAY);
     const today = new Date().toLocaleDateString('fr-FR');
-    doc.text('Date :', W-45, 56);
+    doc.text('Date :', W-45, 58);
     doc.setTextColor(...DARK);
     doc.setFont('helvetica','bold');
-    doc.text(today, W-12, 56, {align:'right'});
+    doc.text(today, W-12, 58, {align:'right'});
 
-    /* ── BILLED TO ── */
+    // ── CLIENT BOX ──
     let y = 66;
     doc.setFillColor(...TEAL);
     doc.rect(10,y-5,W-20,24,'F');
@@ -222,7 +196,7 @@ const CALC = (() => {
     doc.text('Nom : ' + clientName, 14, y+8);
     doc.text('Date : ' + today, 14, y+15);
 
-    /* ── TABLE HEADER ── */
+    // ── ITEMS TABLE ──
     y = 98;
     doc.setFillColor(...TEAL);
     doc.rect(10,y-5,W-20,10,'F');
@@ -231,90 +205,64 @@ const CALC = (() => {
     doc.setTextColor(...WHITE);
     doc.text('Description', 14, y+1);
     doc.text('Pwa', W-55, y+1);
-    doc.text('Montant', W-13, y+1, {align:'right'});
+    doc.text('Montan', W-13, y+1, {align:'right'});
 
-    /* ── TABLE ROW ── */
-    y += 14;
-    doc.setFillColor(...LIGHT);
+    y += 13;
+    doc.setFillColor(230,245,248);
     doc.rect(10,y-5,W-20,10,'F');
     doc.setFont('helvetica','normal');
     doc.setFontSize(9);
     doc.setTextColor(...DARK);
-    doc.text(desc, 14, y+1);
+    doc.text(description, 14, y+1);
     doc.text(pwa.toFixed(2)+' lbs', W-55, y+1);
-    doc.text('$'+prixBrut.toFixed(2), W-13, y+1, {align:'right'});
+    doc.text('$'+(pwa*tarif).toFixed(2), W-13, y+1, {align:'right'});
 
-    /* ── MINIMUM FRAIS (si applicable) ── */
-    y += 12;
-    if (applyMin) {
-      doc.setFillColor(255,248,225);
-      doc.rect(10,y-3,W-20,10,'F');
-      doc.setFont('helvetica','italic');
-      doc.setFontSize(8);
-      doc.setTextColor(180,120,0);
-      doc.text('Frè minimum 25$', 14, y+4);
-      doc.setFont('helvetica','bold');
-      doc.text('$25.00', W-13, y+4, {align:'right'});
-      y += 14;
-    }
-
-    /* ── DIVIDER ── */
+    // ── BREAKDOWN ──
+    y += 16;
     doc.setDrawColor(...TEAL);
-    doc.setLineWidth(.5);
+    doc.setLineWidth(.4);
     doc.line(10,y,W-10,y);
-    y += 8;
+    y += 5;
 
-    /* ── SOUS-TOTAL SERVICE ── */
-    doc.setFont('helvetica','bold');
-    doc.setFontSize(9);
-    doc.setTextColor(...TEAL);
-    doc.text(applyMin ? 'Subtotal :' : 'Total service :', W-55, y);
-    doc.text('$ ' + servicePrice.toFixed(2), W-13, y, {align:'right'});
-
-    /* ── DETTE (si présente) ── */
-    if (dette > 0) {
-      y += 8;
-      doc.setFont('helvetica','normal');
-      doc.setFontSize(9);
-      doc.setTextColor(...DARK);
-      doc.text('+ Dette :', W-55, y);
-      doc.setTextColor(180,60,60);
-      doc.text('$ ' + dette.toFixed(2), W-13, y, {align:'right'});
+    const rows = [];
+    if (result.needsMinimum) {
+      rows.push({ lbl:'Subtotal', val:'$'+result.prixBrut.toFixed(2), italic:true, color:GRAY });
+      rows.push({ lbl:'↑ Frè minimum 25$', val:'$25.00', italic:true, color:[200,120,0] });
     }
+    if (result.dette > 0) rows.push({ lbl:'+ Dette', val:'+$'+result.dette.toFixed(2), color:[180,60,60] });
+    if (result.monnaie > 0) rows.push({ lbl:'− Monnaie kliyan', val:'−$'+result.monnaie.toFixed(2), color:[30,130,80] });
 
-    /* ── MONNAIE (si présente) ── */
-    if (monnaie > 0) {
+    rows.forEach(r => {
+      doc.setFont('helvetica', r.italic ? 'italic' : 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(...(r.color||DARK));
+      doc.text(r.lbl, 14, y+3);
+      doc.text(r.val, W-13, y+3, {align:'right'});
       y += 8;
-      doc.setFont('helvetica','normal');
-      doc.setFontSize(9);
-      doc.setTextColor(...DARK);
-      doc.text('− Monnaie :', W-55, y);
-      doc.setTextColor(40,140,40);
-      doc.text('$ ' + monnaie.toFixed(2), W-13, y, {align:'right'});
-    }
+    });
 
-    /* ── TOTAL FINAL ── */
-    y += 10;
-    const totalFinal = Math.max(0, servicePrice + dette - monnaie);
+    // ── TOTAL FINAL ──
     doc.setFillColor(...TEAL);
-    doc.rect(10,y-5,W-20,14,'F');
+    doc.rect(10,y,W-20,12,'F');
     doc.setFont('helvetica','bold');
-    doc.setFontSize(11);
+    doc.setFontSize(10);
     doc.setTextColor(...WHITE);
-    doc.text('TOTAL FINAL ($) :', 14, y+4);
-    doc.setFontSize(13);
-    doc.text('$ ' + totalFinal.toFixed(2), W-13, y+4, {align:'right'});
+    doc.text('TOTAL ($) :', 14, y+8);
+    doc.setFontSize(12);
+    doc.text('$ ' + result.prixFinal.toFixed(2), W-13, y+8, {align:'right'});
+    y += 18;
 
-    if (isCustom) {
-      y += 12;
+    // Insigne ajustement manuel
+    if (result.customPrice !== null && result.customPrice !== undefined) {
       doc.setFont('helvetica','italic');
       doc.setFontSize(7.5);
       doc.setTextColor(...GRAY);
-      doc.text('(Pri ajiste pa ajan)', W-13, y, {align:'right'});
+      doc.text('⚡ Pri a ajiste pa ajan', W-13, y, {align:'right'});
+      y += 7;
     }
 
-    /* ── NOTES + SIGNATURE ── */
-    y += 18;
+    // ── NOTES + SIGNATURE ──
+    y += 4;
     doc.setFillColor(240,248,250);
     doc.rect(10,y-5,W/2-14,28,'F');
     doc.setFont('helvetica','bold');
@@ -327,7 +275,7 @@ const CALC = (() => {
     doc.text('Taux 135 goud — Natcash / Moncash.', 14, y+14);
     doc.text('Zèl pou dola ameriken.', 14, y+20);
 
-    // Signature — style stylo fluide (fin)
+    // Signature — fine, style stylo
     const sx = W/2+2;
     doc.setFillColor(240,248,250);
     doc.rect(sx,y-5,W-sx-10,28,'F');
@@ -335,23 +283,26 @@ const CALC = (() => {
     doc.setFontSize(7.5);
     doc.setTextColor(...TEAL);
     doc.text('Autorisé par :', sx+4, y+1);
-
-    // Signature fine (trait de stylo simulé)
-    doc.setFont('helvetica','italic');
-    doc.setFontSize(22);
+    // Signature fine : taille 15, weight normal, font cursive simulée via helvetica oblique
+    doc.setFont('helvetica','oblique');
+    doc.setFontSize(15);
     doc.setTextColor(30,30,30);
-    // Réduction de l'épaisseur via SVG-style workaround : taille + opacité légère
-    doc.setFont('courier','italic'); // Courier italic = trait plus fin visuellement
-    doc.setFontSize(20);
-    doc.text('Thomas', sx+6, y+18);
-
+    // Simule un trait fin avec une légère ombre décalée
+    doc.setTextColor(200,200,200);
+    doc.text('Thomas', sx+9, y+17);
+    doc.setTextColor(30,30,30);
+    doc.text('Thomas', sx+8, y+16);
+    // Underline fin sous la signature
+    doc.setDrawColor(14,116,144);
+    doc.setLineWidth(0.3);
+    doc.line(sx+6, y+18, sx+38, y+18);
     doc.setFont('helvetica','normal');
     doc.setFontSize(7.5);
     doc.setTextColor(...TEAL);
     doc.text('Thomas Kabé — Agent Sud', sx+4, y+22);
     doc.text('Les Cayes Dropshipping', sx+4, y+27);
 
-    /* ── FOOTER ── */
+    // ── FOOTER ──
     const fY = doc.internal.pageSize.getHeight() - 10;
     doc.setFontSize(7);
     doc.setTextColor(...GRAY);
@@ -361,6 +312,33 @@ const CALC = (() => {
     showToast('🧾 Fich telechaje!');
   }
 
-  return { calcLive, runCalc, clearCalc, renderCalcHistory, genInvoiceLCD,
-           onCustomPriceInput, updateFinalTotal };
+  /* ─── PRELOAD LOGO ─────────────────────────── */
+  function preloadLogo() {
+    if (document.getElementById('__invoiceLogoCache')) return;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = 'lescayesdropshipping.png';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width; canvas.height = img.height;
+        canvas.getContext('2d').drawImage(img,0,0);
+        const b64 = canvas.toDataURL('image/png').split(',')[1];
+        const cache = document.createElement('div');
+        cache.id = '__invoiceLogoCache';
+        cache.dataset.b64 = b64;
+        cache.style.display = 'none';
+        document.body.appendChild(cache);
+      } catch(e) {}
+    };
+  }
+
+  // Préchargement au boot
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', preloadLogo);
+  } else {
+    preloadLogo();
+  }
+
+  return { calcLive, onCustomPriceChange, runCalc, clearCalc, renderCalcHistory, genInvoiceLCD };
 })();
