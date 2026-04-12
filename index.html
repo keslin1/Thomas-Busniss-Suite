@@ -226,54 +226,34 @@
         <div class="calc-label">Non Kliyan (opsyonèl)</div>
         <input type="text" class="calc-input" id="cName" placeholder="Ex: Benoit Batraville"/>
       </div>
+      <div class="calc-input-wrap" style="margin-bottom:10px;">
+        <div class="calc-label">Deskripsyon pakè</div>
+        <input type="text" class="calc-input" id="cDesc" placeholder="Ex: 3 pakè rad, valiz, elektwonni..."/>
+      </div>
       <div class="result-panel" id="calcResultPanel">
         <div class="result-pwa-lbl">Pwa total</div>
         <div class="result-pwa-val" id="cPwaVal">0.00 lb</div>
-        <div class="result-price-lbl" id="result-price-lbl-dyn">Pri Kalkile — LCD $4.90/lb</div>
+        <div class="result-price-lbl">Pri Kalkile — LCD $4.90/lb</div>
         <div class="result-price-val">$<span id="cPriVal">0.00</span></div>
-        <div id="cMinBadge" style="display:none;background:#7c5c00;color:#ffd966;font-size:.72rem;font-weight:700;letter-spacing:1px;border-radius:6px;padding:4px 10px;margin:6px 0;text-align:center;">⚠️ FRÈ MINIMUM 25$</div>
         <div class="result-tarif" id="cTarifVal"></div>
-
-        <!-- Total Final dynamique -->
-        <div style="margin-top:12px;padding-top:12px;border-top:1px solid #333;">
-          <div id="cDetteRow" style="display:none;justify-content:space-between;font-size:.8rem;color:#e87c7c;margin-bottom:4px;">
-            <span>+ Dette</span><span id="cDetteAmt">$0.00</span>
-          </div>
-          <div id="cMonnaieRow" style="display:none;justify-content:space-between;font-size:.8rem;color:#6fcf97;margin-bottom:4px;">
-            <span>− Monnaie</span><span id="cMonnaieAmt">$0.00</span>
-          </div>
-          <div id="cAdjBadge" style="display:none;font-size:.68rem;color:var(--gray);font-style:italic;margin-bottom:4px;">Pri ajiste pa ajan</div>
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <span style="font-size:.78rem;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.5px;">Total Final</span>
-            <span id="cFinalTotal" style="font-family:var(--font-m);font-size:1.5rem;color:var(--gold);font-weight:700;">$0.00</span>
-          </div>
-        </div>
-
         <div class="custom-price-section">
-          <div class="custom-price-label">💰 Pri pèsonèl (opsyonèl)</div>
+          <div class="custom-price-label">💰 Mete pri pèsonèl ou (opsyonèl)</div>
           <div class="custom-row">
-            <input type="number" class="custom-input" id="cCustomPrice" placeholder="0.00" oninput="CALC.onCustomPriceInput()"/>
+            <input type="number" class="custom-input" id="cCustomPrice" placeholder="0.00" oninput="CALC.onCustomPriceChange()"/>
             <button class="btn-gen-invoice" onclick="CALC.genInvoiceLCD()">🧾 Fiche</button>
           </div>
         </div>
-
-        <!-- Champ Description du colis -->
-        <div class="calc-input-wrap" style="margin-top:10px;">
-          <div class="calc-label">📦 Deskripsyon kolis la</div>
-          <input type="text" class="calc-input" id="cDesc" placeholder="Ex: Valiz, 3 pakè elektwonik..." style="text-align:left;padding:10px 12px;"/>
+        <div style="display:flex;gap:10px;margin-top:10px;">
+          <div style="flex:1;">
+            <div class="calc-label" style="font-size:.68rem;margin-bottom:5px;">Dette ($)</div>
+            <input type="number" class="calc-input" id="cDette" placeholder="0.00" oninput="CALC.calcLive()" style="padding:10px 12px;font-size:.85rem;"/>
+          </div>
+          <div style="flex:1;">
+            <div class="calc-label" style="font-size:.68rem;margin-bottom:5px;">Monnaie kliyan ($)</div>
+            <input type="number" class="calc-input" id="cMonnaie" placeholder="0.00" oninput="CALC.calcLive()" style="padding:10px 12px;font-size:.85rem;"/>
+          </div>
         </div>
-
-        <!-- Champ Dette -->
-        <div class="calc-input-wrap" style="margin-top:10px;">
-          <div class="calc-label">⚠️ Dette (ajoute apre kalkil)</div>
-          <input type="number" class="custom-input" id="cDette" placeholder="0.00" oninput="CALC.updateFinalTotal()" style="width:100%;"/>
-        </div>
-
-        <!-- Champ Monnaie -->
-        <div class="calc-input-wrap" style="margin-top:10px;">
-          <div class="calc-label">💵 Monnaie kliyan (soustrè)</div>
-          <input type="number" class="custom-input" id="cMonnaie" placeholder="0.00" oninput="CALC.updateFinalTotal()" style="width:100%;"/>
-        </div>
+        <div id="calcBreakdown" style="display:none;margin-top:12px;"></div>
       </div>
       <div class="calc-btn-row">
         <button class="btn-calc-main" onclick="CALC.runCalc()">KALKILE</button>
@@ -436,18 +416,15 @@
   </div>
 </div>
 
+<div id="menuFab" class="menu-fab hidden" onclick="toggleDrawer()" style="display:none;">
+  <div class="fab-bar"></div>
+  <div class="fab-bar"></div>
+  <div class="fab-bar"></div>
+</div>
+
 <div id="toast"></div>
 
-<!-- FAB MENU BUTTON -->
-<button id="menuFab" onclick="toggleDrawer()" class="hidden" style="
-  position:fixed;bottom:24px;right:24px;z-index:500;
-  width:56px;height:56px;border-radius:50%;
-  background:var(--gold);border:none;
-  display:none;align-items:center;justify-content:center;
-  font-size:1.5rem;cursor:pointer;
-  box-shadow:0 4px 20px rgba(201,168,76,.45);
-  transition:all .2s;
-">☰</button>
+<!-- MODULE SCRIPTS -->
 <script src="lcd-customers.js"></script>
 <script src="kalkimatris.js"></script>
 <script src="microcredit.js"></script>
@@ -471,11 +448,9 @@ function pinDel(){pinBuffer=pinBuffer.slice(0,-1);updatePinDots();document.getEl
 function updatePinDots(){for(let i=0;i<5;i++)document.getElementById('d'+i).classList.toggle('filled',i<pinBuffer.length);}
 function checkPin(){
   if(VALID_PINS.includes(pinBuffer)){
+    sessionStorage.setItem('tb_unlocked','1');
     document.getElementById('lockScreen').classList.add('hide');
-    setTimeout(()=>{
-      document.getElementById('lockScreen').style.display='none';
-      restoreNavigationState();
-    },500);
+    setTimeout(()=>{document.getElementById('lockScreen').style.display='none';window._restoreNavAfterUnlock();},500);
   }else{
     document.getElementById('pinError').textContent='KÒD ENVALID — ESEYE ANKÒ';
     pinBuffer='';updatePinDots();
@@ -553,42 +528,52 @@ function closeDrawer(){
   document.getElementById('menuFab').classList.remove('open');
 }
 
-/* ─── PERSISTANCE DE NAVIGATION ─────────────── */
-// Mémorise l'écran actif à chaque changement
-const _goScreenOrig = goScreen;
-window.goScreen = function(name) {
-  sessionStorage.setItem('tb_activeScreen', name);
-  _goScreenOrig(name);
-};
-const _goHomeOrig = goHome;
-window.goHome = function() {
-  sessionStorage.removeItem('tb_activeScreen');
-  _goHomeOrig();
-};
-
-/* ─── RESTAURATION AU CHARGEMENT ────────────── */
-// Exécuté après que le PIN soit validé (ou si déjà déverrouillé)
-function restoreNavigationState() {
-  const saved = sessionStorage.getItem('tb_activeScreen');
-  if (saved) {
-    // Restaure directement l'écran sans repasser par le splash
-    document.getElementById('splashScreen').classList.add('hidden');
+/* ─── AUTO RESTORE SESSION ───────────────────── */
+// Si session déjà déverrouillée (même onglet/refresh), skip le PIN
+window.addEventListener('DOMContentLoaded', () => {
+  if (sessionStorage.getItem('tb_unlocked') === '1') {
     document.getElementById('lockScreen').style.display = 'none';
-    document.getElementById('appShell').classList.remove('hidden');
-    const fab = document.getElementById('menuFab');
-    if (fab) { fab.classList.remove('hidden'); fab.style.display = 'flex'; }
-    // Utilise la fonction originale pour ne pas écraser sessionStorage
-    _goScreenOrig(saved);
-  } else {
-    launchSplash();
+    const saved = sessionStorage.getItem('tb_activeScreen');
+    if (saved) {
+      setTimeout(() => {
+        document.getElementById('appShell').classList.remove('hidden');
+        document.getElementById('menuFab').style.display = 'flex';
+        goScreen(saved);
+      }, 80);
+    } else {
+      launchSplash();
+    }
   }
-}
-
+});
 
 /* ─── SERVICE WORKER ─────────────────────────── */
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});
 }
+
+/* ─── NAV PERSISTENCE ────────────────────────── */
+// Sauvegarde l'écran actif à chaque navigation
+const _origGoScreen = goScreen;
+window.goScreen = function(name) {
+  _origGoScreen(name);
+  sessionStorage.setItem('tb_activeScreen', name);
+};
+const _origGoHome = goHome;
+window.goHome = function() {
+  _origGoHome();
+  sessionStorage.removeItem('tb_activeScreen');
+};
+
+// Restaure l'écran au chargement SI l'utilisateur est déjà authentifié (pin ok)
+window._restoreNavAfterUnlock = function() {
+  const saved = sessionStorage.getItem('tb_activeScreen');
+  if (saved) {
+    // Délai pour laisser les modules s'initialiser
+    setTimeout(() => goScreen(saved), 100);
+  } else {
+    launchSplash();
+  }
+};
 </script>
 </body>
 </html>

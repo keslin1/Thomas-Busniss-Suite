@@ -159,13 +159,13 @@ const ACHIV = (() => {
       </div>` : ''}
 
       <div class="achiv-detail-btns">
+        <button class="btn-action" onclick="ACHIV.exportContactPDF('${c.id}')"
+          style="background:rgba(14,116,144,.15);border:1.5px solid var(--teal);color:#5fd4f4;flex:1;padding:12px;border-radius:12px;font-weight:700;font-size:.78rem;cursor:pointer;">
+          📄 PDF
+        </button>
         <button class="btn-action" onclick="ACHIV.openEdit('${c.id}')"
           style="background:transparent;border:1.5px solid var(--gold3);color:var(--gold);flex:1;padding:12px;border-radius:12px;font-weight:700;font-size:.78rem;cursor:pointer;">
           ✏️ Edite
-        </button>
-        <button class="btn-action" onclick="ACHIV.exportPDF('${c.id}')"
-          style="background:transparent;border:1.5px solid #14b8a6;color:#14b8a6;flex:1;padding:12px;border-radius:12px;font-weight:700;font-size:.78rem;cursor:pointer;">
-          📄 PDF
         </button>
         <button class="btn-action btn-del" onclick="ACHIV.delete('${c.id}')"
           style="flex:1;padding:12px;border-radius:12px;font-weight:700;font-size:.78rem;cursor:pointer;background:transparent;border:1.5px solid var(--red);color:var(--red);">
@@ -260,72 +260,113 @@ const ACHIV = (() => {
     inp.click();
   }
 
-  /* ─── EXPORT PDF CONTACT ─────────────────────── */
-  function exportPDF(id) {
-    const contacts = loadContacts();
-    const c = contacts.find(x => x.id === id);
+  /* ─── EXPORT PDF ────────────────────────────── */
+  function exportContactPDF(id) {
+    const c = loadContacts().find(x => x.id === id);
     if (!c) return;
-    if (!window.jspdf) { showToast('⚠️ jsPDF pa chaje'); return; }
+    if (!window.jspdf) { showToast('⚠️ jsPDF pa disponib'); return; }
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit:'mm', format:'a5', orientation:'portrait' });
     const W = doc.internal.pageSize.getWidth();
     const TEAL=[14,116,144], GOLD=[193,140,40], WHITE=[255,255,255], DARK=[17,17,17], GRAY=[136,136,136];
 
+    // Header
     doc.setFillColor(...TEAL);
-    doc.rect(0,0,W,30,'F');
+    doc.rect(0,0,W,36,'F');
     doc.setFillColor(...GOLD);
-    doc.rect(0,28,W,2,'F');
-    doc.setFont('helvetica','bold');
-    doc.setFontSize(13);
-    doc.setTextColor(...WHITE);
-    doc.text('ACHIV NIMEWO', W/2, 11, {align:'center'});
-    doc.setFont('helvetica','normal');
-    doc.setFontSize(8);
-    doc.setTextColor(...GOLD);
-    doc.text('Repètwa Kontakt — Thomas Business', W/2, 19, {align:'center'});
-    const dateExport = new Date().toLocaleString('fr-FR');
-    doc.setFontSize(7);
-    doc.setTextColor(200,220,220);
-    doc.text('Eksò : ' + dateExport, W/2, 26, {align:'center'});
-
-    let y = 44;
+    doc.rect(0,34,W,2,'F');
     doc.setFont('helvetica','bold');
     doc.setFontSize(14);
-    doc.setTextColor(...TEAL);
-    doc.text(c.name.toUpperCase(), 14, y);
-    y += 8;
-    if (c.group) {
-      doc.setFont('helvetica','italic');
-      doc.setFontSize(9);
-      doc.setTextColor(...GOLD);
-      doc.text(c.group, 14, y);
-      y += 8;
-    }
+    doc.setTextColor(...WHITE);
+    doc.text('LES CAYES DROPSHIPPING', W/2, 12, {align:'center'});
     doc.setFont('helvetica','normal');
-    doc.setFontSize(9);
+    doc.setFontSize(7.5);
+    doc.setTextColor(...GOLD);
+    doc.text('Achiv Nimewo — Kat Kontakt', W/2, 20, {align:'center'});
+    doc.setTextColor(200,220,220);
+    doc.text('Dat ekspò : ' + new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'}), W/2, 29, {align:'center'});
+
+    // Avatar placeholder + name
+    let y = 44;
+    const ini = initials(c.name);
+    doc.setFillColor(230,245,248);
+    doc.circle(22, y+10, 10, 'F');
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(10);
+    doc.setTextColor(...TEAL);
+    doc.text(ini, 22, y+13, {align:'center'});
+
+    doc.setFontSize(13);
     doc.setTextColor(...DARK);
-    if (c.phone)   { doc.text('📞 Nimewo 1 : ' + c.phone, 14, y); y += 7; }
-    if (c.phone2)  { doc.text('📞 Nimewo 2 : ' + c.phone2, 14, y); y += 7; }
-    if (c.address) { doc.text('📍 Adrès : ' + c.address, 14, y); y += 7; }
+    doc.text(c.name.toUpperCase(), 36, y+7);
+    if (c.group) {
+      doc.setFontSize(8);
+      doc.setTextColor(...GOLD);
+      doc.text('[' + c.group + ']', 36, y+14);
+    }
+    if (c.address) {
+      doc.setFontSize(8);
+      doc.setTextColor(...GRAY);
+      doc.text('📍 ' + c.address, 36, y+20);
+    }
+
+    // Phone rows
+    y += 30;
+    doc.setFillColor(...TEAL);
+    doc.rect(10,y,W-20,9,'F');
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(8);
+    doc.setTextColor(...WHITE);
+    doc.text('NIMEWO TELEFÒN', 14, y+6);
+
+    y += 12;
+    const phones = [];
+    if (c.phone) phones.push({num: c.phone, lbl: 'Nimewo 1'});
+    if (c.phone2) phones.push({num: c.phone2, lbl: 'Nimewo 2'});
+    phones.forEach((p, i) => {
+      if (i%2===0) { doc.setFillColor(240,248,250); doc.rect(10,y-4,W-20,10,'F'); }
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(...DARK);
+      doc.text(p.lbl + ' :', 14, y+2);
+      doc.setFont('helvetica','bold');
+      doc.setTextColor(...TEAL);
+      doc.text(p.num, 45, y+2);
+      y += 11;
+    });
+
+    // Note
     if (c.note) {
       y += 4;
+      doc.setFillColor(250,248,240);
+      const noteLines = doc.splitTextToSize(c.note, W-28);
+      doc.rect(10, y-4, W-20, noteLines.length*6+8, 'F');
       doc.setFont('helvetica','italic');
-      doc.setFontSize(9);
+      doc.setFontSize(8);
       doc.setTextColor(...GRAY);
-      const noteLines = doc.splitTextToSize('Nòt : ' + c.note, W-28);
-      doc.text(noteLines, 14, y);
+      doc.text(noteLines, 14, y+2);
+      y += noteLines.length*6+10;
     }
 
+    // WA QR hint
+    y += 6;
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(7);
+    doc.setTextColor(...TEAL);
+    if (c.phone) doc.text('WhatsApp : wa.me/' + c.phone.replace(/\D/g,''), 14, y);
+
+    // Footer
     const fY = doc.internal.pageSize.getHeight() - 10;
     doc.setFontSize(7);
+    doc.setFont('helvetica','italic');
     doc.setTextColor(...GRAY);
-    doc.text('Thomas Kabé · Achiv Nimewo · ' + dateExport, W/2, fY, {align:'center'});
+    doc.text('Thomas Kabé · Les Cayes Dropshipping · Achiv Nimewo', W/2, fY, {align:'center'});
 
-    doc.save('kontakt-'+c.name.replace(/\s+/g,'-')+'-'+Date.now()+'.pdf');
-    showToast('📄 PDF telechaje!');
+    doc.save('kontakt-' + c.name.replace(/\s+/g,'-') + '-' + Date.now() + '.pdf');
+    showToast('📄 Kat kontakt PDF telechaje!');
   }
 
   return { render, setSort, openDetail, renderDetail,
            openAdd, openEdit, save, delete: deleteContact,
-           changePhoto, exportPDF };
+           changePhoto, exportContactPDF };
 })();

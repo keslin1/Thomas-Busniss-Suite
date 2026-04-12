@@ -69,3 +69,37 @@
 .hist-pwa{font-weight:700;font-size:.82rem;}
 .hist-price{font-family:var(--font-m);font-size:.85rem;color:var(--gold);font-weight:700;}
 .hist-time{font-size:.65rem;color:var(--gray);}
+
+/* ─── BREAKDOWN CALCUL ────────────────────────── */
+#calcBreakdown {
+  border-top: 1px solid rgba(14,116,144,.3);
+  padding-top: 10px;
+}
+.breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 4px;
+  font-size: .82rem;
+  border-bottom: 1px solid rgba(255,255,255,.04);
+}
+.bd-lbl { color: var(--white); font-family: var(--font-b); }
+.bd-val { font-family: var(--font-m); font-weight: 700; }
+.bd-fix { color: #f0a040; }
+.bd-dette { color: #e07070; }
+.bd-monnaie { color: #50d080; }
+.bd-total { color: var(--gold2); font-size: 1rem; }
+.breakdown-row.freminimum { background: rgba(240,160,64,.08); border-radius: 6px; }
+.breakdown-row.total-final {
+  background: rgba(14,116,144,.15);
+  border-radius: 8px;
+  margin-top: 4px;
+  padding: 8px 6px;
+  border: none;
+}
+.breakdown-row.total-final .bd-lbl {
+  font-family: var(--font-h);
+  font-size: .9rem;
+  letter-spacing: 1px;
+  color: var(--gold);
+}
