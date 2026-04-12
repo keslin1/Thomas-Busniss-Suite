@@ -16,7 +16,11 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 /* ── LOCK ───────────────────────────────────── */
-#lockScreen{
+body {
+  font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; /* Remplacez par votre police préférée */
+}
+
+  #lockScreen{
   position:fixed;inset:0;z-index:9999;background:var(--black);
   display:flex;flex-direction:column;align-items:center;justify-content:center;
   gap:30px;transition:opacity .5s ease;
@@ -219,25 +223,25 @@
           <input type="number" class="calc-input" id="cH" placeholder="0" oninput="CALC.calcLive()"/></div>
       </div>
       <div class="calc-input-wrap" style="margin-bottom:10px;">
-        <div class="calc-label">Pwa sou balans (lb) — si genyen</div>
+        <div class="calc-label">Pwa reyèl</div>
         <input type="number" class="calc-input highlight-input" id="cPwa" placeholder="0.00" oninput="CALC.calcLive()"/>
       </div>
       <div class="calc-input-wrap" style="margin-bottom:10px;">
-        <div class="calc-label">Non Kliyan (opsyonèl)</div>
+        <div class="calc-label">Non Kliyan</div>
         <input type="text" class="calc-input" id="cName" placeholder="Ex: Benoit Batraville"/>
       </div>
       <div class="calc-input-wrap" style="margin-bottom:10px;">
-        <div class="calc-label">Deskripsyon pakè</div>
+        <div class="calc-label">Deskripsyon koli</div>
         <input type="text" class="calc-input" id="cDesc" placeholder="Ex: 3 pakè rad, valiz, elektwonni..."/>
       </div>
       <div class="result-panel" id="calcResultPanel">
         <div class="result-pwa-lbl">Pwa total</div>
         <div class="result-pwa-val" id="cPwaVal">0.00 lb</div>
-        <div class="result-price-lbl">Pri Kalkile — LCD $4.90/lb</div>
+        <div class="result-price-lbl">Pri kalkile — LCD $4.90/lb</div>
         <div class="result-price-val">$<span id="cPriVal">0.00</span></div>
         <div class="result-tarif" id="cTarifVal"></div>
         <div class="custom-price-section">
-          <div class="custom-price-label">💰 Mete pri pèsonèl ou (opsyonèl)</div>
+          <div class="custom-price-label">💰 Mete pri pèsonèl ou</div>
           <div class="custom-row">
             <input type="number" class="custom-input" id="cCustomPrice" placeholder="0.00" oninput="CALC.onCustomPriceChange()"/>
             <button class="btn-gen-invoice" onclick="CALC.genInvoiceLCD()">🧾 Fiche</button>
@@ -245,12 +249,12 @@
         </div>
         <div style="display:flex;gap:10px;margin-top:10px;">
           <div style="flex:1;">
-            <div class="calc-label" style="font-size:.68rem;margin-bottom:5px;">Dette ($)</div>
-            <input type="number" class="calc-input" id="cDette" placeholder="0.00" oninput="CALC.calcLive()" style="padding:10px 12px;font-size:.85rem;"/>
+            <div class="calc-label" style="font-size:.68rem;margin-bottom:5px;">Dèt ($)</div>
+            <input type="number" class="calc-input" id="cDèt" placeholder="0.00" oninput="CALC.calcLive()" style="padding:10px 12px;font-size:.85rem;"/>
           </div>
           <div style="flex:1;">
-            <div class="calc-label" style="font-size:.68rem;margin-bottom:5px;">Monnaie kliyan ($)</div>
-            <input type="number" class="calc-input" id="cMonnaie" placeholder="0.00" oninput="CALC.calcLive()" style="padding:10px 12px;font-size:.85rem;"/>
+            <div class="calc-label" style="font-size:.68rem;margin-bottom:5px;">Rediksyon pou kliyan ($)</div>
+            <input type="number" class="calc-input" id="cRediksyon" placeholder="0.00" oninput="CALC.calcLive()" style="padding:10px 12px;font-size:.85rem;"/>
           </div>
         </div>
         <div id="calcBreakdown" style="display:none;margin-top:12px;"></div>
@@ -259,7 +263,7 @@
         <button class="btn-calc-main" onclick="CALC.runCalc()">KALKILE</button>
         <button class="btn-calc-clear" onclick="CALC.clearCalc()">✕ Efase</button>
       </div>
-      <div class="calc-history-title">Istorik Kalkil</div>
+      <div class="calc-history-title">Istorik kalkil</div>
       <div id="calcHistory"></div>
     </div>
 
