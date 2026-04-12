@@ -179,6 +179,7 @@ const LCD = (() => {
         <button class="btn-action" onclick="LCD.editClient('${c.id}')" style="background:transparent;border:1.5px solid var(--gold3);color:var(--gold);">✏️ Edite</button>
       </div>
       <div class="action-row">
+        <button class="btn-action" onclick="LCD.exportClientPDF('${c.id}')" style="background:transparent;border:1.5px solid #14b8a6;color:#14b8a6;">📄 Export PDF</button>
         <button class="btn-action btn-del" onclick="LCD.deleteClient('${c.id}')">🗑 Siprime</button>
       </div>
     `;
@@ -282,7 +283,111 @@ const LCD = (() => {
     closeModal('modalEmail');
   }
 
+  /* ─── EXPORT PDF CLIENT ─────────────────────── */
+  function exportClientPDF(id) {
+    const clients = loadClients();
+    const c = clients.find(x => x.id === id);
+    if (!c) return;
+    if (!window.jspdf) { showToast('⚠️ jsPDF pa chaje'); return; }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit:'mm', format:'a4', orientation:'portrait' });
+    const W = doc.internal.pageSize.getWidth();
+    const TEAL=[14,116,144], GOLD=[193,140,40], WHITE=[255,255,255], DARK=[17,17,17], GRAY=[136,136,136];
+
+    // Header
+    doc.setFillColor(...TEAL);
+    doc.rect(0,0,W,32,'F');
+    doc.setFillColor(...GOLD);
+    doc.rect(0,30,W,2,'F');
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(14);
+    doc.setTextColor(...WHITE);
+    doc.text('LES CAYES DROPSHIPPING', W/2, 12, {align:'center'});
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...GOLD);
+    doc.text('Dosye Kliyan — Eksò Ofisyèl', W/2, 20, {align:'center'});
+    doc.setFontSize(7);
+    doc.setTextColor(200,220,220);
+    const dateExport = new Date().toLocaleString('fr-FR');
+    doc.text('Dat eksòtasyon : ' + dateExport, W/2, 27, {align:'center'});
+
+    // Biographie
+    let y = 46;
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(13);
+    doc.setTextColor(...TEAL);
+    doc.text(c.name.toUpperCase(), 14, y);
+    y += 8;
+    if (c.phone || c.email || c.address) {
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(9);
+      doc.setTextColor(...DARK);
+      if (c.phone)   doc.text('📞 ' + c.phone, 14, y), y += 6;
+      if (c.email)   doc.text('✉️  ' + c.email, 14, y), y += 6;
+      if (c.address) doc.text('📍 ' + c.address, 14, y), y += 6;
+    }
+    if (c.bio) {
+      y += 2;
+      doc.setFont('helvetica','italic');
+      doc.setFontSize(9);
+      doc.setTextColor(...GRAY);
+      const bioLines = doc.splitTextToSize('Byografi : ' + c.bio, W-28);
+      doc.text(bioLines, 14, y);
+      y += bioLines.length * 5 + 4;
+    }
+
+    // Stats
+    const amt = totalAmount(c);
+    const txnCount = (c.transactions || []).length;
+    y += 4;
+    doc.setFillColor(240,248,250);
+    doc.rect(10,y-4,W-20,18,'F');
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...TEAL);
+    doc.text('Total depanse : $' + amt.toFixed(2), 16, y+4);
+    doc.text('Nòmb tranzaksyon : ' + txnCount, 16, y+11);
+    y += 26;
+
+    // Table des transactions
+    doc.setFillColor(...TEAL);
+    doc.rect(10,y-5,W-20,9,'F');
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(8);
+    doc.setTextColor(...WHITE);
+    doc.text('Dat', 14, y);
+    doc.text('Deskripsyon', 50, y);
+    doc.text('Montan ($)', W-14, y, {align:'right'});
+    y += 10;
+
+    const txns = (c.transactions || []).slice().reverse();
+    txns.forEach((t, i) => {
+      if (y > 265) { doc.addPage(); y = 20; }
+      if (i % 2 === 0) { doc.setFillColor(245,250,252); doc.rect(10,y-4,W-20,8,'F'); }
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(8);
+      doc.setTextColor(...DARK);
+      doc.text(t.date || '—', 14, y);
+      const descCut = (t.desc || '—').slice(0,40);
+      doc.text(descCut, 50, y);
+      doc.text('$' + parseFloat(t.amount||0).toFixed(2), W-14, y, {align:'right'});
+      y += 9;
+    });
+
+    // Footer
+    const fY = doc.internal.pageSize.getHeight() - 10;
+    doc.setFontSize(7);
+    doc.setTextColor(...GRAY);
+    doc.text('Thomas Kabé — Agent Sud · Les Cayes Dropshipping · ' + dateExport, W/2, fY, {align:'center'});
+
+    const filename = 'client-'+c.name.replace(/\s+/g,'-')+'-'+Date.now()+'.pdf';
+    doc.save(filename);
+    showToast('📄 PDF telechaje!');
+  }
+
   return { setSort, renderClients, openAddClient, saveClient, openClientDetail,
            renderClientDetail, openAddTxn, saveTxn, editClient, deleteClient,
-           changePhoto, openGroupEmail, sendGroupEmail };
+           changePhoto, openGroupEmail, sendGroupEmail, exportClientPDF };
 })();

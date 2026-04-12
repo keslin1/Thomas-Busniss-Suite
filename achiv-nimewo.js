@@ -163,6 +163,10 @@ const ACHIV = (() => {
           style="background:transparent;border:1.5px solid var(--gold3);color:var(--gold);flex:1;padding:12px;border-radius:12px;font-weight:700;font-size:.78rem;cursor:pointer;">
           ✏️ Edite
         </button>
+        <button class="btn-action" onclick="ACHIV.exportPDF('${c.id}')"
+          style="background:transparent;border:1.5px solid #14b8a6;color:#14b8a6;flex:1;padding:12px;border-radius:12px;font-weight:700;font-size:.78rem;cursor:pointer;">
+          📄 PDF
+        </button>
         <button class="btn-action btn-del" onclick="ACHIV.delete('${c.id}')"
           style="flex:1;padding:12px;border-radius:12px;font-weight:700;font-size:.78rem;cursor:pointer;background:transparent;border:1.5px solid var(--red);color:var(--red);">
           🗑 Siprime
@@ -256,7 +260,72 @@ const ACHIV = (() => {
     inp.click();
   }
 
+  /* ─── EXPORT PDF CONTACT ─────────────────────── */
+  function exportPDF(id) {
+    const contacts = loadContacts();
+    const c = contacts.find(x => x.id === id);
+    if (!c) return;
+    if (!window.jspdf) { showToast('⚠️ jsPDF pa chaje'); return; }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit:'mm', format:'a5', orientation:'portrait' });
+    const W = doc.internal.pageSize.getWidth();
+    const TEAL=[14,116,144], GOLD=[193,140,40], WHITE=[255,255,255], DARK=[17,17,17], GRAY=[136,136,136];
+
+    doc.setFillColor(...TEAL);
+    doc.rect(0,0,W,30,'F');
+    doc.setFillColor(...GOLD);
+    doc.rect(0,28,W,2,'F');
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(13);
+    doc.setTextColor(...WHITE);
+    doc.text('ACHIV NIMEWO', W/2, 11, {align:'center'});
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...GOLD);
+    doc.text('Repètwa Kontakt — Thomas Business', W/2, 19, {align:'center'});
+    const dateExport = new Date().toLocaleString('fr-FR');
+    doc.setFontSize(7);
+    doc.setTextColor(200,220,220);
+    doc.text('Eksò : ' + dateExport, W/2, 26, {align:'center'});
+
+    let y = 44;
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(14);
+    doc.setTextColor(...TEAL);
+    doc.text(c.name.toUpperCase(), 14, y);
+    y += 8;
+    if (c.group) {
+      doc.setFont('helvetica','italic');
+      doc.setFontSize(9);
+      doc.setTextColor(...GOLD);
+      doc.text(c.group, 14, y);
+      y += 8;
+    }
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...DARK);
+    if (c.phone)   { doc.text('📞 Nimewo 1 : ' + c.phone, 14, y); y += 7; }
+    if (c.phone2)  { doc.text('📞 Nimewo 2 : ' + c.phone2, 14, y); y += 7; }
+    if (c.address) { doc.text('📍 Adrès : ' + c.address, 14, y); y += 7; }
+    if (c.note) {
+      y += 4;
+      doc.setFont('helvetica','italic');
+      doc.setFontSize(9);
+      doc.setTextColor(...GRAY);
+      const noteLines = doc.splitTextToSize('Nòt : ' + c.note, W-28);
+      doc.text(noteLines, 14, y);
+    }
+
+    const fY = doc.internal.pageSize.getHeight() - 10;
+    doc.setFontSize(7);
+    doc.setTextColor(...GRAY);
+    doc.text('Thomas Kabé · Achiv Nimewo · ' + dateExport, W/2, fY, {align:'center'});
+
+    doc.save('kontakt-'+c.name.replace(/\s+/g,'-')+'-'+Date.now()+'.pdf');
+    showToast('📄 PDF telechaje!');
+  }
+
   return { render, setSort, openDetail, renderDetail,
            openAdd, openEdit, save, delete: deleteContact,
-           changePhoto };
+           changePhoto, exportPDF };
 })();
