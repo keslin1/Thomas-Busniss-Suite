@@ -1,583 +1,557 @@
 <!DOCTYPE html>
 <html lang="ht">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
-<meta name="theme-color" content="#0a0a0a"/>
-<meta name="apple-mobile-web-app-capable" content="yes"/>
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-<title>Thomas Business</title>
-<link rel="manifest" href="manifest.json"/>
-<link rel="stylesheet" href="shared.css"/>
-<link rel="stylesheet" href="lcd-customers.css"/>
-<link rel="stylesheet" href="kalkimatris.css"/>
-<link rel="stylesheet" href="microcredit.css"/>
-<link rel="stylesheet" href="achiv-nimewo.css"/>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<style>
-/* ── LOCK ───────────────────────────────────── */
-body {
-  font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; /* Remplacez par votre police préférée */
-}
-
-  #lockScreen{
-  position:fixed;inset:0;z-index:9999;background:var(--black);
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:30px;transition:opacity .5s ease;
-}
-#lockScreen.hide{opacity:0;pointer-events:none;}
-.lock-logo{width:100px;height:100px;border-radius:50%;border:3px solid var(--gold);
-  overflow:hidden;background:var(--dark2);box-shadow:0 0 40px rgba(201,168,76,.4);}
-.lock-logo img{width:100%;height:100%;object-fit:cover;}
-.lock-title{font-family:var(--font-h);font-size:2.4rem;color:var(--gold);letter-spacing:4px;text-align:center;}
-.lock-sub{font-size:.75rem;color:var(--gray);letter-spacing:2px;text-transform:uppercase;}
-.lock-pin{display:flex;flex-direction:column;align-items:center;gap:16px;}
-.pin-dots{display:flex;gap:12px;}
-.pin-dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--gold3);background:transparent;transition:background .2s;}
-.pin-dot.filled{background:var(--gold);}
-.pin-pad{display:grid;grid-template-columns:repeat(3,70px);gap:10px;}
-.pin-btn{height:60px;border-radius:12px;border:1.5px solid #333;background:var(--dark2);
-  color:var(--white);font-family:var(--font-h);font-size:1.6rem;cursor:pointer;transition:all .15s;}
-.pin-btn:active{background:var(--gold3);border-color:var(--gold);}
-.pin-btn.del{font-size:1rem;color:var(--gray);}
-.pin-error{color:var(--red);font-size:.8rem;letter-spacing:1px;min-height:18px;text-align:center;}
-
-/* ── SPLASH ─────────────────────────────────── */
-#splashScreen{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;background:var(--black);overflow:hidden;}
-#splashScreen.hidden{display:none;}
-.splash-photo{flex:1;position:relative;overflow:hidden;}
-.splash-photo img{width:100%;height:100%;object-fit:cover;object-position:top center;filter:brightness(.5);}
-.splash-overlay{position:absolute;inset:0;background:linear-gradient(to bottom,transparent 25%,rgba(0,0,0,.92) 100%);}
-
-/* ── TICKER ─────────────────────────────────── */
-.splash-ticker-wrap{position:absolute;bottom:90px;left:0;right:0;overflow:hidden;}
-.splash-ticker-band{
-  background:rgba(201,168,76,.1);
-  border-top:1.5px solid rgba(201,168,76,.25);
-  border-bottom:1.5px solid rgba(201,168,76,.25);
-  padding:10px 0;white-space:nowrap;display:flex;
-  animation:tickerScroll 28s linear infinite;
-}
-.splash-ticker-band:hover{animation-play-state:paused;}
-@keyframes tickerScroll{0%{transform:translateX(0);}100%{transform:translateX(-50%);}}
-.ticker-word{
-  font-family:var(--font-h);font-size:2rem;letter-spacing:6px;color:var(--gold);
-  padding:0 28px;text-shadow:0 0 20px rgba(201,168,76,.5);display:inline-block;
-}
-.ticker-sep{font-family:var(--font-h);font-size:1rem;color:var(--gold3);padding:0 8px;display:inline-block;align-self:center;}
-.splash-name{position:absolute;bottom:42px;left:0;right:0;text-align:center;
-  font-family:var(--font-h);font-size:1.6rem;color:var(--white);letter-spacing:6px;opacity:.7;}
-.splash-tagline{position:absolute;bottom:20px;left:0;right:0;text-align:center;
-  font-size:.62rem;color:var(--gold3);letter-spacing:3px;text-transform:uppercase;}
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Thomas Business Suite</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="main.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Rajdhani:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
 </head>
 <body>
 
+  <!-- ═══════════════════════════════════════════ -->
+  <!--           ÉCRAN DE VERROUILLAGE             -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div id="lockScreen" class="screen active">
+    <div class="lock-bg"></div>
 
-<!-- LOCK SCREEN -->
-<div id="lockScreen">
-  <div class="lock-logo">
-    <img src="Thomas.png" alt="Thomas" onerror="this.style.display='none'"/>
-  </div>
-  <div style="text-align:center;">
-    <div class="lock-title">THOMAS</div>
-    <div class="lock-sub">Business Suite</div>
-  </div>
-  <div class="lock-pin">
-    <div class="pin-dots">
-      <div class="pin-dot" id="d0"></div><div class="pin-dot" id="d1"></div>
-      <div class="pin-dot" id="d2"></div><div class="pin-dot" id="d3"></div>
-      <div class="pin-dot" id="d4"></div>
-    </div>
-    <div class="pin-pad">
-      <button class="pin-btn" onclick="pinPress('1')">1</button>
-      <button class="pin-btn" onclick="pinPress('2')">2</button>
-      <button class="pin-btn" onclick="pinPress('3')">3</button>
-      <button class="pin-btn" onclick="pinPress('4')">4</button>
-      <button class="pin-btn" onclick="pinPress('5')">5</button>
-      <button class="pin-btn" onclick="pinPress('6')">6</button>
-      <button class="pin-btn" onclick="pinPress('7')">7</button>
-      <button class="pin-btn" onclick="pinPress('8')">8</button>
-      <button class="pin-btn" onclick="pinPress('9')">9</button>
-      <button class="pin-btn" style="background:transparent;border:none;"></button>
-      <button class="pin-btn" onclick="pinPress('0')">0</button>
-      <button class="pin-btn del" onclick="pinDel()">⌫</button>
-    </div>
-    <div class="pin-error" id="pinError"></div>
-  </div>
-</div>
-
-<div id="splashScreen" class="hidden">
-  <div class="splash-photo" style="position: absolute; inset: 0; z-index: 1;">
-    <img src="Thomas.png" alt="Thomas" style="filter: brightness(0.2) grayscale(0.5);"/>
-    <div class="splash-overlay"></div>
-  </div>
-
-  <div class="dashboard-container" style="position: relative; z-index: 10; padding: 40px 20px; height: 100%; display: flex; flex-direction: column;">
-    <div class="drawer-head" style="background: transparent; border: none; padding-left: 0;">
-      <div class="drawer-head-name" style="font-size: 2.5rem;">THOMAS</div>
-      <div class="drawer-head-sub">Business Suite</div>
-    </div>
-    
-    <div class="drawer-divider" style="margin: 20px 0; opacity: 0.5;"></div>
-
-    <nav class="drawer-nav" style="background: transparent;">
-      <div class="drawer-item" onclick="goHome()" style="background: rgba(255,255,255,0.05); border-radius: 12px; margin-bottom: 10px;">
-        <div class="drawer-item-icon">🏠</div>
-        <div><div class="drawer-item-label">Akèy</div><div class="drawer-item-sub">Paj prensipal</div></div>
-      </div>
-      <div class="drawer-item" onclick="goScreen('lcd')" style="background: rgba(255,255,255,0.05); border-radius: 12px; margin-bottom: 10px;">
-        <div class="drawer-item-icon">👤</div>
-        <div><div class="drawer-item-label">Customers</div><div class="drawer-item-sub">Dosye kliyan yo</div></div>
-      </div>
-      <div class="drawer-item" onclick="goScreen('calc')" style="background: rgba(255,255,255,0.05); border-radius: 12px; margin-bottom: 10px;">
-        <div class="drawer-item-icon">🧮</div>
-        <div><div class="drawer-item-label">Sistèm POS</div><div class="drawer-item-sub">Kalkil & Jenere Fich</div></div>
-      </div>
-      <div class="drawer-item" onclick="goScreen('epargne')" style="background: rgba(255,255,255,0.05); border-radius: 12px; margin-bottom: 10px;">
-        <div class="drawer-item-icon">🏦</div>
-        <div><div class="drawer-item-label">Micro Crédit</div><div class="drawer-item-sub">Kont Epay Pèsonèl</div></div>
-      </div>
-      <div class="drawer-item" onclick="goScreen('achiv')" style="background: rgba(255,255,255,0.05); border-radius: 12px; margin-bottom: 10px;">
-        <div class="drawer-item-icon">📒</div>
-        <div><div class="drawer-item-label">Achiv Nimewo</div><div class="drawer-item-sub">Repètwa Kontakt</div></div>
-      </div>
-    </nav>
-
-    <div style="margin-top: auto; text-align: center; color: var(--gold3); font-size: 0.7rem; letter-spacing: 2px;">
-      THOMAS KABÉ · AGENT SUD
-    </div>
-  </div>
-</div>
-
-<!-- DRAWER -->
-<div id="drawer">
-  <div class="drawer-backdrop" onclick="closeDrawer()"></div>
-  <div class="drawer-panel">
-    <div class="drawer-head">
-      <div class="drawer-head-name">THOMAS</div>
-      <div class="drawer-head-sub">Business Suite</div>
-    </div>
-    <div class="drawer-divider"></div>
-    <nav class="drawer-nav">
-      <div class="drawer-item" onclick="goHome()">
-        <div class="drawer-item-icon">🏠</div>
-        <div><div class="drawer-item-label">Akèy</div><div class="drawer-item-sub">Paj prensipal</div></div>
-      </div>
-      <div class="drawer-item" onclick="goScreen('lcd')">
-        <div class="drawer-item-icon">👑</div>
-        <div><div class="drawer-item-label">Customers</div><div class="drawer-item-sub">Dosye kliyan yo</div></div>
-      </div>
-      <div class="drawer-item" onclick="goScreen('calc')">
-        <div class="drawer-item-icon">🧮</div>
-        <div><div class="drawer-item-label">Sistèm POS</div><div class="drawer-item-sub">Kalkil & Jenere Fich</div></div>
-      </div>
-      <div class="drawer-item" onclick="goScreen('epargne')">
-        <div class="drawer-item-icon">🏦</div>
-        <div><div class="drawer-item-label">Micro Crédit</div><div class="drawer-item-sub">Kont Epay Pèsonèl</div></div>
-      </div>
-      <div class="drawer-item" onclick="goScreen('achiv')">
-        <div class="drawer-item-icon">📒</div>
-        <div><div class="drawer-item-label">Achiv Nimewo</div><div class="drawer-item-sub">Repètwa Kontakt</div></div>
-      </div>
-    </nav>
-    <div class="drawer-footer">THOMAS BUSINESS · v1.0</div>
-  </div>
-</div>
-
-<!-- APP SHELL -->
-<div id="appShell" class="hidden">
-  <div class="app-bar">
-    <div class="app-bar-back" onclick="handleBack()">←</div>
-    <div class="app-bar-title" id="appBarTitle">THOMAS BUSINESS</div>
-  </div>
-  <div class="app-content">
-
-    <!-- LCD CUSTOMERS -->
-    <div class="screen" id="screen-lcd">
-      <div class="search-bar">
-        <input type="text" class="search-input" id="clientSearch" placeholder="Chèche kliyan..." oninput="LCD.renderClients()"/>
-        <button class="btn-add" onclick="LCD.openAddClient()">+</button>
-      </div>
-      <div class="sort-bar">
-        <button class="sort-chip active" onclick="LCD.setSort('amount',this)">💰 Pi aktif</button>
-        <button class="sort-chip" onclick="LCD.setSort('name',this)">🔤 Non</button>
-        <button class="sort-chip" onclick="LCD.setSort('recent',this)">🕐 Resan</button>
-      </div>
-      <div id="clientList"></div>
+    <!-- Barre heure en haut -->
+    <div class="lock-topbar">
+      <span id="lockTime" class="lock-clock">00:00</span>
+      <span id="lockDate" class="lock-dateline">Mèkredi, 22 Avril 2026</span>
     </div>
 
-    <!-- CLIENT DETAIL -->
-    <div class="screen" id="screen-clientDetail">
-      <div id="clientDetailContent"></div>
-    </div>
+    <div class="lock-content">
+      <div class="avatar-ring">
+        <img src="Thomas.png" alt="Thomas" class="avatar-img" onerror="this.src='data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%23222'/%3E%3Ccircle cx='32' cy='26' r='12' fill='%23555'/%3E%3Cellipse cx='32' cy='52' rx='18' ry='12' fill='%23555'/%3E%3C/svg%3E'" />
+        <div class="ring-glow"></div>
+      </div>
+      <h1 class="app-title">THOMAS</h1>
+      <p class="app-subtitle">BUSINESS SUITE V2</p>
 
-    <!-- SISTÈM POS -->
-    <div class="screen" id="screen-calc">
-      <div class="dim-grid">
-        <div class="calc-input-wrap"><div class="calc-label">Longè (cm)</div>
-          <input type="number" class="calc-input" id="cL" placeholder="0" oninput="CALC.calcLive()"/></div>
-        <div class="calc-input-wrap"><div class="calc-label">Lajè (cm)</div>
-          <input type="number" class="calc-input" id="cl" placeholder="0" oninput="CALC.calcLive()"/></div>
-        <div class="calc-input-wrap"><div class="calc-label">Wotè (cm)</div>
-          <input type="number" class="calc-input" id="cH" placeholder="0" oninput="CALC.calcLive()"/></div>
+      <!-- Indicateur "Entrez votre code" -->
+      <p class="pin-prompt">Antre kòd ou a</p>
+
+      <div class="pin-dots">
+        <span class="dot" id="dot0"></span>
+        <span class="dot" id="dot1"></span>
+        <span class="dot" id="dot2"></span>
+        <span class="dot" id="dot3"></span>
+        <span class="dot" id="dot4"></span>
       </div>
-      <div class="calc-input-wrap" style="margin-bottom:10px;">
-        <div class="calc-label">Pwa reyèl</div>
-        <input type="number" class="calc-input highlight-input" id="cPwa" placeholder="0.00" oninput="CALC.calcLive()"/>
+
+      <div id="pinError" class="pin-error hidden">Kòd enkòrèk — Eseye ankò</div>
+
+      <div class="pinpad">
+        <button class="pin-btn" onclick="pinPress('1')">
+          <span class="pin-num">1</span>
+        </button>
+        <button class="pin-btn" onclick="pinPress('2')">
+          <span class="pin-num">2</span>
+          <span class="pin-alpha">ABC</span>
+        </button>
+        <button class="pin-btn" onclick="pinPress('3')">
+          <span class="pin-num">3</span>
+          <span class="pin-alpha">DEF</span>
+        </button>
+        <button class="pin-btn" onclick="pinPress('4')">
+          <span class="pin-num">4</span>
+          <span class="pin-alpha">GHI</span>
+        </button>
+        <button class="pin-btn" onclick="pinPress('5')">
+          <span class="pin-num">5</span>
+          <span class="pin-alpha">JKL</span>
+        </button>
+        <button class="pin-btn" onclick="pinPress('6')">
+          <span class="pin-num">6</span>
+          <span class="pin-alpha">MNO</span>
+        </button>
+        <button class="pin-btn" onclick="pinPress('7')">
+          <span class="pin-num">7</span>
+          <span class="pin-alpha">PQRS</span>
+        </button>
+        <button class="pin-btn" onclick="pinPress('8')">
+          <span class="pin-num">8</span>
+          <span class="pin-alpha">TUV</span>
+        </button>
+        <button class="pin-btn" onclick="pinPress('9')">
+          <span class="pin-num">9</span>
+          <span class="pin-alpha">WXYZ</span>
+        </button>
+        <div class="pin-empty"></div>
+        <button class="pin-btn" onclick="pinPress('0')">
+          <span class="pin-num">0</span>
+          <span class="pin-alpha">+</span>
+        </button>
+        <button class="pin-btn pin-del" onclick="pinDelete()">⌫</button>
       </div>
-      <div class="calc-input-wrap" style="margin-bottom:10px;">
-        <div class="calc-label">Non Kliyan</div>
-        <input type="text" class="calc-input" id="cName" placeholder="Ex: Benoit Batraville"/>
+
+      <!-- Pied de page lock -->
+      <p class="lock-footer">Thomas Kabé · LCD Agent Sud</p>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!--              MENU PRINCIPAL                 -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div id="dashScreen" class="screen">
+    <div class="dash-bg">
+      <img src="Thomas.png" alt="" class="dash-bg-img" onerror="this.style.display='none'" />
+    </div>
+    <div class="dash-content">
+      <div class="dash-header">
+        <div class="dash-avatar">
+          <img src="Thomas.png" alt="Thomas" onerror="this.src='data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%23222'/%3E%3Ccircle cx='32' cy='26' r='12' fill='%23555'/%3E%3Cellipse cx='32' cy='52' rx='18' ry='12' fill='%23555'/%3E%3C/svg%3E'" />
+        </div>
+        <div>
+          <h2 class="dash-name">THOMAS</h2>
+          <p class="dash-role">BUSINESS SUITE V2</p>
+        </div>
       </div>
-      <div class="calc-input-wrap" style="margin-bottom:10px;">
-        <div class="calc-label">Deskripsyon koli</div>
-        <input type="text" class="calc-input" id="cDesc" placeholder="Ex: 3 pakè rad, valiz, elektwonni..."/>
-      </div>
-      <div class="result-panel" id="calcResultPanel">
-        <div class="result-pwa-lbl">Pwa total</div>
-        <div class="result-pwa-val" id="cPwaVal">0.00 lb</div>
-        <div class="result-price-lbl">Pri kalkile — LCD $4.90/lb</div>
-        <div class="result-price-val">$<span id="cPriVal">0.00</span></div>
-        <div class="result-tarif" id="cTarifVal"></div>
-        <div class="custom-price-section">
-          <div class="custom-price-label">💰 Mete pri pèsonèl ou</div>
-          <div class="custom-row">
-            <input type="number" class="custom-input" id="cCustomPrice" placeholder="0.00" oninput="CALC.onCustomPriceChange()"/>
-            <button class="btn-gen-invoice" onclick="CALC.genInvoiceLCD()">🧾 Fiche</button>
+
+      <nav class="module-list">
+        <button class="module-card" onclick="openModule('customers')">
+          <div class="module-icon" style="background:#1a6fa8;">👤</div>
+          <div class="module-info">
+            <span class="module-title">LCD Customers</span>
+            <span class="module-sub">Dosye kliyan yo</span>
           </div>
-        </div>
-        <div style="display:flex;gap:10px;margin-top:10px;">
-          <div style="flex:1;">
-            <div class="calc-label" style="font-size:.68rem;margin-bottom:5px;">Dèt ($)</div>
-            <input type="number" class="calc-input" id="cDèt" placeholder="0.00" oninput="CALC.calcLive()" style="padding:10px 12px;font-size:.85rem;"/>
+          <span class="module-arrow">›</span>
+        </button>
+
+        <button class="module-card" onclick="openModule('pos')">
+          <div class="module-icon" style="background:#8b4513;">🧮</div>
+          <div class="module-info">
+            <span class="module-title">Kalkimatris</span>
+            <span class="module-sub">Sistèm POS & Fich PDF</span>
           </div>
-          <div style="flex:1;">
-            <div class="calc-label" style="font-size:.68rem;margin-bottom:5px;">Rediksyon pou kliyan ($)</div>
-            <input type="number" class="calc-input" id="cRediksyon" placeholder="0.00" oninput="CALC.calcLive()" style="padding:10px 12px;font-size:.85rem;"/>
+          <span class="module-arrow">›</span>
+        </button>
+
+        <button class="module-card" onclick="openModule('microcredit')">
+          <div class="module-icon" style="background:#1a6a3a;">🏦</div>
+          <div class="module-info">
+            <span class="module-title">Micro Crédit</span>
+            <span class="module-sub">Kont Epay Pèsonèl (HTG)</span>
           </div>
+          <span class="module-arrow">›</span>
+        </button>
+
+        <button class="module-card" onclick="openModule('contacts')">
+          <div class="module-icon" style="background:#7a5c00;">📒</div>
+          <div class="module-info">
+            <span class="module-title">Achiv Nimewo</span>
+            <span class="module-sub">Repètwa Kontakt</span>
+          </div>
+          <span class="module-arrow">›</span>
+        </button>
+      </nav>
+
+      <div class="dash-footer">
+        <span>THOMAS KABÉ</span>
+        <span class="dot-sep">·</span>
+        <span>AGENT SUD</span>
+        <span class="dot-sep">·</span>
+        <span>LCD</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!--         MODULE : LCD CUSTOMERS              -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div id="customersScreen" class="screen module-screen">
+    <div class="module-header teal-header">
+      <div class="header-banner-bg" style="--banner-color: rgba(14,116,144,0.92);"></div>
+      <button class="back-btn" onclick="goBack()">‹</button>
+      <h2>LCD Customers</h2>
+      <button class="add-btn" onclick="openCustomerForm()">+</button>
+    </div>
+    <div class="module-toolbar">
+      <input type="search" id="customerSearch" placeholder="🔍  Chèche kliyan..." class="search-input" oninput="filterCustomers()" />
+      <div class="sort-tabs">
+        <button class="sort-tab active" onclick="sortCustomers('recent',this)">Resan</button>
+        <button class="sort-tab" onclick="sortCustomers('amount',this)">Total $</button>
+        <button class="sort-tab" onclick="sortCustomers('name',this)">Non</button>
+      </div>
+      <div class="action-bar">
+        <button class="action-sm" onclick="emailAllCustomers()">📧 Email tout</button>
+        <button class="action-sm" onclick="exportCustomersPDF()">📄 PDF</button>
+      </div>
+    </div>
+    <div id="customerList" class="list-container"></div>
+
+    <!-- Formulaire Nouveau/Edit Client -->
+    <div id="customerFormOverlay" class="overlay hidden">
+      <div class="overlay-panel">
+        <div class="overlay-header">
+          <h3 id="customerFormTitle">Nouvo Kliyan</h3>
+          <button onclick="closeCustomerForm()">✕</button>
         </div>
-        <div id="calcBreakdown" style="display:none;margin-top:12px;"></div>
-      </div>
-      <div class="calc-btn-row">
-        <button class="btn-calc-main" onclick="CALC.runCalc()">KALKILE</button>
-        <button class="btn-calc-clear" onclick="CALC.clearCalc()">✕ Efase</button>
-      </div>
-      <div class="calc-history-title">Istorik kalkil</div>
-      <div id="calcHistory"></div>
-    </div>
-
-    <!-- MICRO CRÉDIT -->
-    <div class="screen" id="screen-epargne">
-      <div class="epargne-cover-wrap">
-        <div class="epargne-cover-img-box">
-          <img src="epay.png" alt="Micro Crédit"
-               onerror="this.style.display='none';document.getElementById('epayFallback').style.display='flex'"/>
-          <div id="epayFallback" style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-size:5rem;">🏦</div>
-        </div>
-        <div class="epargne-title-row">
-          <div class="epargne-title">LA SÛRETÉ MICRO CRÉDIT</div>
-          <div class="epargne-sub">Kont Epay Pèsonèl · Thomas Kabé</div>
+        <div class="form-body">
+          <div class="avatar-upload-zone" onclick="document.getElementById('custAvatarInput').click()">
+            <img id="custAvatarPreview" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%23222'/%3E%3Ccircle cx='32' cy='26' r='12' fill='%23555'/%3E%3Cellipse cx='32' cy='52' rx='18' ry='12' fill='%23555'/%3E%3C/svg%3E" alt="Avatar" />
+            <span>Chanje foto</span>
+            <input type="file" id="custAvatarInput" accept="image/*" onchange="previewCustAvatar(this)" hidden />
+          </div>
+          <input type="hidden" id="custId" />
+          <label>Non konplè *</label>
+          <input type="text" id="custName" placeholder="Eks: Marie Pierre" class="form-input" />
+          <label>Adrès</label>
+          <input type="text" id="custAddress" placeholder="Vil, Depatman" class="form-input" />
+          <label>Telefòn</label>
+          <input type="tel" id="custPhone" placeholder="+509 xx xx xx xx" class="form-input" />
+          <label>Email</label>
+          <input type="email" id="custEmail" placeholder="example@mail.com" class="form-input" />
+          <label>Nòt / Byografi</label>
+          <textarea id="custBio" placeholder="Enfòmasyon sou kliyan an..." class="form-textarea" rows="3"></textarea>
+          <button class="btn-primary" onclick="saveCustomer()">💾 Anrejistre</button>
         </div>
       </div>
-      <div class="balance-card">
-        <div class="balance-label">Balans Kouran (HTG)</div>
-        <div class="balance-amount-htg" id="balanceHTG">0 HTG</div>
-        <div class="balance-usd" id="balanceUSD">≈ $0.00 USD</div>
-      </div>
-      <div class="epargne-btns">
-        <button class="btn-depot" onclick="EPARGNE.openTxnModal('depot')">+ Depo</button>
-        <button class="btn-retrait" onclick="EPARGNE.openTxnModal('retrait')">− Retrè</button>
-      </div>
-      <div class="epargne-table">
-        <div class="table-head">
-          <div class="table-head-cell">Dat</div>
-          <div class="table-head-cell">Depo</div>
-          <div class="table-head-cell">Retrè</div>
-          <div class="table-head-cell">Solde</div>
+    </div>
+
+    <!-- Détail Client -->
+    <div id="customerDetailOverlay" class="overlay hidden">
+      <div class="overlay-panel">
+        <div class="overlay-header">
+          <h3>Pwofil Kliyan</h3>
+          <button onclick="closeCustomerDetail()">✕</button>
         </div>
-        <div id="epargneTable"></div>
+        <div id="customerDetailContent"></div>
       </div>
     </div>
 
-    <!-- ACHIV NIMEWO -->
-    <div class="screen" id="screen-achiv">
-      <div class="achiv-search-bar">
-        <input type="text" class="search-input" id="achivSearch"
-               placeholder="Chèche non, nimewo..." oninput="ACHIV.render()"/>
-        <button class="btn-add" onclick="ACHIV.openAdd()">+</button>
+    <!-- Transaction Modal -->
+    <div id="txnOverlay" class="overlay hidden">
+      <div class="overlay-panel small-panel">
+        <div class="overlay-header">
+          <h3 id="txnTitle">Nouvo Tranzaksyon</h3>
+          <button onclick="closeTxnOverlay()">✕</button>
+        </div>
+        <div class="form-body">
+          <label>Montan (USD) *</label>
+          <input type="number" id="txnAmount" placeholder="0.00" class="form-input" step="0.01" />
+          <label>Deskripsyon</label>
+          <input type="text" id="txnDesc" placeholder="Eks: Frè livrezon..." class="form-input" />
+          <button class="btn-primary" onclick="saveTxn()">✔ Konfime</button>
+        </div>
       </div>
-      <div class="achiv-sort-bar">
-        <button class="sort-chip active" onclick="ACHIV.setSort('name',this)">🔤 Non</button>
-        <button class="sort-chip" onclick="ACHIV.setSort('recent',this)">🕐 Resan</button>
-        <button class="sort-chip" onclick="ACHIV.setSort('group',this)">🏷 Gwoup</button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!--         MODULE : KALKIMATRIS (POS)          -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div id="posScreen" class="screen module-screen">
+    <div class="module-header brown-header">
+      <div class="header-banner-bg" style="--banner-color: rgba(101,51,19,0.92);"></div>
+      <button class="back-btn" onclick="goBack()">‹</button>
+      <h2>Kalkimatris</h2>
+      <button class="icon-btn" onclick="togglePosHistory()">📋</button>
+    </div>
+    <div class="module-body scrollable">
+      <!-- Client Name -->
+      <div class="pos-field-group">
+        <label class="pos-label">Non Kliyan</label>
+        <input type="text" id="posClientName" placeholder="Eks: Marie Pierre" class="form-input" />
       </div>
-      <div id="achivList"></div>
+
+      <!-- Description -->
+      <div class="pos-field-group">
+        <label class="pos-label">Deskripsyon Pakè</label>
+        <input type="text" id="posDescription" placeholder="Eks: Vêtements, Électronique..." class="form-input" />
+      </div>
+
+      <!-- Dimensions -->
+      <div class="pos-field-group">
+        <label class="pos-label">Dimansyon Kolis (cm)</label>
+        <div class="three-col">
+          <input type="number" id="posL" placeholder="L" class="form-input" oninput="calcLive()" />
+          <input type="number" id="posW" placeholder="l" class="form-input" oninput="calcLive()" />
+          <input type="number" id="posH" placeholder="H" class="form-input" oninput="calcLive()" />
+        </div>
+      </div>
+
+      <!-- Poids réel -->
+      <div class="pos-field-group">
+        <label class="pos-label">Pwa Reyèl (lb)</label>
+        <input type="number" id="posWeight" placeholder="0.0" class="form-input" step="0.1" oninput="calcLive()" />
+      </div>
+
+      <!-- Prix custom & dette -->
+      <div class="two-col">
+        <div>
+          <label class="pos-label">Pri Pèsonalize ($/lb)</label>
+          <input type="number" id="posCustomPrice" placeholder="Opsyonèl" class="form-input" step="0.01" oninput="calcLive()" />
+        </div>
+        <div>
+          <label class="pos-label">Dèt Anvan ($)</label>
+          <input type="number" id="posDebt" placeholder="0.00" class="form-input" step="0.01" oninput="calcLive()" />
+        </div>
+      </div>
+
+      <!-- Changement rendu -->
+      <div class="pos-field-group">
+        <label class="pos-label">Montan Remèt ($)</label>
+        <input type="number" id="posChange" placeholder="0.00" class="form-input" step="0.01" oninput="calcLive()" />
+      </div>
+
+      <!-- Résultat Live -->
+      <div id="posResultPanel" class="result-panel">
+        <div class="result-row">
+          <span>Pwa Volimètrik</span>
+          <span id="resVolWeight" class="mono">— lb</span>
+        </div>
+        <div class="result-row">
+          <span>Pwa Final</span>
+          <span id="resFinalWeight" class="mono gold">— lb</span>
+        </div>
+        <div class="result-row">
+          <span>Tarif</span>
+          <span id="resTarif" class="mono">—</span>
+        </div>
+        <div class="result-row">
+          <span>Pri Sèvis</span>
+          <span id="resService" class="mono">—</span>
+        </div>
+        <div class="result-row highlight">
+          <span>TOTAL</span>
+          <span id="resTotal" class="mono gold big">$0.00</span>
+        </div>
+      </div>
+
+      <button class="btn-primary full-btn" onclick="generatePOSInvoice()">🖨️ Jenere Fakti PDF</button>
     </div>
 
-    <!-- ACHIV DETAIL -->
-    <div class="screen" id="screen-achivDetail">
-      <div id="achivDetailContent"></div>
-    </div>
-
-  </div>
-</div>
-
-<!-- MODALS -->
-<!-- LCD: Add/Edit Client -->
-<div class="modal-backdrop" id="modalAddClient">
-  <div class="modal-sheet">
-    <div class="modal-title" id="modalClientTitle">NOUVO KLIYAN</div>
-    <div class="field-group"><div class="field-label">Non Konplè *</div>
-      <input class="field-input" id="fName" placeholder="Benoit Batraville"/></div>
-    <div class="field-group"><div class="field-label">Adrès</div>
-      <input class="field-input" id="fAddr" placeholder="Cayes, Sud"/></div>
-    <div class="field-group"><div class="field-label">Telefòn</div>
-      <input class="field-input" id="fPhone" placeholder="+509 34 52 1975" type="tel"/></div>
-    <div class="field-group"><div class="field-label">Email</div>
-      <input class="field-input" id="fEmail" placeholder="client@email.com" type="email"/></div>
-    <div class="field-group"><div class="field-label">Byografi / Nòt</div>
-      <textarea class="field-input field-textarea" id="fBio" placeholder="Yon ti deskripsyon..."></textarea></div>
-    <div class="modal-btns">
-      <button class="btn-cancel" onclick="closeModal('modalAddClient')">Anile</button>
-      <button class="btn-confirm" onclick="LCD.saveClient()">Anrejistre</button>
-    </div>
-  </div>
-</div>
-<!-- LCD: Add Txn -->
-<div class="modal-backdrop" id="modalAddTxn">
-  <div class="modal-sheet">
-    <div class="modal-title">NOUVO TRANZAKSYON</div>
-    <div class="field-group"><div class="field-label">Dat</div>
-      <input class="field-input" id="fTxnDate" type="date"/></div>
-    <div class="field-group"><div class="field-label">Deskripsyon</div>
-      <input class="field-input" id="fTxnDesc" placeholder="Ex: 3 pakè, valiz..."/></div>
-    <div class="field-group"><div class="field-label">Montan ($)</div>
-      <input class="field-input" id="fTxnAmount" type="number" placeholder="0.00"/></div>
-    <div class="modal-btns">
-      <button class="btn-cancel" onclick="closeModal('modalAddTxn')">Anile</button>
-      <button class="btn-confirm" onclick="LCD.saveTxn()">Anrejistre</button>
-    </div>
-  </div>
-</div>
-<!-- LCD: Group Email -->
-<div class="modal-backdrop" id="modalEmail">
-  <div class="modal-sheet">
-    <div class="modal-title">VOYE EMAIL GWOUP</div>
-    <div class="field-group"><div class="field-label">Chwazi destinatè yo</div>
-      <div class="email-chips" id="emailChips"></div></div>
-    <div class="field-group"><div class="field-label">Sijè</div>
-      <input class="field-input" id="emailSubject" placeholder="Nouvo pakè disponib..."/></div>
-    <div class="field-group"><div class="field-label">Mesaj</div>
-      <textarea class="field-input field-textarea" id="emailBody" style="min-height:100px"
-                placeholder="Ekri mesaj ou..."></textarea></div>
-    <div class="modal-btns">
-      <button class="btn-cancel" onclick="closeModal('modalEmail')">Anile</button>
-      <button class="btn-confirm" onclick="LCD.sendGroupEmail()">📧 Voye</button>
-    </div>
-  </div>
-</div>
-<!-- Epargne Txn -->
-<div class="modal-backdrop" id="modalEpargne">
-  <div class="modal-sheet">
-    <div class="modal-title" id="epargneModalTitle">DEPO</div>
-    <div class="field-group"><div class="field-label">Dat</div>
-      <input class="field-input" id="eTxnDate" type="date"/></div>
-    <div class="field-group">
-      <div class="field-label">Montan (HTG)</div>
-      <input class="field-input" id="eTxnAmount" type="number" placeholder="0"
-             oninput="EPARGNE.previewConvert()"/>
-      <div id="eTxnConvert" style="font-size:.72rem;color:var(--gold3);margin-top:5px;padding-left:4px;"></div>
-    </div>
-    <div class="field-group"><div class="field-label">Nòt (opsyonèl)</div>
-      <input class="field-input" id="eTxnNote" placeholder="Rezon tranzaksyon an..."/></div>
-    <div class="modal-btns">
-      <button class="btn-cancel" onclick="closeModal('modalEpargne')">Anile</button>
-      <button class="btn-confirm" onclick="EPARGNE.saveEpargne()">Anrejistre</button>
+    <!-- Historique POS -->
+    <div id="posHistoryPanel" class="side-panel hidden">
+      <div class="panel-header">
+        <h3>Istwa Kalkil</h3>
+        <button onclick="togglePosHistory()">✕</button>
+      </div>
+      <div id="posHistoryList" class="list-container"></div>
     </div>
   </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!--          MODULE : MICRO CRÉDIT              -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div id="microcreditScreen" class="screen module-screen">
+    <div class="module-header green-header">
+      <div class="header-banner-bg" style="--banner-color: rgba(10,50,25,0.88);"></div>
+      <button class="back-btn" onclick="goBack()">‹</button>
+      <h2>Micro Crédit</h2>
+      <span></span>
+    </div>
+    <div class="module-body scrollable">
+
+      <!-- ── Livret style card ── -->
+      <div class="livret-wrapper">
+        <!-- Scène 3D du flip -->
+        <div class="livret-flip-scene" onclick="toggleCardFlip()">
+          <div class="livret-flip-wrapper" id="livretFlipWrapper">
+
+            <!-- ── FACE AVANT ── -->
+            <div class="livret-face livret-face-front">
+              <div class="livret-cover-top">
+                <div class="livret-brand">
+                  <img src="epay.png" alt="Epay" class="livret-epay-img" onerror="this.style.display='none'" />
+                  <div class="livret-brand-text">
+                    <span class="livret-brand-name">KONT EPAY</span>
+                    <span class="livret-brand-sub">Micro Crédit Personnel</span>
+                  </div>
+                </div>
+                <div class="livret-badge">HTG</div>
+              </div>
+
+              <div class="livret-balance-section">
+                <p class="livret-bal-label">BALANS KOURAN</p>
+                <p class="livret-bal-amount" id="mcBalance">0 HTG</p>
+                <p class="livret-bal-usd" id="mcBalanceUSD">≈ $0.00 USD</p>
+              </div>
+
+              <div class="livret-footer-row">
+                <div class="livret-owner-info">
+                  <span class="livret-owner-name">Thomas Kabé</span>
+                  <span class="livret-owner-role">LCD Agent Sud</span>
+                </div>
+                <div class="livret-chip">
+                  <div class="chip-lines">
+                    <span></span><span></span><span></span>
+                  </div>
+                </div>
+              </div>
+              <div class="livret-flip-hint">Klike pou vire ↻</div>
+            </div>
+
+<div class="livret-face livret-face-back">
+  <div class="livret-back-content" style="display: flex; justify-content: center; align-items: center; height: 100%; width: 100%; padding: 10px; box-sizing: border-box;">
+    <img 
+      src="epay.png" 
+      alt="Epay" 
+      class="livret-back-logo" 
+      style="max-width: 90%; max-height: 90%; object-fit: contain; width: auto; height: auto;" 
+      onerror="this.style.display='none'" 
+    />
+  </div>
+  <div class="livret-flip-hint">Klike pou retounen ↺</div>
 </div>
-<!-- Achiv: Add/Edit Contact -->
-<div class="modal-backdrop" id="modalAchiv">
-  <div class="modal-sheet">
-    <div class="modal-title" id="modalAchivTitle">NOUVO KONTAKT</div>
-    <div class="field-group"><div class="field-label">Non Konplè *</div>
-      <input class="field-input" id="aNom" placeholder="Marie Jean-Pierre"/></div>
-    <div class="field-group"><div class="field-label">Nimewo Telefòn * (ak kòd peyi)</div>
-      <input class="field-input" id="aPhone" placeholder="+50934521975" type="tel"/></div>
-    <div class="field-group"><div class="field-label">Nimewo 2 (opsyonèl)</div>
-      <input class="field-input" id="aPhone2" placeholder="+50934521976" type="tel"/></div>
-    <div class="field-group"><div class="field-label">Gwoup / Kategori</div>
-      <input class="field-input" id="aGroup" placeholder="Kliyan, Fanmi, Zanmi, Biznis..."/></div>
-    <div class="field-group"><div class="field-label">Adrès</div>
-      <input class="field-input" id="aAddr" placeholder="Cayes, Sud"/></div>
-    <div class="field-group"><div class="field-label">Nòt</div>
-      <textarea class="field-input field-textarea" id="aNote" placeholder="Nòt sou kontakt sa..."></textarea></div>
-    <div class="modal-btns">
-      <button class="btn-cancel" onclick="closeModal('modalAchiv')">Anile</button>
-      <button class="btn-confirm" onclick="ACHIV.save()">Anrejistre</button>
+
+
+        <!-- Boutons Dépo / Retrè -->
+        <div class="livret-actions">
+          <button class="livret-btn livret-btn-depo" onclick="openMCForm('depo')">
+            <span class="livret-btn-icon">↑</span>
+            <span class="livret-btn-label">Depo</span>
+          </button>
+          <button class="livret-btn livret-btn-retre" onclick="openMCForm('retrè')">
+            <span class="livret-btn-icon">↓</span>
+            <span class="livret-btn-label">Retrè</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Historique -->
+      <div class="mc-history-header">
+        <span class="mc-history-title">📋 Istwa Tranzaksyon</span>
+      </div>
+      <div id="mcHistoryList" class="list-container" style="padding:0 0 80px;"></div>
+    </div>
+
+    <!-- Formulaire transaction -->
+    <div id="mcFormOverlay" class="overlay hidden">
+      <div class="overlay-panel small-panel">
+        <div class="overlay-header">
+          <h3 id="mcFormTitle">Depo</h3>
+          <button onclick="closeMCForm()">✕</button>
+        </div>
+        <div class="form-body">
+          <label>Montan (HTG)</label>
+          <input type="number" id="mcAmount" placeholder="0" class="form-input" oninput="previewMCRate()" />
+          <p id="mcRatePreview" class="rate-preview">≈ $0.00</p>
+          <label>Nòt (opsyonèl)</label>
+          <input type="text" id="mcNote" placeholder="Eks: Salè, Ekonomi..." class="form-input" />
+          <button class="btn-primary" onclick="saveMCTxn()">✔ Konfime</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="mcEditOverlay" class="overlay hidden">
+      <div class="overlay-panel small-panel">
+        <div class="overlay-header">
+          <h3>Modifye Tranzaksyon</h3>
+          <button onclick="closeMCEdit()">✕</button>
+        </div>
+        <div class="form-body">
+          <input type="hidden" id="mcEditId" />
+          <input type="hidden" id="mcEditType" />
+          <label>Montan (HTG)</label>
+          <input type="number" id="mcEditAmount" class="form-input" oninput="previewMCEditRate()" />
+          <p id="mcEditRatePreview" class="rate-preview">≈ $0.00</p>
+          <label>Nòt</label>
+          <input type="text" id="mcEditNote" class="form-input" />
+          <button class="btn-primary" onclick="updateMCTxn()">✔ Mete ajou</button>
+        </div>
+      </div>
     </div>
   </div>
-</div>
 
-<div id="menuFab" class="menu-fab hidden" onclick="toggleDrawer()" style="display:none;">
-  <div class="fab-bar"></div>
-  <div class="fab-bar"></div>
-  <div class="fab-bar"></div>
-</div>
+  <!-- ═══════════════════════════════════════════ -->
+  <!--          MODULE : ACHIV NIMEWO              -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div id="contactsScreen" class="screen module-screen">
+    <div class="module-header gold-header">
+      <div class="header-banner-bg" style="--banner-color: rgba(42,31,0,0.88);"></div>
+      <button class="back-btn" onclick="goBack()">‹</button>
+      <h2>Achiv Nimewo</h2>
+      <button class="add-btn" onclick="openContactForm()">+</button>
+    </div>
+    <div class="module-toolbar">
+      <input type="search" id="contactSearch" placeholder="🔍  Chèche kontakt..." class="search-input" oninput="filterContacts()" />
+      <div class="sort-tabs">
+        <button class="sort-tab active" onclick="sortContacts('name',this)">Non</button>
+        <button class="sort-tab" onclick="sortContacts('recent',this)">Resan</button>
+        <button class="sort-tab" onclick="sortContacts('group',this)">Gwoup</button>
+      </div>
+    </div>
+    <div id="contactList" class="list-container"></div>
 
-<div id="toast"></div>
+    <!-- Formulaire Contact -->
+    <div id="contactFormOverlay" class="overlay hidden">
+      <div class="overlay-panel">
+        <div class="overlay-header">
+          <h3 id="contactFormTitle">Nouvo Kontakt</h3>
+          <button onclick="closeContactForm()">✕</button>
+        </div>
+        <div class="form-body">
+          <div class="avatar-upload-zone" onclick="document.getElementById('contAvatarInput').click()">
+            <img id="contAvatarPreview" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%23222'/%3E%3Ccircle cx='32' cy='26' r='12' fill='%23555'/%3E%3Cellipse cx='32' cy='52' rx='18' ry='12' fill='%23555'/%3E%3C/svg%3E" alt="Avatar" />
+            <span>Chanje foto</span>
+            <input type="file" id="contAvatarInput" accept="image/*" onchange="previewContAvatar(this)" hidden />
+          </div>
+          <input type="hidden" id="contId" />
+          <label>Non konplè *</label>
+          <input type="text" id="contName" placeholder="Eks: Jean-Pierre Louis" class="form-input" />
+          <label>Telefòn Prensipal *</label>
+          <input type="tel" id="contPhone1" placeholder="+509 xx xx xx xx" class="form-input" />
+          <label>Telefòn Segondè</label>
+          <input type="tel" id="contPhone2" placeholder="+509 xx xx xx xx" class="form-input" />
+          <label>Gwoup</label>
+          <select id="contGroup" class="form-input">
+            <option value="">— Chwazi gwoup —</option>
+            <option value="Magazen">Magazen</option>
+            <option value="Fanmi">Fanmi</option>
+            <option value="Livrè">Livrè</option>
+            <option value="Kliyan">Kliyan</option>
+            <option value="Founisè">Founisè</option>
+            <option value="Lòt">Lòt</option>
+          </select>
+          <label>Adrès</label>
+          <input type="text" id="contAddress" placeholder="Vil, Seksyon..." class="form-input" />
+          <label>Nòt</label>
+          <textarea id="contNote" placeholder="Enfòmasyon sou kontakt la..." class="form-textarea" rows="2"></textarea>
+          <button class="btn-primary" onclick="saveContact()">💾 Anrejistre</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
-<!-- MODULE SCRIPTS -->
-<script src="lcd-customers.js"></script>
-<script src="kalkimatris.js"></script>
-<script src="microcredit.js"></script>
-<script src="achiv-nimewo.js"></script>
+  <!-- Toast global -->
+  <div id="toast" class="toast hidden"></div>
 
-<!-- CORE APP -->
-<script>
-/* ─── SHARED UTILS ───────────────────────────── */
-function loadStore(key,def){try{return JSON.parse(localStorage.getItem(key))||def;}catch{return def;}}
-function saveStore(key,val){localStorage.setItem(key,JSON.stringify(val));}
-function escHtml(s){if(!s)return '';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-function showToast(msg,dur=2500){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),dur);}
-function openModal(id){document.getElementById(id).classList.add('open');}
-function closeModal(id){document.getElementById(id).classList.remove('open');}
+  <!-- Scripts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="app.js"></script>
+  <script src="customers.js"></script>
+  <script src="pos.js"></script>
+  <script src="microcredit.js"></script>
+  <script src="contacts.js"></script>
+  <script>
+    /* ── Horloge de l'écran de verrouillage ── */
+    function updateLockClock() {
+      const now = new Date();
+      const h = String(now.getHours()).padStart(2, '0');
+      const m = String(now.getMinutes()).padStart(2, '0');
+      document.getElementById('lockTime').textContent = h + ':' + m;
 
-/* ─── PIN ────────────────────────────────────── */
-const VALID_PINS=['56666','35608'];
-let pinBuffer='';
-function pinPress(d){if(pinBuffer.length>=5)return;pinBuffer+=d;updatePinDots();if(pinBuffer.length===5)checkPin();}
-function pinDel(){pinBuffer=pinBuffer.slice(0,-1);updatePinDots();document.getElementById('pinError').textContent='';}
-function updatePinDots(){for(let i=0;i<5;i++)document.getElementById('d'+i).classList.toggle('filled',i<pinBuffer.length);}
-function checkPin(){
-  if(VALID_PINS.includes(pinBuffer)){
-    sessionStorage.setItem('tb_unlocked','1');
-    document.getElementById('lockScreen').classList.add('hide');
-    setTimeout(()=>{document.getElementById('lockScreen').style.display='none';window._restoreNavAfterUnlock();},500);
-  }else{
-    document.getElementById('pinError').textContent='KÒD ENVALID — ESEYE ANKÒ';
-    pinBuffer='';updatePinDots();
-    setTimeout(()=>document.getElementById('pinError').textContent='',2000);
-  }
-}
-
-/* ─── TICKER ─────────────────────────────────── */
-function launchSplash(){
-  document.getElementById('lockScreen').style.display = 'none'; 
-  document.getElementById('splashScreen').classList.remove('hidden');
-}
-
-/* ─── NAVIGATION ─────────────────────────────── */
-const SCREEN_TITLES={
-  lcd:'CUSTOMERS',calc:'SISTÈM POS',epargne:'MICRO CRÉDIT',
-  achiv:'ACHIV NIMEWO',clientDetail:'DOSYE KLIYAN',achivDetail:'PROFIL KONTAKT'
-};
-let currentScreen='';
-function goScreen(name) {
-  closeDrawer();
-  
-  // 1. Cacher le menu principal (Splash)
-  document.getElementById('splashScreen').classList.add('hidden');
-  
-  // 2. Afficher la barre de l'application
-  document.getElementById('appShell').classList.remove('hidden');
-  
-  // 3. Afficher le bouton menu (FAB) au cas où il était caché
-  const fab = document.getElementById('menuFab');
-  fab.classList.remove('hidden');
-  fab.style.display = 'flex'; // On force l'affichage
-  
-  // 4. Mettre à jour le titre
-  document.getElementById('appBarTitle').textContent = SCREEN_TITLES[name] || name.toUpperCase();
-  
-  // 5. Switcher les écrans
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  const target = document.getElementById('screen-' + name);
-  if (target) {
-    target.classList.add('active');
-  }
-  
-  currentScreen = name;
-  
-  // Lancer les rendus spécifiques
-  if(name==='lcd' && window.LCD) LCD.renderClients();
-  if(name==='calc' && window.CALC) CALC.renderCalcHistory();
-  if(name==='epargne' && window.EPARGNE) EPARGNE.renderEpargne();
-  if(name==='achiv' && window.ACHIV) ACHIV.render();
-}
-
-function goHome() {
-  document.getElementById('appShell').classList.add('hidden');
-  document.getElementById('splashScreen').classList.remove('hidden');
-  // On cache aussi le bouton menu au cas où
-  document.getElementById('menuFab').style.display = 'none';
-}
-
-function handleBack(){
-  if(currentScreen==='clientDetail')goScreen('lcd');
-  else if(currentScreen==='achivDetail')goScreen('achiv');
-  else goHome();
-}
-
-/* ─── DRAWER ─────────────────────────────────── */
-function toggleDrawer(){
-  const d=document.getElementById('drawer');
-  const f=document.getElementById('menuFab');
-  if(d.classList.contains('open')){closeDrawer();}
-  else{d.classList.add('open');f.classList.add('open');}
-}
-function closeDrawer(){
-  document.getElementById('drawer').classList.remove('open');
-  document.getElementById('menuFab').classList.remove('open');
-}
-
-/* ─── AUTO RESTORE SESSION ───────────────────── */
-// Si session déjà déverrouillée (même onglet/refresh), skip le PIN
-window.addEventListener('DOMContentLoaded', () => {
-  if (sessionStorage.getItem('tb_unlocked') === '1') {
-    document.getElementById('lockScreen').style.display = 'none';
-    const saved = sessionStorage.getItem('tb_activeScreen');
-    if (saved) {
-      setTimeout(() => {
-        document.getElementById('appShell').classList.remove('hidden');
-        document.getElementById('menuFab').style.display = 'flex';
-        goScreen(saved);
-      }, 80);
-    } else {
-      launchSplash();
+      const days = ['Dimanch','Lendi','Madi','Mèkredi','Jedi','Vandredi','Samdi'];
+      const months = ['Janvye','Fevriye','Mas','Avril','Me','Jen','Jiyè','Out','Septanm','Oktòb','Novanm','Desanm'];
+      document.getElementById('lockDate').textContent =
+        days[now.getDay()] + ', ' + now.getDate() + ' ' + months[now.getMonth()] + ' ' + now.getFullYear();
     }
-  }
-});
+    updateLockClock();
+    setInterval(updateLockClock, 30000);
 
-/* ─── SERVICE WORKER ─────────────────────────── */
-if('serviceWorker' in navigator){
-  window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});
-}
-
-/* ─── NAV PERSISTENCE ────────────────────────── */
-// Sauvegarde l'écran actif à chaque navigation
-const _origGoScreen = goScreen;
-window.goScreen = function(name) {
-  _origGoScreen(name);
-  sessionStorage.setItem('tb_activeScreen', name);
-};
-const _origGoHome = goHome;
-window.goHome = function() {
-  _origGoHome();
-  sessionStorage.removeItem('tb_activeScreen');
-};
-
-// Restaure l'écran au chargement SI l'utilisateur est déjà authentifié (pin ok)
-window._restoreNavAfterUnlock = function() {
-  const saved = sessionStorage.getItem('tb_activeScreen');
-  if (saved) {
-    // Délai pour laisser les modules s'initialiser
-    setTimeout(() => goScreen(saved), 100);
-  } else {
-    launchSplash();
-  }
-};
-</script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    }
+  </script>
 </body>
 </html>
