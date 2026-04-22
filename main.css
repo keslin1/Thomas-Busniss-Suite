@@ -923,7 +923,7 @@ img { display: block; }
   width: 100%;
   transform-style: preserve-3d;
   transition: transform 0.65s cubic-bezier(0.4, 0, 0.2, 1);
-  min-height: 195px;
+  min-height: 220px;
 }
 
 .livret-flip-wrapper.flipped {
@@ -970,147 +970,134 @@ img { display: block; }
   pointer-events: none;
 }
 
-/* Face arrière */
+/* ── Face arrière ── */
 .livret-face-back {
   position: absolute;
   top: 0; left: 0;
-  background: linear-gradient(145deg, #0c1a2e 0%, #0e2240 40%, #0a1828 100%);
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(160deg, #0c1829 0%, #0e2240 50%, #091520 100%);
   transform: rotateY(180deg);
   display: flex;
   flex-direction: column;
+  padding: 18px 20px 14px;
+  box-sizing: border-box;
+  border-radius: 20px;
   box-shadow:
     0 12px 40px rgba(0,0,0,0.7),
-    0 0 0 1px rgba(14,116,144,0.2);
-  min-height: 190px;
-}
-
-/* Bande magnétique noire */
-.livret-back-stripe {
-  height: 42px;
-  background: linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 100%);
-  margin: 0 -0px;
-  flex-shrink: 0;
-}
-
-/* Contenu de la face arrière */
-.livret-back-content {
-  flex: 1;
-  padding: 12px 20px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.livret-back-logo {
-  height: 24px;
-  width: auto;
-  opacity: 0.85;
-  margin-bottom: 4px;
-}
-
-.livret-back-info {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.livret-back-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
-  padding-bottom: 4px;
-}
-
-.livret-back-label {
-  font-size: 0.58rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  color: rgba(255,255,255,0.35);
-  text-transform: uppercase;
-}
-
-.livret-back-value {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: rgba(255,255,255,0.85);
-}
-
-/* Zone signature */
-.livret-back-signature {
-  margin-top: 4px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.livret-sig-strip {
-  flex: 1;
-  background: linear-gradient(90deg, #f5f0e8 0%, #ede8dc 100%);
-  border-radius: 3px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  padding: 0 10px;
+    0 0 0 1px rgba(14,116,144,0.25),
+    inset 0 1px 0 rgba(255,255,255,0.05);
   overflow: hidden;
 }
 
-.livret-sig-text {
-  font-family: 'Times New Roman', serif;
-  font-style: italic;
-  font-size: 1.1rem;
-  color: #222;
-  white-space: nowrap;
+.card-back-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
 }
 
-.livret-sig-label {
+.card-back-logo {
+  height: 22px;
+  width: auto;
+  opacity: 0.80;
+}
+
+.card-back-title {
+  font-family: var(--font-title);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  color: rgba(56,189,248,0.9);
+  text-transform: uppercase;
+  text-align: right;
+  flex: 1;
+  margin-left: 10px;
+  line-height: 1.2;
+}
+
+.card-back-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(56,189,248,0.4), transparent);
+  margin-bottom: 9px;
+}
+
+.card-back-section-label {
   font-size: 0.58rem;
-  color: rgba(255,255,255,0.3);
-  letter-spacing: 0.06em;
-  white-space: nowrap;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: rgba(255,255,255,0.28);
+  text-transform: uppercase;
+  margin-bottom: 8px;
 }
 
-/* Barcode décoratif */
-.livret-back-barcode {
+.card-back-fields {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  margin-top: 4px;
+  gap: 5px;
+  flex: 1;
 }
 
-.livret-bars {
+.card-back-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.card-back-row:last-child { border-bottom: none; }
+
+.card-back-key {
+  font-size: 0.59rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(56,189,248,0.55);
+  text-transform: uppercase;
+  flex-shrink: 0;
+  margin-right: 8px;
+}
+
+.card-back-val {
+  font-size: 0.78rem;
+  color: rgba(255,255,255,0.85);
+  font-weight: 500;
+  text-align: right;
+}
+
+.card-back-mono {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: rgba(255,255,255,0.9);
+}
+
+.card-back-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+
+.card-back-barcode {
   display: flex;
   gap: 2px;
-  height: 20px;
+  height: 18px;
+  align-items: flex-end;
 }
 
-.livret-bars span {
+.card-back-barcode span {
   display: block;
-  background: rgba(255,255,255,0.6);
+  background: rgba(255,255,255,0.45);
   border-radius: 1px;
 }
 
-.livret-bars span:nth-child(odd)  { width: 2px; }
-.livret-bars span:nth-child(even) { width: 1px; opacity: 0.4; }
-.livret-bars span:nth-child(3n)   { width: 3px; opacity: 0.8; }
+.card-back-barcode span:nth-child(odd)  { width: 2px; height: 100%; }
+.card-back-barcode span:nth-child(even) { width: 1px; height: 65%; opacity: 0.35; }
+.card-back-barcode span:nth-child(3n)   { width: 3px; height: 85%; opacity: 0.65; }
 
-.livret-back-company {
-  font-size: 0.55rem;
-  letter-spacing: 0.15em;
-  color: rgba(255,255,255,0.25);
-  text-transform: uppercase;
-}
 
-/* Hint de flip */
-.livret-flip-hint {
-  text-align: center;
-  font-size: 0.62rem;
-  color: rgba(255,255,255,0.25);
-  letter-spacing: 0.08em;
-  padding-top: 8px;
-  padding-bottom: 4px;
-}
 
 /* ══════════════════════════════════════════════
    MICRO CRÉDIT — STYLE LIVRET

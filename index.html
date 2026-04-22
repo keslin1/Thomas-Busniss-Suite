@@ -191,7 +191,7 @@
     <div id="customerFormOverlay" class="overlay hidden">
       <div class="overlay-panel">
         <div class="overlay-header">
-          <h3 id="customerFormTitle">Nouvo Kliyan</h3>
+          <h3 id="customerFormTitle">Nouvo kliyan</h3>
           <button onclick="closeCustomerForm()">✕</button>
         </div>
         <div class="form-body">
@@ -231,7 +231,7 @@
     <div id="txnOverlay" class="overlay hidden">
       <div class="overlay-panel small-panel">
         <div class="overlay-header">
-          <h3 id="txnTitle">Nouvo Tranzaksyon</h3>
+          <h3 id="txnTitle">Nouvo tranzaksyon</h3>
           <button onclick="closeTxnOverlay()">✕</button>
         </div>
         <div class="form-body">
@@ -258,19 +258,19 @@
     <div class="module-body scrollable">
       <!-- Client Name -->
       <div class="pos-field-group">
-        <label class="pos-label">Non Kliyan</label>
+        <label class="pos-label">Non kliyan</label>
         <input type="text" id="posClientName" placeholder="Eks: Marie Pierre" class="form-input" />
       </div>
 
       <!-- Description -->
       <div class="pos-field-group">
-        <label class="pos-label">Deskripsyon Pakè</label>
-        <input type="text" id="posDescription" placeholder="Eks: Vêtements, Électronique..." class="form-input" />
+        <label class="pos-label">Deskripsyon pakè</label>
+        <input type="text" id="posDescription" placeholder="Eks: Vêtements, électronique..." class="form-input" />
       </div>
 
       <!-- Dimensions -->
       <div class="pos-field-group">
-        <label class="pos-label">Dimansyon Kolis (cm)</label>
+        <label class="pos-label">Dimansyon koli (cm)</label>
         <div class="three-col">
           <input type="number" id="posL" placeholder="L" class="form-input" oninput="calcLive()" />
           <input type="number" id="posW" placeholder="l" class="form-input" oninput="calcLive()" />
@@ -280,36 +280,36 @@
 
       <!-- Poids réel -->
       <div class="pos-field-group">
-        <label class="pos-label">Pwa Reyèl (lb)</label>
+        <label class="pos-label">Pwa reyèl (lb)</label>
         <input type="number" id="posWeight" placeholder="0.0" class="form-input" step="0.1" oninput="calcLive()" />
       </div>
 
       <!-- Prix custom & dette -->
       <div class="two-col">
         <div>
-          <label class="pos-label">Pri Pèsonalize ($/lb)</label>
+          <label class="pos-label">Pri pèsonalize ($/lb)</label>
           <input type="number" id="posCustomPrice" placeholder="Opsyonèl" class="form-input" step="0.01" oninput="calcLive()" />
         </div>
         <div>
-          <label class="pos-label">Dèt Anvan ($)</label>
+          <label class="pos-label">Dèt ($)</label>
           <input type="number" id="posDebt" placeholder="0.00" class="form-input" step="0.01" oninput="calcLive()" />
         </div>
       </div>
 
       <!-- Changement rendu -->
       <div class="pos-field-group">
-        <label class="pos-label">Montan Remèt ($)</label>
+        <label class="pos-label">Monnen ($)</label>
         <input type="number" id="posChange" placeholder="0.00" class="form-input" step="0.01" oninput="calcLive()" />
       </div>
 
       <!-- Résultat Live -->
       <div id="posResultPanel" class="result-panel">
         <div class="result-row">
-          <span>Pwa Volimètrik</span>
+          <span>Pwa volimik</span>
           <span id="resVolWeight" class="mono">— lb</span>
         </div>
         <div class="result-row">
-          <span>Pwa Final</span>
+          <span>Pwa final</span>
           <span id="resFinalWeight" class="mono gold">— lb</span>
         </div>
         <div class="result-row">
@@ -317,7 +317,7 @@
           <span id="resTarif" class="mono">—</span>
         </div>
         <div class="result-row">
-          <span>Pri Sèvis</span>
+          <span>Pri sèvis</span>
           <span id="resService" class="mono">—</span>
         </div>
         <div class="result-row highlight">
@@ -326,13 +326,13 @@
         </div>
       </div>
 
-      <button class="btn-primary full-btn" onclick="generatePOSInvoice()">🖨️ Jenere Fakti PDF</button>
+      <button class="btn-primary full-btn" onclick="generatePOSInvoice()">🖨️ Jenere fakti PDF</button>
     </div>
 
     <!-- Historique POS -->
     <div id="posHistoryPanel" class="side-panel hidden">
       <div class="panel-header">
-        <h3>Istwa Kalkil</h3>
+        <h3>Istorik kalkil</h3>
         <button onclick="togglePosHistory()">✕</button>
       </div>
       <div id="posHistoryList" class="list-container"></div>
@@ -353,11 +353,12 @@
 
       <!-- ── Livret style card ── -->
       <div class="livret-wrapper">
+
         <!-- Scène 3D du flip -->
         <div class="livret-flip-scene" onclick="toggleCardFlip()">
           <div class="livret-flip-wrapper" id="livretFlipWrapper">
 
-            <!-- ── FACE AVANT ── -->
+            <!-- ════ FACE AVANT ════ -->
             <div class="livret-face livret-face-front">
               <div class="livret-cover-top">
                 <div class="livret-brand">
@@ -390,19 +391,56 @@
               <div class="livret-flip-hint">Klike pou vire ↻</div>
             </div>
 
-<div class="livret-face livret-face-back">
-  <div class="livret-back-content" style="display: flex; justify-content: center; align-items: center; height: 100%; width: 100%; padding: 10px; box-sizing: border-box;">
-    <img 
-      src="epay.png" 
-      alt="Epay" 
-      class="livret-back-logo" 
-      style="max-width: 90%; max-height: 90%; object-fit: contain; width: auto; height: auto;" 
-      onerror="this.style.display='none'" 
-    />
-  </div>
-  <div class="livret-flip-hint">Klike pou retounen ↺</div>
-</div>
+            <!-- ════ FACE ARRIÈRE ════ -->
+            <div class="livret-face livret-face-back">
+              <div class="card-back-header">
+                <img src="epay.png" alt="Epay" class="card-back-logo" onerror="this.style.display='none'" />
+                <div class="card-back-title">LA SÛRETÉ MICRO CRÉDIT</div>
+              </div>
 
+              <div class="card-back-divider"></div>
+
+              <p class="card-back-section-label">Enfòmasyon jeneral sou manm nan</p>
+
+              <div class="card-back-fields">
+                <div class="card-back-row">
+                  <span class="card-back-key">Nimewo kat</span>
+                  <span class="card-back-val card-back-mono">#0612</span>
+                </div>
+                <div class="card-back-row">
+                  <span class="card-back-key">Non</span>
+                  <span class="card-back-val">Keslin</span>
+                </div>
+                <div class="card-back-row">
+                  <span class="card-back-key">Siyati</span>
+                  <span class="card-back-val">Benoit</span>
+                </div>
+                <div class="card-back-row">
+                  <span class="card-back-key">Dat nesans</span>
+                  <span class="card-back-val card-back-mono">12-05-2002</span>
+                </div>
+                <div class="card-back-row">
+                  <span class="card-back-key">Kote li fèt</span>
+                  <span class="card-back-val">Sud, Camp-Perrin</span>
+                </div>
+                <div class="card-back-row">
+                  <span class="card-back-key">Kote li rete</span>
+                  <span class="card-back-val">Guillaume</span>
+                </div>
+              </div>
+
+              <div class="card-back-footer">
+                <div class="card-back-barcode">
+                  <span></span><span></span><span></span><span></span><span></span>
+                  <span></span><span></span><span></span><span></span><span></span>
+                  <span></span><span></span><span></span><span></span><span></span>
+                </div>
+                <div class="livret-flip-hint" style="margin:0;">Klike pou retounen ↺</div>
+              </div>
+            </div>
+
+          </div><!-- /livret-flip-wrapper -->
+        </div><!-- /livret-flip-scene -->
 
         <!-- Boutons Dépo / Retrè -->
         <div class="livret-actions">
@@ -415,11 +453,12 @@
             <span class="livret-btn-label">Retrè</span>
           </button>
         </div>
-      </div>
+
+      </div><!-- /livret-wrapper -->
 
       <!-- Historique -->
       <div class="mc-history-header">
-        <span class="mc-history-title">📋 Istwa Tranzaksyon</span>
+        <span class="mc-history-title">📋 Istorik Tranzaksyon</span>
       </div>
       <div id="mcHistoryList" class="list-container" style="padding:0 0 80px;"></div>
     </div>
@@ -446,7 +485,7 @@
     <div id="mcEditOverlay" class="overlay hidden">
       <div class="overlay-panel small-panel">
         <div class="overlay-header">
-          <h3>Modifye Tranzaksyon</h3>
+          <h3>Modifye tranzaksyon</h3>
           <button onclick="closeMCEdit()">✕</button>
         </div>
         <div class="form-body">
