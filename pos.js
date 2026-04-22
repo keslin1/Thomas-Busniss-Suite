@@ -28,7 +28,7 @@ function calcLive() {
       tarifLabel = '$4.90/lb';
     } else {
       tarif = 3.99;
-      tarifLabel = '$3.99/lb (Gwo Volim)';
+      tarifLabel = '$3.99/lb (Gwo volim)';
     }
   }
 
@@ -83,25 +83,23 @@ function generatePOSInvoice() {
   const pw = 148, ph = 210;
   const today = fmtDate(Date.now());
 
-  // ── Header ──────────────────────────────────
-  doc.setFillColor(14, 116, 144); // teal
-  doc.rect(0, 0, pw, 34, 'F');
-  doc.setFillColor(212, 175, 55); // gold bar
-  doc.rect(0, 33, pw, 2, 'F');
+// ── Header ──────────────────────────────────
+doc.setFillColor(14, 116, 144); // teal
+doc.rect(0, 0, pw, 34, 'F');
+doc.setFillColor(212, 175, 55); // gold bar
+doc.rect(0, 33, pw, 2, 'F');
 
-  // Logo placeholder zone (left)
-  doc.setFillColor(255, 255, 255, 20);
-  doc.roundedRect(6, 5, 22, 22, 2, 2, 'S');
-  doc.setFontSize(5.5); doc.setTextColor(255, 255, 255);
-  doc.text('LES CAYES', 17, 12, { align: 'center' });
-  doc.text('DROPSHIPPING', 17, 16, { align: 'center' });
+doc.roundedRect(6, 5, 22, 22, 2, 2, 'S');
+
+const logoImg = 'lescayesdropshipping.png';
+doc.addImage(logoImg, 'PNG', 7, 6, 20, 20); 
 
   // Company name
   doc.setFontSize(13); doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255);
   doc.text('LES CAYES DROPSHIPPING', 34, 12);
   doc.setFontSize(7.5); doc.setFont('helvetica', 'normal');
   doc.setTextColor(200, 235, 245);
-  doc.text('Patnè fyab ou pou pwojè komès ak livrezon USA → Haïti', 34, 18);
+  doc.text('Patnè fyab ou pou pwojè komès ak livrezon USA vèr Haïti', 34, 18);
   doc.setTextColor(255, 255, 255);
   doc.text('+509 31 01 39 68  |  lescayesdropshipping@gmail.com', 34, 23.5);
   doc.text('USA: 14030 NW 5th Pl North  |  Haïti: Camp-Perrin, Matinière', 34, 28.5);
@@ -153,7 +151,7 @@ function generatePOSInvoice() {
   doc.text(fmtCurrency(servicePrix), pw - 12, y + 5.5, { align: 'right' });
   y += 20;
 
-  // ── Breakdown ───────────────────────────────
+// ── Breakdown ───────────────────────────────
   y += 4;
   if (volWeight > 0 || realWeight > 0) {
     doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
@@ -164,7 +162,7 @@ function generatePOSInvoice() {
     if (tarif > 0 && customPrice === 0) doc.text(`Tarif: $${tarif}/lb (Pwa Final: ${finalWeight.toFixed(2)} lb)`, pw - 12, y, { align: 'right' });
     y += 6;
   }
-
+  
   // Adjustments
   if (debt > 0) {
     doc.setFontSize(8.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(60, 60, 60);
@@ -197,11 +195,11 @@ function generatePOSInvoice() {
   doc.text('Nòt & Kondisyon :', 13, y + 7);
   doc.setFont('helvetica', 'normal'); doc.setTextColor(60, 60, 60);
   doc.text('Achte sou entènèt avèk nou ak konfyans.', 13, y + 12);
-  doc.text('Taux 135 goud — Natcash / Moncash.', 13, y + 17);
-  doc.text('Zèl pou dola ameriken.', 13, y + 22);
+  doc.text('Taux 135 goud: Natcash / Sogebank / Cash.', 13, y + 17);
+  doc.text('Zell pou dola ameriken.', 13, y + 22);
 
   doc.setFont('helvetica', 'bold'); doc.setTextColor(14, 116, 144);
-  doc.text('Otorize pa :', 83, y + 7);
+  doc.text('Otorize par :', 83, y + 7);
 
   // Signature cursive style (simulated)
   doc.setFont('times', 'bolditalic');
@@ -210,7 +208,7 @@ function generatePOSInvoice() {
   doc.text('Thomas', 83, y + 19);
 
   doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(14, 116, 144);
-  doc.text('Thomas Kabé — Agent Sud', 83, y + 24);
+  doc.text('Thomas Kabé', 83, y + 24);
   doc.text('Les Cayes Dropshipping', 83, y + 28);
 
   // ── Footer ──────────────────────────────────
@@ -244,7 +242,7 @@ function renderPosHistory() {
   if (!el) return;
   const h = getPosHistory();
   if (h.length === 0) {
-    el.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:32px;font-size:0.85rem;">Okenn istwa.</div>`;
+    el.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:32px;font-size:0.85rem;">Okenn istorik.</div>`;
     return;
   }
   el.innerHTML = h.map(e => `
