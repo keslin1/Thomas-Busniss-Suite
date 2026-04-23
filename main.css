@@ -1598,3 +1598,226 @@ img { display: block; }
 ::-webkit-scrollbar { width: 3px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--dark-5); border-radius: 4px; }
+
+/* ══════════════════════════════════════════════
+   MODULE : PLAN D'ACTION — OBJEKTIF
+   ══════════════════════════════════════════════ */
+
+/* ── Objectif Card ── */
+.obj-card {
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  overflow: hidden;
+  background: rgba(255,255,255,0.03);
+  margin-bottom: 2px;
+}
+.obj-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  cursor: pointer;
+  user-select: none;
+}
+.obj-color-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.obj-title-wrap { flex: 1; min-width: 0; }
+.obj-title {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #f0e8d8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.obj-meta {
+  font-size: 0.7rem;
+  color: rgba(200,190,175,0.45);
+  margin-top: 2px;
+}
+.obj-progress-badge {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 20px;
+  background: rgba(255,255,255,0.08);
+  flex-shrink: 0;
+}
+.obj-progress-badge.done { color: #4ade80; background: rgba(74,222,128,0.12); }
+.obj-progress-badge.mid  { color: #fbbf24; background: rgba(251,191,36,0.12); }
+.obj-progress-badge.low  { color: #f87171; background: rgba(248,113,113,0.12); }
+.obj-chevron {
+  font-size: 1rem;
+  color: rgba(200,190,175,0.35);
+  transition: transform 0.25s;
+  flex-shrink: 0;
+}
+.obj-card.open .obj-chevron { transform: rotate(90deg); }
+
+/* ── Progress bar ── */
+.obj-progress-bar-wrap {
+  height: 3px;
+  background: rgba(255,255,255,0.05);
+}
+.obj-progress-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+/* ── Plans ── */
+.obj-plans {
+  display: none;
+  padding: 6px 12px 12px;
+  flex-direction: column;
+  gap: 7px;
+}
+.obj-card.open .obj-plans { display: flex; }
+
+.plan-item {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 9px;
+  padding: 9px 11px;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+.plan-item.plan-success {
+  border-color: rgba(74,222,128,0.25);
+  background: rgba(74,222,128,0.05);
+}
+.plan-item.plan-fail {
+  border-color: rgba(248,113,113,0.18);
+  background: rgba(248,113,113,0.04);
+  opacity: 0.6;
+}
+.plan-body { flex: 1; min-width: 0; }
+.plan-text {
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: #ddd8cc;
+}
+.plan-item.plan-success .plan-text {
+  text-decoration: line-through;
+  color: #6ee7b7;
+}
+.plan-date {
+  font-size: 0.68rem;
+  color: rgba(200,190,175,0.4);
+  margin-top: 3px;
+}
+.plan-proof-btn {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  opacity: 0.45;
+  transition: opacity 0.2s;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.plan-proof-btn:hover, .plan-proof-btn.has-proof { opacity: 1; }
+.plan-proof-img {
+  display: block;
+  margin-top: 8px;
+  max-width: 100%;
+  max-height: 150px;
+  border-radius: 7px;
+  object-fit: cover;
+  border: 1px solid rgba(255,255,255,0.1);
+  cursor: pointer;
+}
+.plan-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  align-items: flex-start;
+  margin-top: 2px;
+}
+.plan-btn {
+  width: 29px;
+  height: 29px;
+  border-radius: 7px;
+  border: none;
+  cursor: pointer;
+  font-size: 0.82rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.2s;
+}
+.plan-btn:hover { opacity: 0.75; }
+.plan-btn.check  { background: rgba(74,222,128,0.18);  color: #4ade80; }
+.plan-btn.fail   { background: rgba(248,113,113,0.18); color: #f87171; }
+.plan-btn.cancel { background: rgba(200,190,175,0.1);  color: #a0988a; }
+
+/* ── Add plan btn ── */
+.add-plan-btn {
+  margin-top: 2px;
+  width: 100%;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px dashed rgba(255,255,255,0.15);
+  background: none;
+  color: rgba(200,190,175,0.45);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: var(--font-body);
+}
+.add-plan-btn:hover {
+  border-color: rgba(255,255,255,0.3);
+  color: #c8c0b0;
+}
+
+/* ── Card actions ── */
+.obj-card-actions {
+  display: none;
+  padding: 0 12px 11px;
+  gap: 8px;
+}
+.obj-card.open .obj-card-actions { display: flex; }
+.obj-edit-btn, .obj-del-btn {
+  flex: 1;
+  padding: 7px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: none;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-family: var(--font-body);
+  font-weight: 500;
+}
+.obj-edit-btn { color: #a0c4ff; }
+.obj-del-btn  { color: #f87171; }
+
+/* ── Color swatches ── */
+.obj-color-swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color 0.15s, transform 0.15s;
+}
+.obj-color-swatch.selected {
+  border-color: #fff;
+  transform: scale(1.18);
+}
+
+/* ── Purple header variant ── */
+.purple-header {
+  background: rgba(80,30,120,0.92) !important;
+  border-bottom: 2px solid #8b3dbc !important;
+}

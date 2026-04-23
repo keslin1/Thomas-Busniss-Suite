@@ -151,6 +151,15 @@
           </div>
           <span class="module-arrow">›</span>
         </button>
+
+        <button class="module-card" onclick="openModule('objektif')">
+          <div class="module-icon" style="background:#5a1d8a;">🎯</div>
+          <div class="module-info">
+            <span class="module-title">Plan d'action</span>
+            <span class="module-sub">Pwogram e Woutin</span>
+          </div>
+          <span class="module-arrow">›</span>
+        </button>
       </nav>
 
       <div class="dash-footer">
@@ -256,10 +265,16 @@
       <button class="icon-btn" onclick="togglePosHistory()">📋</button>
     </div>
     <div class="module-body scrollable">
-      <!-- Client Name -->
+      <!-- Client Name (autocomplete) -->
       <div class="pos-field-group">
         <label class="pos-label">Non kliyan</label>
-        <input type="text" id="posClientName" placeholder="Eks: Marie Pierre" class="form-input" />
+        <input type="text" id="posClientName" placeholder="Eks: Marie Pierre" class="form-input" autocomplete="off" />
+      </div>
+
+      <!-- Client Address -->
+      <div class="pos-field-group">
+        <label class="pos-label">Adrès kliyan</label>
+        <input type="text" id="posClientAddress" placeholder="Eks: Les Cayes, Tiburon..." class="form-input" />
       </div>
 
       <!-- Description -->
@@ -317,7 +332,7 @@
           <span id="resTarif" class="mono">—</span>
         </div>
         <div class="result-row">
-          <span>Pri sèvis</span>
+          <span>Subtotal</span>
           <span id="resService" class="mono">—</span>
         </div>
         <div class="result-row highlight">
@@ -474,6 +489,8 @@
           <label>Montan (HTG)</label>
           <input type="number" id="mcAmount" placeholder="0" class="form-input" oninput="previewMCRate()" />
           <p id="mcRatePreview" class="rate-preview">≈ $0.00</p>
+          <label>Dat *</label>
+          <input type="date" id="mcTxDate" class="form-input" />
           <label>Nòt (opsyonèl)</label>
           <input type="text" id="mcNote" placeholder="Eks: Salè, Ekonomi..." class="form-input" />
           <button class="btn-primary" onclick="saveMCTxn()">✔ Konfime</button>
@@ -494,6 +511,8 @@
           <label>Montan (HTG)</label>
           <input type="number" id="mcEditAmount" class="form-input" oninput="previewMCEditRate()" />
           <p id="mcEditRatePreview" class="rate-preview">≈ $0.00</p>
+          <label>Dat</label>
+          <input type="date" id="mcEditTxDate" class="form-input" />
           <label>Nòt</label>
           <input type="text" id="mcEditNote" class="form-input" />
           <button class="btn-primary" onclick="updateMCTxn()">✔ Mete ajou</button>
@@ -562,6 +581,74 @@
     </div>
   </div>
 
+  <!-- ═══════════════════════════════════════════ -->
+  <!--       MODULE : PLAN D'ACTION (OBJEKTIF)     -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div id="objektifScreen" class="screen module-screen">
+    <div class="module-header" style="background:rgba(80,30,120,0.92);border-bottom:2px solid #8b3dbc;">
+      <div class="header-banner-bg" style="--banner-color: rgba(80,30,120,0.92);"></div>
+      <button class="back-btn" onclick="goBack()">‹</button>
+      <h2>Plan d'action</h2>
+      <button class="add-btn" onclick="openObjForm()">+</button>
+    </div>
+    <div class="module-body scrollable" id="objBody">
+      <div style="text-align:center;color:var(--text-muted);padding:60px 20px;font-size:0.88rem;line-height:1.8;">
+        <div style="font-size:2.5rem;margin-bottom:12px;">🎯</div>
+        Okenn objektif ankò.<br>Peze <b>+</b> pou kreye premye a.
+      </div>
+    </div>
+  </div>
+
+  <!-- Formulaire Objectif -->
+  <div id="objFormOverlay" class="overlay hidden">
+    <div class="overlay-panel">
+      <div class="overlay-header">
+        <h3 id="objFormTitle">Nouvo Objektif</h3>
+        <button onclick="closeObjForm()">✕</button>
+      </div>
+      <div class="form-body">
+        <input type="hidden" id="objEditId" />
+        <label>Tit objektif la *</label>
+        <input type="text" id="objTitleInput" placeholder="Eks: Devlope paj Facebook mwen" class="form-input" />
+        <label>Koulè</label>
+        <div id="objColorRow" style="display:flex;gap:10px;flex-wrap:wrap;padding:4px 0;"></div>
+        <button class="btn-primary" onclick="saveObjectif()">💾 Anrejistre</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Formulaire Plan -->
+  <div id="planFormOverlay" class="overlay hidden">
+    <div class="overlay-panel small-panel">
+      <div class="overlay-header">
+        <h3>Ajoute yon Plan</h3>
+        <button onclick="closePlanForm()">✕</button>
+      </div>
+      <div class="form-body">
+        <input type="hidden" id="planObjId" />
+        <label>Deskripsyon plan an *</label>
+        <input type="text" id="planTextInput" placeholder="Eks: Kreye kontni chak jou" class="form-input" />
+        <label>Dat limit souhaitab</label>
+        <input type="date" id="planDateInput" class="form-input" />
+        <button class="btn-primary" onclick="savePlan()">➕ Ajoute Plan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Preuve photo overlay -->
+  <div id="proofOverlay" class="overlay hidden" style="align-items:center;justify-content:center;flex-direction:column;gap:14px;">
+    <button onclick="closeProofOverlay()" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.15);border:none;border-radius:8px;color:#fff;padding:8px 14px;cursor:pointer;font-size:0.9rem;">✕ Fèmen</button>
+    <img id="proofFullImg" style="max-width:90%;max-height:70vh;border-radius:10px;object-fit:contain;display:none;" src="" alt="Prèv" />
+    <div id="proofNoImg" style="color:rgba(255,255,255,0.5);font-size:0.9rem;text-align:center;">Okenn foto prèv ankò.</div>
+    <div style="display:flex;gap:10px;margin-top:8px;">
+      <button onclick="document.getElementById('proofFileInput').click()" style="background:rgba(139,61,188,0.8);border:none;border-radius:8px;color:#fff;padding:10px 18px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:500;">📷 Chwazi foto</button>
+      <button id="proofDeleteBtn" onclick="deleteProof()" style="background:rgba(248,113,113,0.6);border:none;border-radius:8px;color:#fff;padding:10px 18px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:500;display:none;">🗑 Efase</button>
+    </div>
+    <input type="hidden" id="proofObjId" />
+    <input type="hidden" id="proofPlanId" />
+    <input type="file" id="proofFileInput" accept="image/*" onchange="uploadProof(this)" hidden />
+  </div>
+
   <!-- Toast global -->
   <div id="toast" class="toast hidden"></div>
 
@@ -572,6 +659,7 @@
   <script src="pos.js"></script>
   <script src="microcredit.js"></script>
   <script src="contacts.js"></script>
+  <script src="objektif.js"></script>
   <script>
     /* ── Horloge de l'écran de verrouillage ── */
     function updateLockClock() {

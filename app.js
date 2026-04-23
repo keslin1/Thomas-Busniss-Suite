@@ -43,11 +43,10 @@ function checkPin() {
       err.classList.remove('hidden');
       setTimeout(() => err.classList.add('hidden'), 2000);
     }
-    // Shake dots
     const dotsEl = document.querySelector('.pin-dots');
     if (dotsEl) {
       dotsEl.style.animation = 'none';
-      dotsEl.offsetHeight; // reflow
+      dotsEl.offsetHeight;
       dotsEl.style.animation = 'shake 0.4s ease';
     }
   }
@@ -58,19 +57,16 @@ function navigateTo(screenId) {
   const current = document.querySelector('.screen.active');
   if (current && current.id !== screenId) {
     current.classList.remove('active');
-    // Delay hiding to allow CSS transition to complete
     const toHide = current;
     setTimeout(() => { toHide.style.display = 'none'; }, 350);
   }
   const next = document.getElementById(screenId);
   if (next) {
     next.style.display = 'flex';
-    // Force reflow before adding active class to trigger transition
     next.getBoundingClientRect();
     requestAnimationFrame(() => {
       next.classList.add('active');
     });
-    // Avoid duplicates in history
     if (screenHistory[screenHistory.length - 1] !== screenId) {
       screenHistory.push(screenId);
     }
@@ -97,17 +93,19 @@ function goBack() {
 
 function openModule(name) {
   const map = {
-    customers: 'customersScreen',
-    pos: 'posScreen',
+    customers:   'customersScreen',
+    pos:         'posScreen',
     microcredit: 'microcreditScreen',
-    contacts: 'contactsScreen',
+    contacts:    'contactsScreen',
+    objektif:    'objektifScreen',
   };
   if (map[name]) {
     navigateTo(map[name]);
-    if (name === 'customers') renderCustomers();
+    if (name === 'customers')   renderCustomers();
     if (name === 'microcredit') renderMCHistory();
-    if (name === 'contacts') renderContacts();
-    if (name === 'pos') renderPosHistory();
+    if (name === 'contacts')    renderContacts();
+    if (name === 'pos')         renderPosHistory();
+    if (name === 'objektif')    renderObjectifs();
   }
 }
 
