@@ -299,22 +299,28 @@
         <input type="number" id="posWeight" placeholder="0.0" class="form-input" step="0.1" oninput="calcLive()" />
       </div>
 
-      <!-- Prix custom & dette -->
+      <!-- Prix custom & balance restante -->
       <div class="two-col">
         <div>
           <label class="pos-label">Pri pèsonalize ($/lb)</label>
           <input type="number" id="posCustomPrice" placeholder="Opsyonèl" class="form-input" step="0.01" oninput="calcLive()" />
         </div>
         <div>
-          <label class="pos-label">Dèt ($)</label>
+          <label class="pos-label">Balance restante ($)</label>
           <input type="number" id="posDebt" placeholder="0.00" class="form-input" step="0.01" oninput="calcLive()" />
         </div>
       </div>
 
-      <!-- Changement rendu -->
+      <!-- Balance à payer -->
       <div class="pos-field-group">
-        <label class="pos-label">Monnen ($)</label>
+        <label class="pos-label">Balance à payer ($)</label>
         <input type="number" id="posChange" placeholder="0.00" class="form-input" step="0.01" oninput="calcLive()" />
+      </div>
+
+      <!-- Note -->
+      <div class="pos-field-group">
+        <label class="pos-label">Nòt (opsyonèl)</label>
+        <input type="text" id="posNote" placeholder="Eks: Fragile, priorite..." class="form-input" />
       </div>
 
       <!-- Résultat Live -->
@@ -472,8 +478,13 @@
       </div><!-- /livret-wrapper -->
 
       <!-- Historique -->
-      <div class="mc-history-header">
+      <div class="mc-history-header" style="display:flex;align-items:center;justify-content:space-between;padding:0 14px;">
         <span class="mc-history-title">📋 Istorik Tranzaksyon</span>
+        <button id="mcReceiptBtn" class="hidden"
+                onclick="generateMCReceiptPDF()"
+                style="background:rgba(22,101,52,0.35);border:1px solid rgba(22,101,52,0.6);border-radius:8px;color:#4ade80;font-size:0.75rem;padding:5px 10px;cursor:pointer;">
+          📄 Reçu 15 txn
+        </button>
       </div>
       <div id="mcHistoryList" class="list-container" style="padding:0 0 80px;"></div>
     </div>
@@ -621,16 +632,17 @@
   <div id="planFormOverlay" class="overlay hidden">
     <div class="overlay-panel small-panel">
       <div class="overlay-header">
-        <h3>Ajoute yon Plan</h3>
+        <h3 id="planFormTitle">Ajoute yon Plan</h3>
         <button onclick="closePlanForm()">✕</button>
       </div>
       <div class="form-body">
         <input type="hidden" id="planObjId" />
+        <input type="hidden" id="planEditId" />
         <label>Deskripsyon plan an *</label>
         <input type="text" id="planTextInput" placeholder="Eks: Kreye kontni chak jou" class="form-input" />
         <label>Dat limit souhaitab</label>
         <input type="date" id="planDateInput" class="form-input" />
-        <button class="btn-primary" onclick="savePlan()">➕ Ajoute Plan</button>
+        <button class="btn-primary" onclick="savePlan()">💾 Anrejistre Plan</button>
       </div>
     </div>
   </div>

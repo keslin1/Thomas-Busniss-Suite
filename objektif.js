@@ -11,7 +11,7 @@ const OBJ_COLORS = [
   '#8e44ad', '#2980b9', '#27ae60', '#d35400',
 ];
 
-let objOpenId  = null;   // objectif actuellement ouvert (accordéon)
+let objOpenId  = null;
 let objToastTimer = null;
 
 /* ── Storage ──────────────────────────────── */
@@ -48,6 +48,12 @@ function objFmtDateInput(ts) {
   return `${y}-${m}-${day}`;
 }
 
+/*
+  LOGIQUE CHECK :
+  ✔  (check)   = Accompli    → 100% pou plan sa a
+  ✕  (fail)    = Non accompli → 0%  pou plan sa a
+  pending       = En attente  → compte ni check ni fail
+*/
 function calcProgress(plans) {
   const total = plans.length;
   if (total === 0) return 0;
@@ -62,7 +68,6 @@ function progressClass(pct) {
 }
 
 function objShowToast(msg) {
-  // Use global showToast if available (embedded in Thomas Business)
   if (typeof showToast === 'function') { showToast(msg); return; }
   const el = document.getElementById('objToast');
   if (!el) return;
@@ -89,7 +94,6 @@ function renderObjectifs() {
 
   body.innerHTML = list.map(obj => renderObjCard(obj)).join('');
 
-  // Restore open state
   if (objOpenId) {
     const card = document.querySelector(`.obj-card[data-id="${objOpenId}"]`);
     if (card) card.classList.add('open');
@@ -97,8 +101,8 @@ function renderObjectifs() {
 }
 
 function renderObjCard(obj) {
-  const plans = obj.plans || [];
-  const pct   = calcProgress(plans);
+  const plans  = obj.plans || [];
+  const pct    = calcProgress(plans);
   const pClass = progressClass(pct);
   const color  = obj.color || '#8b3dbc';
   const isOpen = obj.id === objOpenId;
@@ -138,22 +142,29 @@ function renderPlanItem(objId, p) {
   if (p.status === 'check') statusClass = 'plan-success';
   if (p.status === 'fail')  statusClass = 'plan-fail';
 
-  const hasProof = !!p.proof;
+  const hasProof  = !!p.proof;
   const proofHtml = p.proof
     ? `<img class="plan-proof-img" src="${p.proof}" alt="Prèv" onclick="openProofOverlay('${objId}','${p.id}')" />`
     : '';
-
   const dueTxt = p.dueDate ? `<span>Limit: ${objFmtDate(p.dueDate)}</span>` : '';
 
+  // Boutons d'action :
+  // pending → ✔ (Reyisi / Accompli) + ✕ (Non accompli)
+  // check   → ↺ (Remete an atant)
+  // fail    → ↺ (Remete an atant)
   let actionBtns = '';
   if (p.status === 'pending') {
     actionBtns = `
-      <button class="plan-btn check"  onclick="setPlanStatus('${objId}','${p.id}','check')"  title="Reyisi">✔</button>
-      <button class="plan-btn fail"   onclick="setPlanStatus('${objId}','${p.id}','fail')"   title="Echwe">✕</button>`;
+      <button class="plan-btn check" onclick="setPlanStatus('${objId}','${p.id}','check')" title="Accompli (100%)">✔</button>
+      <button class="plan-btn fail"  onclick="setPlanStatus('${objId}','${p.id}','fail')"  title="Non accompli (0%)">✕</button>`;
   } else {
     actionBtns = `
-      <button class="plan-btn cancel" onclick="setPlanStatus('${objId}','${p.id}','pending')" title="Renmèt an atant">↺</button>`;
+      <button class="plan-btn cancel" onclick="setPlanStatus('${objId}','${p.id}','pending')" title="Remete an atant">↺</button>`;
   }
+
+  // Boutons édition plan + suppression plan
+  const editPlanBtn = `<button class="plan-edit-btn" onclick="openEditPlanForm('${objId}','${p.id}')" title="Modifye plan">✏️</button>`;
+  const delPlanBtn  = `<button class="plan-del-btn"  onclick="deletePlan('${objId}','${p.id}')" title="Efase plan">🗑️</button>`;
 
   return `
     <div class="plan-item ${statusClass}" data-plan-id="${p.id}">
@@ -165,17 +176,17 @@ function renderPlanItem(objId, p) {
       <button class="plan-proof-btn ${hasProof ? 'has-proof' : ''}"
               onclick="openProofOverlay('${objId}','${p.id}')"
               title="Foto prèv">👁️</button>
-      <div class="plan-actions">${actionBtns}</div>
+      <div class="plan-actions">
+        ${actionBtns}
+        ${editPlanBtn}
+        ${delPlanBtn}
+      </div>
     </div>`;
 }
 
 /* ── Accordéon ────────────────────────────── */
 function toggleObjCard(id) {
-  if (objOpenId === id) {
-    objOpenId = null;
-  } else {
-    objOpenId = id;
-  }
+  objOpenId = (objOpenId === id) ? null : id;
   renderObjectifs();
 }
 
@@ -227,27 +238,20 @@ function saveObjectif() {
   const title = (document.getElementById('objTitleInput').value || '').trim();
   if (!title) { objShowToast('⚠️ Tit objektif obligatwa'); return; }
 
-  const color = getSelectedColor();
+  const color  = getSelectedColor();
   const editId = document.getElementById('objEditId').value;
-  const list = getObjectifs();
-  const now = Date.now();
+  const list   = getObjectifs();
+  const now    = Date.now();
 
   if (editId) {
     const idx = list.findIndex(o => o.id === editId);
     if (idx !== -1) {
-      list[idx].title = title;
-      list[idx].color = color;
+      list[idx].title     = title;
+      list[idx].color     = color;
       list[idx].updatedAt = now;
     }
   } else {
-    list.unshift({
-      id: objUid(),
-      title,
-      color,
-      plans: [],
-      createdAt: now,
-      updatedAt: now,
-    });
+    list.unshift({ id: objUid(), title, color, plans: [], createdAt: now, updatedAt: now });
   }
 
   saveObjectifs(list);
@@ -265,11 +269,13 @@ function deleteObjectif(id) {
   objShowToast('🗑️ Objektif efase');
 }
 
-/* ── Plan Form ────────────────────────────── */
+/* ── Plan Form (Ajoute) ───────────────────── */
 function openPlanForm(objId) {
-  document.getElementById('planObjId').value = objId;
+  document.getElementById('planObjId').value   = objId;
+  document.getElementById('planEditId').value  = '';       // nouveau
   document.getElementById('planTextInput').value = '';
   document.getElementById('planDateInput').value = '';
+  document.getElementById('planFormTitle').textContent = 'Ajoute yon Plan';
   document.getElementById('planFormOverlay').classList.remove('hidden');
 }
 
@@ -277,9 +283,26 @@ function closePlanForm() {
   document.getElementById('planFormOverlay').classList.add('hidden');
 }
 
+/* ── Plan Form (Édition) ───────────────────── */
+function openEditPlanForm(objId, planId) {
+  const list = getObjectifs();
+  const obj  = list.find(o => o.id === objId);
+  if (!obj) return;
+  const plan = obj.plans.find(p => p.id === planId);
+  if (!plan) return;
+
+  document.getElementById('planObjId').value    = objId;
+  document.getElementById('planEditId').value   = planId;
+  document.getElementById('planTextInput').value = plan.text || '';
+  document.getElementById('planDateInput').value = objFmtDateInput(plan.dueDate);
+  document.getElementById('planFormTitle').textContent = 'Modifye Plan';
+  document.getElementById('planFormOverlay').classList.remove('hidden');
+}
+
 function savePlan() {
-  const objId = document.getElementById('planObjId').value;
-  const text  = (document.getElementById('planTextInput').value || '').trim();
+  const objId  = document.getElementById('planObjId').value;
+  const editId = document.getElementById('planEditId').value;
+  const text   = (document.getElementById('planTextInput').value || '').trim();
   if (!text) { objShowToast('⚠️ Deskripsyon plan obligatwa'); return; }
 
   const dateVal = document.getElementById('planDateInput').value;
@@ -289,37 +312,72 @@ function savePlan() {
   const obj  = list.find(o => o.id === objId);
   if (!obj) return;
 
-  obj.plans.push({
-    id: objUid(),
-    text,
-    dueDate,
-    status: 'pending',
-    proof: null,
-    createdAt: Date.now(),
-  });
-  obj.updatedAt = Date.now();
+  if (editId) {
+    // Édition d'un plan existant
+    const plan = obj.plans.find(p => p.id === editId);
+    if (plan) {
+      plan.text    = text;
+      plan.dueDate = dueDate;
+    }
+    obj.updatedAt = Date.now();
+    objShowToast('✅ Plan modifye');
+  } else {
+    // Nouveau plan
+    obj.plans.push({
+      id: objUid(),
+      text,
+      dueDate,
+      status: 'pending',
+      proof: null,
+      createdAt: Date.now(),
+    });
+    obj.updatedAt = Date.now();
+    objShowToast('✅ Plan ajoute');
+  }
 
   saveObjectifs(list);
   objOpenId = objId;
   closePlanForm();
   renderObjectifs();
-  objShowToast('✅ Plan ajoute');
+}
+
+/* ── Plan Delete ──────────────────────────── */
+function deletePlan(objId, planId) {
+  if (!confirm('Efase plan sa a?')) return;
+  const list = getObjectifs();
+  const obj  = list.find(o => o.id === objId);
+  if (!obj) return;
+  obj.plans     = obj.plans.filter(p => p.id !== planId);
+  obj.updatedAt = Date.now();
+  saveObjectifs(list);
+  objOpenId = objId;
+  renderObjectifs();
+  objShowToast('🗑️ Plan efase');
 }
 
 /* ── Plan Status ──────────────────────────── */
+/*
+  ✔ check  = Accompli   (contribue 100% pou plan sa a nan kalkil la)
+  ✕ fail   = Non accompli (0% — plan manke)
+  ↺ pending = Remete an atant
+*/
 function setPlanStatus(objId, planId, status) {
   const list = getObjectifs();
   const obj  = list.find(o => o.id === objId);
   if (!obj) return;
   const plan = obj.plans.find(p => p.id === planId);
   if (!plan) return;
-  plan.status = status;
+  plan.status   = status;
   obj.updatedAt = Date.now();
   saveObjectifs(list);
   objOpenId = objId;
   renderObjectifs();
 
-  const msgs = { check: '✅ Plan mache!', fail: '❌ Plan echwe', pending: '↺ Plan remete an atant' };
+  const msgs = {
+    check:   '✔️ Plan akompli!',
+    fail:    '✕ Plan non akompli',
+    pending: '↺ Plan remete an atant',
+  };
   objShowToast(msgs[status] || '');
 }
 
@@ -332,18 +390,18 @@ function openProofOverlay(objId, planId) {
   const obj  = list.find(o => o.id === objId);
   const plan = obj ? obj.plans.find(p => p.id === planId) : null;
 
-  const imgEl  = document.getElementById('proofFullImg');
+  const imgEl   = document.getElementById('proofFullImg');
   const noImgEl = document.getElementById('proofNoImg');
-  const delBtn = document.getElementById('proofDeleteBtn');
+  const delBtn  = document.getElementById('proofDeleteBtn');
 
   if (plan && plan.proof) {
     imgEl.src = plan.proof;
-    imgEl.style.display = 'block';
+    imgEl.style.display   = 'block';
     noImgEl.style.display = 'none';
     delBtn.style.display  = 'inline-block';
   } else {
     imgEl.src = '';
-    imgEl.style.display = 'none';
+    imgEl.style.display   = 'none';
     noImgEl.style.display = 'block';
     delBtn.style.display  = 'none';
   }
@@ -356,60 +414,55 @@ function closeProofOverlay() {
 
 function uploadProof(input) {
   if (!input.files || !input.files[0]) return;
-  const file = input.files[0];
   const reader = new FileReader();
-  reader.onload = e => {
-    const b64 = e.target.result;
+  reader.onload = ev => {
+    const b64    = ev.target.result;
     const objId  = document.getElementById('proofObjId').value;
     const planId = document.getElementById('proofPlanId').value;
-    const list = getObjectifs();
-    const obj  = list.find(o => o.id === objId);
+    const list   = getObjectifs();
+    const obj    = list.find(o => o.id === objId);
     if (!obj) return;
     const plan = obj.plans.find(p => p.id === planId);
     if (!plan) return;
-    plan.proof = b64;
+    plan.proof    = b64;
     obj.updatedAt = Date.now();
     saveObjectifs(list);
-    // Refresh proof overlay
     const imgEl = document.getElementById('proofFullImg');
     imgEl.src = b64;
-    imgEl.style.display = 'block';
-    document.getElementById('proofNoImg').style.display   = 'none';
+    imgEl.style.display   = 'block';
+    document.getElementById('proofNoImg').style.display    = 'none';
     document.getElementById('proofDeleteBtn').style.display = 'inline-block';
     objOpenId = objId;
     renderObjectifs();
     objShowToast('📷 Foto prèv anrejistre');
     input.value = '';
   };
-  reader.readAsDataURL(file);
+  reader.readAsDataURL(input.files[0]);
 }
 
 function deleteProof() {
   const objId  = document.getElementById('proofObjId').value;
   const planId = document.getElementById('proofPlanId').value;
-  const list = getObjectifs();
-  const obj  = list.find(o => o.id === objId);
+  const list   = getObjectifs();
+  const obj    = list.find(o => o.id === objId);
   if (!obj) return;
   const plan = obj.plans.find(p => p.id === planId);
   if (plan) { plan.proof = null; obj.updatedAt = Date.now(); }
   saveObjectifs(list);
   const imgEl = document.getElementById('proofFullImg');
   imgEl.src = '';
-  imgEl.style.display = 'none';
-  document.getElementById('proofNoImg').style.display   = 'block';
+  imgEl.style.display   = 'none';
+  document.getElementById('proofNoImg').style.display    = 'block';
   document.getElementById('proofDeleteBtn').style.display = 'none';
   objOpenId = objId;
   renderObjectifs();
   objShowToast('🗑️ Foto prèv efase');
 }
 
-/* ── Navigation (standalone vs embedded) ──── */
+/* ── Navigation ──────────────────────────── */
 function objGoBack() {
-  if (typeof goBack === 'function') {
-    goBack();
-  } else {
-    window.history.back();
-  }
+  if (typeof goBack === 'function') goBack();
+  else window.history.back();
 }
 
 /* ── Init ─────────────────────────────────── */
