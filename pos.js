@@ -1,18 +1,22 @@
 /* ══════════════════════════════════════════════
-   THOMAS BUSINESS SUITE — pos.js
+   THOMAS BUSINESS SUITE — pos.js  v2
    Kalkimatris · Sistèm POS & Fakti PDF
+   ══════════════════════════════════════════════
+
+   RÈGLES DE CALCUL CORRIGÉES :
+   • Pwa Volimik  = (L × l × H) / 4000  [cm → lb approx]
+   • Pwa Final    = PwaVol + PwaReyèl
+   • Tarif fixe   = $4.90/lb  (toujours)
+   • Minimum      = $25.00 sauf si Custom Price
+   • Total        = PrixService + BalRest − BalPaye
+   • Affichage    = $XX.XX  +  XXXX HTG (135 HTG/$)
    ══════════════════════════════════════════════ */
 
-const POS_KEY      = 'tbs_pos_history';
-const POS_MAX      = 12;   // 12 dènye fakti
-const MIN_CHARGE   = 25;   // Frè minimum $25
-
-/* ── Grille tarifaire LCD ───────────────────── */
-// Si PwaFinal < 50 lb  → $4.90/lb
-// Si PwaFinal >= 50 lb → $3.99/lb
-function getTarif(weightLb) {
-  return weightLb >= 50 ? 3.99 : 4.90;
-}
+const POS_KEY    = 'tbs_pos_history';
+const POS_MAX    = 12;
+const MIN_CHARGE = 25.00;
+const TARIF_LB   = 4.90;
+const HTG_RATE   = 135;
 
 /* ── Storage ────────────────────────────────── */
 function getPosHistory() {
@@ -49,45 +53,56 @@ function calcLive() {
   const H           = parseFloat(document.getElementById('posH')?.value)           || 0;
   const realWeight  = parseFloat(document.getElementById('posWeight')?.value)      || 0;
   const customPrice = parseFloat(document.getElementById('posCustomPrice')?.value) || 0;
-  const balRest     = parseFloat(document.getElementById('posDebt')?.value)        || 0;  // Balance restante
-  const balPaye     = parseFloat(document.getElementById('posChange')?.value)      || 0;  // Balance à payer
+  const balRest     = parseFloat(document.getElementById('posDebt')?.value)        || 0;
+  const balPaye     = parseFloat(document.getElementById('posChange')?.value)      || 0;
 
-  // Pwa Volimétrique : (L × l × H) / 4000
+  /* Pwa Volimétrique corrigé : diviser par 4000 (standard aérien cm³→lb) */
   const volWeight   = (L * W * H) / 4000;
 
-  // Pwa final = PwaVol + PwaReyèl
+  /* Pwa Final = vol + reyèl */
   const finalWeight = volWeight + realWeight;
 
-  // Tarif applicab
-  let tarif, servicePrix, subtotal;
+  let subtotal = 0;
+  let servicePrix = 0;
+  let tarifApplied = TARIF_LB;
 
   if (customPrice > 0) {
-    // Prix personnalisé : remplace le calcul automatique
-    tarif      = customPrice;
-    servicePrix = finalWeight > 0 ? finalWeight * customPrice : customPrice;
-    subtotal    = servicePrix;
+    /* Custom price : remplace toute la logique automatique */
+    subtotal    = customPrice;
+    servicePrix = customPrice;
+    tarifApplied = 0; // indicateur "prix manuel"
   } else if (finalWeight > 0) {
-    tarif       = getTarif(finalWeight);
-    const brut  = finalWeight * tarif;
+    const brut  = finalWeight * TARIF_LB;
+    subtotal    = brut;
     servicePrix = brut < MIN_CHARGE ? MIN_CHARGE : brut;
-    subtotal    = servicePrix;
-  } else {
-    tarif = 0; servicePrix = 0; subtotal = 0;
   }
 
-  // Total = PrixService + BalanceRestante - BalancePaye
-  const total = subtotal + balRest - balPaye;
+  /* Total = PrixService + BalanceRestante − BalancePaye */
+  const total    = Math.max(0, servicePrix + balRest - balPaye);
+  const totalHTG = total * HTG_RATE;
 
-  // Affichage
+  /* ── Affichage ─────────────────────────────── */
   const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
 
-  setTxt('resVolWeight',   volWeight > 0   ? volWeight.toFixed(2) + ' lb'   : '— lb');
-  setTxt('resFinalWeight', finalWeight > 0 ? finalWeight.toFixed(2) + ' lb' : '— lb');
-  setTxt('resTarif',       tarif > 0       ? '$' + tarif.toFixed(2) + '/lb' : '—');
-  setTxt('resService',     subtotal > 0    ? '$' + subtotal.toFixed(2)      : '—');
-  setTxt('resTotal',       '$' + Math.max(0, total).toFixed(2));
+  setTxt('resVolWeight',    volWeight > 0   ? volWeight.toFixed(2) + ' lb'   : '— lb');
+  setTxt('resFinalWeight',  finalWeight > 0 ? finalWeight.toFixed(2) + ' lb' : '— lb');
+  setTxt('resTarif',        customPrice > 0 ? 'Prix manuel' : (finalWeight > 0 ? '$' + TARIF_LB.toFixed(2) + '/lb' : '—'));
+  setTxt('resSubtotal',     subtotal > 0    ? '$' + subtotal.toFixed(2)      : '—');
+  setTxt('resService',      servicePrix > 0 ? '$' + servicePrix.toFixed(2)   : '—');
+  setTxt('resTotal',        '$' + total.toFixed(2));
+  setTxt('resTotalHTG',     totalHTG.toFixed(0) + ' HTG');
 
-  return { volWeight, finalWeight, tarif, subtotal, total: Math.max(0, total), balRest, balPaye, customPrice };
+  /* Indicateur minimum appliqué */
+  const minBadge = document.getElementById('resMinBadge');
+  if (minBadge) {
+    if (customPrice <= 0 && finalWeight > 0 && (finalWeight * TARIF_LB) < MIN_CHARGE) {
+      minBadge.style.display = 'inline-block';
+    } else {
+      minBadge.style.display = 'none';
+    }
+  }
+
+  return { volWeight, finalWeight, tarifApplied, subtotal, servicePrix, total, totalHTG, balRest, balPaye, customPrice };
 }
 
 /* ── Autocomplete client ───────────────────── */
@@ -118,6 +133,7 @@ function initPosAutocomplete() {
         nameInput.value = c.name;
         if (addrInput) addrInput.value = c.address || '';
         removePosDropdown();
+        calcLive();
       });
       dd.appendChild(item);
     });
@@ -143,55 +159,73 @@ function generatePOSInvoice() {
 
   const vals = calcLive();
 
-  if (vals.finalWeight <= 0 && !clientName) {
+  if (vals.finalWeight <= 0 && vals.customPrice <= 0 && !clientName) {
     showToast('⚠️ Antre omwen pwa oswa non kliyan');
     return;
   }
 
+  /* Numéro de facture auto-incrémenté */
+  const hist    = getPosHistory();
+  const invoiceNo = String((hist.length > 0 ? (parseInt(hist[0].invoiceNo || '0') + 1) : 1)).padStart(3, '0');
+
   const entry = {
     id: uid(),
+    invoiceNo,
     clientName, clientAddr, desc, note: noteField,
     ...vals,
     date: Date.now(),
   };
 
-  const hist = getPosHistory();
   hist.unshift(entry);
-  // Limité aux 12 derniers
   if (hist.length > POS_MAX) hist.length = POS_MAX;
   savePosHistory(hist);
   savePosClient(clientName, clientAddr);
 
   buildPOSPdf(entry);
-  showToast('📄 Fakti PDF jenere');
+  showToast('📄 Fakti #' + invoiceNo + ' jenere');
   renderPosHistory();
 }
 
-/* ── Build PDF A5 ───────────────────────────── */
+/* ── Build PDF A4 ───────────────────────────── */
 function buildPOSPdf(e) {
+  if (!window.jspdf) { showToast('⚠️ jsPDF pa chaje'); return; }
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a5' });
-  const pw = 148, ph = 210;
 
-  // Couleurs brand
-  const bR = 101, bG = 51, bB = 19;   // brun LCD
-  const gR = 212, gG = 175, gB = 55;  // or
+  /* Format A4 portrait */
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pw = 210, ph = 297;
 
-  /* ─── En-tête ─────────────────────────────── */
-  doc.setFillColor(bR, bG, bB);
-  doc.rect(0, 0, pw, 36, 'F');
-  doc.setFillColor(gR, gG, gB);
-  doc.rect(0, 35, pw, 1.5, 'F');
+  /* Palette brand LCD */
+  const bruR = 101, bruG = 51,  bruB = 19;  // brun LCD
+  const orR  = 212, orG  = 175, orB  = 55;  // or
+  const tqR  = 0,   tqG  = 150, tqB  = 166; // turquoise bannière
 
-  // Logo : chargement asynchrone via canvas
+  /* ─── Watermark ────────────────────────────── */
+  doc.setFontSize(38);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(220, 220, 220);
+  doc.setGState && doc.setGState(doc.GState({ opacity: 0.08 }));
+  doc.text('Les Cayes', pw / 2, ph / 2 - 12, { align: 'center', angle: 30 });
+  doc.text('Dropshipping', pw / 2, ph / 2 + 12, { align: 'center', angle: 30 });
+  doc.setGState && doc.setGState(doc.GState({ opacity: 1 }));
+  doc.setTextColor(0, 0, 0);
+
+  /* ─── Bannière supérieure turquoise ─────────── */
+  doc.setFillColor(tqR, tqG, tqB);
+  doc.rect(0, 0, pw, 42, 'F');
+
+  /* Ligne or de séparation */
+  doc.setFillColor(orR, orG, orB);
+  doc.rect(0, 42, pw, 1.5, 'F');
+
+  /* Logo */
   const logoPromise = new Promise(resolve => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      canvas.width = 120; canvas.height = 120;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, 120, 120);
+      canvas.width = 150; canvas.height = 150;
+      canvas.getContext('2d').drawImage(img, 0, 0, 150, 150);
       resolve(canvas.toDataURL('image/png'));
     };
     img.onerror = () => resolve(null);
@@ -200,160 +234,178 @@ function buildPOSPdf(e) {
 
   logoPromise.then(imgData => {
     if (imgData) {
-      doc.addImage(imgData, 'PNG', 6, 4, 26, 26);
-    } else {
-      doc.setFillColor(255, 255, 255, 40);
-      doc.roundedRect(6, 4, 26, 26, 3, 3, 'F');
+      doc.addImage(imgData, 'PNG', 8, 4, 32, 32);
     }
 
-    // Texte entête
+    /* Texte en-tête */
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(11.5);
+    doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.text('LES CAYES DROPSHIPPING', 36, 12);
-    doc.setFontSize(7.5);
+    doc.text('LES CAYES DROPSHIPPING', 46, 14);
+
+    doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
-    doc.text('+509 31 01 39 68  ·  lescayesdropshipping@gmail.com', 36, 18);
-    doc.text('USA: 14030 NW 5th Pl North  ·  Haïti: Camp-Perrin, Matinière', 36, 23);
-    const dateTxt = 'Dat: ' + new Date(e.date).toLocaleDateString('fr-HT', { day:'2-digit', month:'2-digit', year:'numeric' });
-    doc.text(dateTxt, 36, 29);
+    doc.text('Patnè fyab ou pou pwojè komès ak livrezon USA vers Haïti', 46, 21);
+    doc.text('USA: 14030 NW 5th Pl North, Miami · Haïti: Camp-Perrin, Matinière, Les Cayes', 46, 27);
+    doc.text('+509 31 01 39 68  ·  lescayesdropshipping@gmail.com', 46, 33);
 
-    let y = 44;
+    /* Numéro et date — coin droit */
+    const dateTxt = new Date(e.date).toLocaleDateString('fr-HT', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'bold');
+    doc.text('FACTURE  #' + (e.invoiceNo || '—'), pw - 12, 14, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    doc.text('Date: ' + dateTxt, pw - 12, 20, { align: 'right' });
 
-    /* ─── Bloc client ──────────────────────── */
-    doc.setFontSize(11);
+    let y = 54;
+
+    /* ─── Bloc client ──────────────────────────── */
+    doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(20, 20, 20);
-    if (e.clientName) { doc.text(e.clientName, 10, y); y += 6; }
+    if (e.clientName) { doc.text(e.clientName, 14, y); y += 7; }
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
+    doc.setFontSize(9);
     doc.setTextColor(70, 70, 70);
-    if (e.clientAddr) { doc.text('📍  ' + e.clientAddr, 10, y); y += 5; }
+    if (e.clientAddr) { doc.text(e.clientAddr, 14, y); y += 5.5; }
     if (e.desc) {
-      const dLines = doc.splitTextToSize('📦  ' + e.desc, pw - 20);
-      doc.text(dLines, 10, y);
-      y += dLines.length * 4.5;
+      const dLines = doc.splitTextToSize(e.desc, pw - 28);
+      doc.text(dLines, 14, y);
+      y += dLines.length * 5;
     }
 
     y += 4;
-    doc.setDrawColor(gR, gG, gB);
-    doc.setLineWidth(0.4);
-    doc.line(10, y, pw - 10, y);
-    y += 7;
-
-    /* ─── Tableau ──────────────────────────── */
-    // En-tête tableau
-    doc.setFillColor(240, 234, 224);
-    doc.rect(10, y - 4.5, pw - 20, 8, 'F');
-    doc.setFontSize(7.5);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(bR, bG, bB);
-    doc.text('Deskripsyon', 12, y);
-    doc.text('Detay', 90, y);
-    doc.text('Montan', pw - 12, y, { align: 'right' });
-    y += 6;
-
-    // Lignes du tableau — PAS de poids vol/réel/tarif visible
-    const rows = [];
-    if (e.subtotal > 0) rows.push(['Frè ekspedisyon', '', '$' + e.subtotal.toFixed(2)]);
-    if (e.balRest > 0)  rows.push(['Balance restante', '', '+$' + e.balRest.toFixed(2)]);
-    if (e.balPaye > 0)  rows.push(['Balance à payer',  '', '-$' + e.balPaye.toFixed(2)]);
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
-    rows.forEach((r, i) => {
-      if (y > ph - 50) { doc.addPage(); y = 20; }
-      doc.setFillColor(i % 2 === 0 ? 255 : 250, i % 2 === 0 ? 255 : 250, i % 2 === 0 ? 255 : 248);
-      doc.rect(10, y - 3.5, pw - 20, 7, 'F');
-      doc.setTextColor(40, 40, 40);
-      doc.text(r[0], 12, y);
-      if (r[1]) doc.text(r[1], 90, y);
-      if (r[2]) {
-        doc.setTextColor(bR, bG, bB);
-        doc.text(r[2], pw - 12, y, { align: 'right' });
-        doc.setTextColor(40, 40, 40);
-      }
-      y += 7;
-    });
-
-    // Subtotal ligne
-    y += 1;
-    doc.setFillColor(235, 226, 208);
-    doc.rect(10, y - 4, pw - 20, 7.5, 'F');
-    doc.setFontSize(8.5);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(60, 40, 10);
-    doc.text('Subtotal', 12, y);
-    doc.text('$' + e.subtotal.toFixed(2), pw - 12, y, { align: 'right' });
+    doc.setDrawColor(orR, orG, orB);
+    doc.setLineWidth(0.5);
+    doc.line(14, y, pw - 14, y);
     y += 8;
 
-    // Total principal
-    doc.setFillColor(bR, bG, bB);
-    doc.rect(10, y - 4, pw - 20, 9, 'F');
-    doc.setFontSize(10.5);
+    /* ─── En-tête tableau ──────────────────────── */
+    doc.setFillColor(tqR, tqG, tqB);
+    doc.rect(14, y - 5, pw - 28, 9, 'F');
+    doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(255, 255, 255);
-    doc.text('TOTAL', 12, y);
-    doc.text('$' + (e.total || 0).toFixed(2), pw - 12, y, { align: 'right' });
-    y += 13;
+    doc.text('Description', 17, y);
+    doc.text('Pwa', 118, y, { align: 'right' });
+    doc.text('Montant', pw - 16, y, { align: 'right' });
+    y += 7;
 
-    /* ─── Adresse fumée sous le nom ────────── */
-    if (e.clientAddr) {
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(160, 150, 135);
-      doc.text('📍  ' + e.clientAddr, 10, y);
-      y += 7;
-    }
+    /* ─── Lignes tableau ───────────────────────── */
+    const tableRows = [];
+    const pwaDesc = e.finalWeight > 0 ? e.finalWeight.toFixed(2) + ' lb' : '—';
 
-    /* ─── Zone Note ────────────────────────── */
+    tableRows.push([
+      e.desc || 'Frè ekspedisyon',
+      pwaDesc,
+      '$' + (e.servicePrix || e.subtotal || 0).toFixed(2)
+    ]);
+    if (e.balRest > 0)  tableRows.push(['Balance restante', '', '+$' + e.balRest.toFixed(2)]);
+    if (e.balPaye > 0)  tableRows.push(['Balance à payer',  '', '−$' + e.balPaye.toFixed(2)]);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9.5);
+    tableRows.forEach((r, i) => {
+      if (y > ph - 70) { doc.addPage(); y = 20; }
+      doc.setFillColor(i % 2 === 0 ? 255 : 248, i % 2 === 0 ? 255 : 250, i % 2 === 0 ? 255 : 250);
+      doc.rect(14, y - 4, pw - 28, 8, 'F');
+      doc.setTextColor(30, 30, 30);
+      doc.text(r[0], 17, y);
+      if (r[1]) doc.text(r[1], 118, y, { align: 'right' });
+      doc.setTextColor(bruR, bruG, bruB);
+      if (r[2]) doc.text(r[2], pw - 16, y, { align: 'right' });
+      doc.setTextColor(30, 30, 30);
+      y += 8;
+    });
+
+    y += 2;
+
+    /* ─── Subtotal ─────────────────────────────── */
+    doc.setFillColor(240, 234, 224);
+    doc.rect(14, y - 4, pw - 28, 8, 'F');
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(60, 40, 10);
+    doc.text('Subtotal', 17, y);
+    doc.text('$' + (e.subtotal || 0).toFixed(2), pw - 16, y, { align: 'right' });
+    y += 10;
+
+    /* ─── Total principal ──────────────────────── */
+    doc.setFillColor(bruR, bruG, bruB);
+    doc.rect(14, y - 5, pw - 28, 11, 'F');
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255, 255, 255);
+    doc.text('TOTAL', 17, y);
+    doc.text('$' + (e.total || 0).toFixed(2), pw - 16, y, { align: 'right' });
+    y += 12;
+
+    /* ─── Équivalent HTG (italique, opacité réduite) ─ */
+    const htgAmt = ((e.total || 0) * HTG_RATE).toFixed(0);
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(140, 120, 90);
+    doc.text('≈ ' + parseInt(htgAmt).toLocaleString('fr-HT') + ' HTG  (taux 135 HTG/$)', pw - 16, y, { align: 'right' });
+    y += 10;
+
+    /* ─── Zone Note ────────────────────────────── */
     if (e.note) {
-      y += 2;
-      doc.setFontSize(8);
+      doc.setFontSize(8.5);
       doc.setFont('helvetica', 'italic');
-      doc.setTextColor(90, 90, 90);
-      const noteLines = doc.splitTextToSize('Nòt: ' + e.note, pw - 20);
-      doc.text(noteLines, 10, y);
-      y += noteLines.length * 4.5 + 4;
-    }
-
-    /* ─── Espace note vide si pas de note ──── */
-    if (!e.note) {
-      y += 4;
-      doc.setFontSize(7.5);
+      doc.setTextColor(80, 80, 80);
+      const noteLines = doc.splitTextToSize('Nòt: ' + e.note, pw - 28);
+      doc.text(noteLines, 14, y);
+      y += noteLines.length * 5 + 4;
+    } else {
+      doc.setFontSize(8);
       doc.setFont('helvetica', 'italic');
       doc.setTextColor(180, 170, 155);
-      doc.text('Nòt:', 10, y);
+      doc.text('Nòt:', 14, y);
       doc.setDrawColor(200, 190, 175);
       doc.setLineWidth(0.3);
-      doc.line(22, y, pw - 10, y);
+      doc.line(28, y, pw - 14, y);
       y += 6;
-      doc.line(10, y, pw - 10, y);
+      doc.line(14, y, pw - 14, y);
       y += 10;
     }
 
-    /* ─── Signature ────────────────────────── */
-    // Ligne de séparation
-    doc.setDrawColor(gR, gG, gB);
-    doc.setLineWidth(0.35);
-    doc.line(10, y, pw - 10, y);
-    y += 6;
-
-    // Signature en style cursif simulé
-    doc.setFontSize(12);
-    doc.setFont('times', 'bolditalic');
-    doc.setTextColor(50, 30, 10);
-    doc.text("L'Agent Sud (Thomas Kabé)", pw / 2, y, { align: 'center' });
-    y += 4;
-
-    // Pied de page
-    doc.setFontSize(6.5);
+    /* ─── Bloc conditions de paiement ─────────── */
+    doc.setFillColor(245, 242, 235);
+    doc.rect(14, y, pw - 28, 22, 'F');
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(bruR, bruG, bruB);
+    doc.text('Kondisyon peman / Conditions de paiement', 17, y + 7);
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(160, 150, 135);
-    doc.text('Les Cayes Dropshipping · lescayesdropshipping@gmail.com · +509 31 01 39 68', pw / 2, ph - 6, { align: 'center' });
+    doc.setTextColor(50, 50, 50);
+    doc.text('Achte sou entènèt avè nou ak konfyans.', 17, y + 13);
+    doc.text('Taux 135 goud = $1 · Natcash · Moncash · Zelle pou dola ameriken', 17, y + 18);
+    y += 26;
 
-    const fname = 'Fakti-LCD-' + (e.clientName || 'Kliyan').replace(/\s+/g, '_') + '-' + Date.now() + '.pdf';
+    /* ─── Signature ────────────────────────────── */
+    doc.setDrawColor(orR, orG, orB);
+    doc.setLineWidth(0.5);
+    doc.line(14, y, pw - 14, y);
+    y += 7;
+
+    doc.setFontSize(13);
+    doc.setFont('times', 'bolditalic');
+    doc.setTextColor(40, 20, 5);
+    doc.text("L'Agent Sud (Thomas Kabé)", pw - 14, y, { align: 'right' });
+
+    /* ─── Pied de page ─────────────────────────── */
+    doc.setFillColor(tqR, tqG, tqB);
+    doc.rect(0, ph - 12, pw, 12, 'F');
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(255, 255, 255);
+    doc.text(
+      'Les Cayes Dropshipping · lescayesdropshipping@gmail.com · +509 31 01 39 68 · Camp-Perrin, Les Cayes',
+      pw / 2, ph - 5, { align: 'center' }
+    );
+
+    const fname = 'Fakti-LCD-' + (e.clientName || 'Kliyan').replace(/\s+/g, '_') + '-' + (e.invoiceNo || Date.now()) + '.pdf';
     doc.save(fname);
   });
 }
@@ -375,11 +427,19 @@ function renderPosHistory() {
         <div>
           <div style="font-size:0.9rem;font-weight:600;color:#ddd8cc;">${h.clientName || '—'}</div>
           ${h.clientAddr ? `<div style="font-size:0.72rem;color:rgba(200,190,175,0.5);">${h.clientAddr}</div>` : ''}
-          <div style="font-size:0.72rem;color:rgba(200,190,175,0.4);margin-top:2px;">${new Date(h.date).toLocaleDateString('fr-HT',{day:'2-digit',month:'2-digit',year:'numeric'})}</div>
+          <div style="font-size:0.72rem;color:rgba(200,190,175,0.4);margin-top:2px;">
+            #${h.invoiceNo || '—'} · ${new Date(h.date).toLocaleDateString('fr-HT',{day:'2-digit',month:'2-digit',year:'numeric'})}
+          </div>
         </div>
         <div style="text-align:right;flex-shrink:0;">
           <div style="font-family:'Space Mono',monospace;font-size:0.95rem;color:#d4af37;">$${(h.total||0).toFixed(2)}</div>
-          <button onclick='buildPOSPdf(${JSON.stringify(h).replace(/'/g,"&#39;")})' style="margin-top:4px;background:rgba(101,51,19,0.3);border:1px solid rgba(101,51,19,0.5);border-radius:6px;color:#d4af37;font-size:0.72rem;padding:3px 8px;cursor:pointer;">🖨️ PDF</button>
+          <div style="font-size:0.7rem;color:rgba(200,180,100,0.55);font-style:italic;">
+            ${Math.round((h.total||0)*HTG_RATE).toLocaleString('fr-HT')} HTG
+          </div>
+          <button onclick='buildPOSPdf(${JSON.stringify(h).replace(/'/g,"&#39;")})' 
+            style="margin-top:4px;background:rgba(101,51,19,0.3);border:1px solid rgba(101,51,19,0.5);border-radius:6px;color:#d4af37;font-size:0.72rem;padding:3px 8px;cursor:pointer;">
+            🖨️ PDF
+          </button>
         </div>
       </div>
     </div>
@@ -393,7 +453,25 @@ function togglePosHistory() {
   if (!panel.classList.contains('hidden')) renderPosHistory();
 }
 
+/* ── Réinitialisation formulaire ────────────── */
+function clearPosForm() {
+  ['posL','posW','posH','posWeight','posCustomPrice','posDebt','posChange',
+   'posClientName','posClientAddress','posDescription','posNote'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  calcLive();
+  showToast('🔄 Fòmilè efase');
+}
+
 /* ── Init ───────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
   initPosAutocomplete();
+
+  /* Attacher calcLive à tous les champs de saisie POS */
+  const liveFields = ['posL','posW','posH','posWeight','posCustomPrice','posDebt','posChange'];
+  liveFields.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', calcLive);
+  });
 });
