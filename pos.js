@@ -270,8 +270,8 @@ function buildPOSPdf(e) {
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(220, 242, 248);
-    doc.text('USA: 14030 NW 5th Pl North, Miami, FL', 44, 25);
-    doc.text('Ayiti: Potoprens · Okap · Miragwan · Okay · Kan-Peren · Leyogan · Jeremi', 44, 31);
+    doc.text('USA: 14030 NW 5th Pl, North Miami, FL', 44, 25);
+    doc.text('Haiti: Pòtoprens · Okap · Miragwàn · Okay · Kan-Peren · Leyogàn · Jeremi', 44, 31);
     doc.text('+509 31 01 39 68  ·  lescayesdropshipping@gmail.com', 44, 37);
 
     /* Nimewo fakti + dat — kwen dwat antet */
@@ -526,7 +526,7 @@ function buildPOSPdf(e) {
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(50, 50, 50);
     doc.setFontSize(8);
-    doc.text('Achte sou entènèt avèk nou ak konfyans ak sekirite.', 19, y + 16);
+    doc.text('Achte sou entènèt avè n ak konfyans.', 19, y + 16);
     doc.text('Mòd peman: Natcash · Sogebank · Zelle  ·  Taux: 135 goud pou $1', 19, y + 22);
     y += 31;
 
@@ -544,7 +544,7 @@ function buildPOSPdf(e) {
     doc.setFontSize(13);
     doc.setFont('times', 'bolditalic');
     doc.setTextColor(40, 20, 5);
-    doc.text('Responsab Sid (Thomas Kabe)', pw - 14, y + 6, { align: 'right' });
+    doc.text('Responsab Sid (Thomas Kabé)', pw - 14, y + 6, { align: 'right' });
     doc.setDrawColor(orR, orG, orB);
     doc.setLineWidth(0.5);
     doc.line(pw - 14, y + 10, pw - 14 - 82, y + 10);
