@@ -172,6 +172,9 @@ function generatePOSInvoice() {
     invoiceNo,
     clientName, clientAddr, desc, note: noteField,
     ...vals,
+    dimL: parseFloat(document.getElementById('posL')?.value) || 0,
+    dimW: parseFloat(document.getElementById('posW')?.value) || 0,
+    dimH: parseFloat(document.getElementById('posH')?.value) || 0,
     date: Date.now(),
   };
 
@@ -345,9 +348,30 @@ function buildPOSPdf(e) {
     const words     = rawDesc.split(/\s+/);
     const shortDesc = words.slice(0, 100).join(' ') + (words.length > 100 ? '...' : '');
 
+    /* ── Pwa Balans : toujou pwa reyèl ── */
     const pwaBalansVal = (e.realWeight > 0 ? e.realWeight.toFixed(2) : '0.00') + ' lb';
-    const pwaVolimVal  = (e.volWeight  > 0 ? e.volWeight.toFixed(2)  : '0.00') + ' lb';
-    const montant      = '$' + (e.servicePrix || 0).toFixed(2);
+
+    /* ── Pwa Volimik : si Pri Espesyal, ajiste pou ke
+         (PwaBalans + PwaVolimik) × 4.90 = customPrice exactman ── */
+    let displayVolWeight;   // lb ki pral parèt nan PDF
+    if (e.customPrice > 0) {
+      // Nouveau_Pwa_Volimik = (customPrice / 4.90) - realWeight
+      displayVolWeight = Math.max(0, (e.customPrice / TARIF_LB) - (e.realWeight || 0));
+    } else {
+      displayVolWeight = e.volWeight || 0;
+    }
+
+    /* Récupère L, W, H stockés dans l'entrée (si disponibles) */
+    const dimL = e.dimL || 0;
+    const dimW = e.dimW || 0;
+    const dimH = e.dimH || 0;
+    const hasDims = dimL > 0 && dimW > 0 && dimH > 0;
+
+    /* Ligne 1 : dimensions (si dispo) — Ligne 2 : résultat lb */
+    const volLine1 = hasDims ? `(${dimL}×${dimW}×${dimH})` : '';
+    const volLine2 = displayVolWeight.toFixed(2) + ' lb';
+
+    const montant = '$' + (e.servicePrix || 0).toFixed(2);
 
     doc.setFontSize(8.5);
     const descMaxW   = 88;
@@ -378,8 +402,22 @@ function buildPOSPdf(e) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(35, 35, 35);
+
+    /* Pwa Balans — yon liy */
     doc.text(pwaBalansVal, colBal, midRow, { align: 'center' });
-    doc.text(pwaVolimVal,  colVol, midRow, { align: 'center' });
+
+    /* Pwa Volimik — de liy si gen dimansyon, sinon yon liy */
+    if (hasDims) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.text(volLine1, colVol, midRow - 3, { align: 'center' });
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.text(volLine2, colVol, midRow + 3.5, { align: 'center' });
+    } else {
+      doc.text(volLine2, colVol, midRow, { align: 'center' });
+    }
+
     doc.setFontSize(9.5);
     doc.setTextColor(bruR, bruG, bruB);
     doc.text(montant, colMontX, midRow, { align: 'right' });
@@ -387,10 +425,10 @@ function buildPOSPdf(e) {
     y += mainRowH;
 
     /* ══════════════════════════════════════════
-       5. RANJE BALANS RÈS + BALANS PEYE
+       5. RANJE RÈS Balans + BALANS PEYE
        ══════════════════════════════════════════ */
     const extraRows = [];
-    if (e.balRest > 0) extraRows.push(['Balans rès',  '+$' + e.balRest.toFixed(2)]);
+    if (e.balRest > 0) extraRows.push(['Rès balans',  '+$' + e.balRest.toFixed(2)]);
     if (e.balPaye > 0) extraRows.push(['Balans peye', '-$' + e.balPaye.toFixed(2)]);
 
     extraRows.forEach((r, i) => {
@@ -439,9 +477,9 @@ function buildPOSPdf(e) {
        Taux: 135 HTG / $1
        ══════════════════════════════════════════ */
     const totalHTG = Math.round((e.total || 0) * 135);
-    doc.setFillColor(245, 230, 180);
+    doc.setFillColor(255, 248, 220);
     doc.rect(14, y, tableW, 14, 'F');
-    doc.setTextColor(30, 15, 0);
+    doc.setTextColor(80, 55, 10);
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.text('Valè an Goud (135 HTG / $1)', colDesc + 4, y + 9.5);
