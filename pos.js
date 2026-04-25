@@ -186,16 +186,17 @@ function generatePOSInvoice() {
 }
 
 /* ══════════════════════════════════════════════
-   BUILD PDF A4 — VERSION KORIJE KONPLÈ v4
+   BUILD PDF A4 — VERSION KORIJE KONPLÈ v5
    Chanjman :
-   ✔ Fakti ranpli paj la antye
-   ✔ Yon sèl deskripsyon (nan tablo sèlman, maks 100 mo)
-   ✔ Non kliyan an gras + "Adres:" devan adrès
-   ✔ Antet korije (pa defo, tèks aliye kòrèkteman)
-   ✔ Watermark nan zòn vid anba paj la
-   ✔ Pwa Balans + Pwa Volimik afiche klèman
-   ✔ Pri total HTG pwòp anba total USD
-   ✔ Tou an kreyòl
+   ✔ Fakti ranpli paj la antye (yon sèl ranje prensipal)
+   ✔ Yon sèl deskripsyon nan tablo (maks 100 mo, pasaj liy otomatik)
+   ✔ Non kliyan an gras + "Adrès: " devan adrès
+   ✔ Antet aliye pwòp ak pwofesyonèl
+   ✔ Watermark (logo transparan) nan sant zòn kontni paj la
+   ✔ Pwa Balans + Pwa Volimik afiche klèman avèk "lb"
+   ✔ Konvèsyon HTG vizib ak eleg anba total USD (135 HTG/$1)
+   ✔ Tablo espasye pou evite chevauchement tèks
+   ✔ Tou an Kreyòl Ayisyen
    ══════════════════════════════════════════════ */
 function buildPOSPdf(e) {
   if (!window.jspdf) { showToast('jsPDF pa chaje'); return; }
@@ -226,101 +227,119 @@ function buildPOSPdf(e) {
   loadLogo().then(imgData => {
 
     /* ══════════════════════════════════════════
-       1. ANTET — banye touez (0–44 mm)
-       Logo agòch, tèks konpayi, nimewo fakti
+       WATERMARK — nan sant zòn kontni paj la
+       Mete l ANVAN tout kontni pou l rete dèyè
+       ══════════════════════════════════════════ */
+    if (imgData) {
+      doc.saveGraphicsState();
+      doc.setGState(new doc.GState({ opacity: 0.07 }));
+      const wmSize = 110;
+      const wmX = (pw - wmSize) / 2;
+      const wmY = (ph - wmSize) / 2 - 10;
+      doc.addImage(imgData, 'PNG', wmX, wmY, wmSize, wmSize);
+      doc.restoreGraphicsState();
+    }
+
+    /* ══════════════════════════════════════════
+       1. ANTET — banye touez (0–46 mm)
+       Logo agòch, tèks konpayi a mitan-gòch,
+       Nimewo fakti + dat nan kwen dwat
        ══════════════════════════════════════════ */
     doc.setFillColor(tqR, tqG, tqB);
-    doc.rect(0, 0, pw, 44, 'F');
+    doc.rect(0, 0, pw, 46, 'F');
 
     /* Liy lò anba antet */
     doc.setFillColor(orR, orG, orB);
-    doc.rect(0, 44, pw, 1.8, 'F');
+    doc.rect(0, 46, pw, 2, 'F');
 
     /* Logo */
     if (imgData) {
-      doc.addImage(imgData, 'PNG', 8, 6, 30, 30);
+      doc.addImage(imgData, 'PNG', 8, 7, 30, 30);
     }
 
     /* Non konpayi */
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(16);
+    doc.setFontSize(15);
     doc.setFont('helvetica', 'bold');
-    doc.text('LES CAYES DROPSHIPPING', 44, 15);
+    doc.text('LES CAYES DROPSHIPPING', 44, 17);
 
     /* Adres sou 3 liy */
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(225, 245, 250);
-    doc.text('USA: 14030 NW 5th Pl North, Miami, FL', 44, 22);
-    doc.text('Ayiti: Potoprens · Okap · Miragwan · Okay · Kan-Peren · Leyogan · Jeremi', 44, 28);
-    doc.text('+509 31 01 39 68  ·  lescayesdropshipping@gmail.com', 44, 34);
+    doc.setTextColor(220, 242, 248);
+    doc.text('USA: 14030 NW 5th Pl North, Miami, FL', 44, 25);
+    doc.text('Ayiti: Potoprens · Okap · Miragwan · Okay · Kan-Peren · Leyogan · Jeremi', 44, 31);
+    doc.text('+509 31 01 39 68  ·  lescayesdropshipping@gmail.com', 44, 37);
 
     /* Nimewo fakti + dat — kwen dwat antet */
     const dateTxt = new Date(e.date).toLocaleDateString('fr-HT', {
       day: '2-digit', month: '2-digit', year: 'numeric'
     });
-    doc.setFontSize(9);
+    doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(255, 255, 255);
-    doc.text('FAKTI  #' + (e.invoiceNo || '-'), pw - 10, 15, { align: 'right' });
+    doc.text('FAKTI  #' + (e.invoiceNo || '-'), pw - 10, 18, { align: 'right' });
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
-    doc.text('Dat: ' + dateTxt, pw - 10, 23, { align: 'right' });
+    doc.setTextColor(220, 242, 248);
+    doc.text('Dat: ' + dateTxt, pw - 10, 27, { align: 'right' });
 
     /* ══════════════════════════════════════════
-       2. BLOK KLIYAN (56–80 mm)
-       Non an gras, Adres avèk etikèt "Adres:"
+       2. BLOK KLIYAN (58–82 mm)
+       Non an gras majiskil, Adrès avèk prefiks "Adrès: "
        ══════════════════════════════════════════ */
-    let y = 56;
+    let y = 60;
 
     if (e.clientName) {
-      doc.setFontSize(12);
+      doc.setFontSize(13);
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(20, 20, 20);
+      doc.setTextColor(15, 15, 15);
       doc.text(e.clientName.toUpperCase(), 14, y);
-      y += 7;
+      y += 8;
     }
 
     if (e.clientAddr) {
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(60, 60, 60);
-      // Mete mo "Adres:" devan
-      doc.text('Adres: ' + e.clientAddr, 14, y);
-      y += 6;
+      doc.text('Adrès: ' + e.clientAddr, 14, y);
+      y += 7;
     }
 
     /* Liy lò separatè anba blok kliyan */
-    y += 3;
+    y += 2;
     doc.setDrawColor(orR, orG, orB);
-    doc.setLineWidth(0.6);
+    doc.setLineWidth(0.7);
     doc.line(14, y, pw - 14, y);
-    y += 9;
+    y += 10;
 
     /* ══════════════════════════════════════════
        3. ANTET TABLO
        Kolòn: Deskripsyon | Pwa Balans | Pwa Volimik | Montan
        ══════════════════════════════════════════ */
-    const colDesc  = 14;        // bò gòch Deskripsyon
-    const colBal   = 120;       // sant Pwa Balans
-    const colVol   = 152;       // sant Pwa Volimik
-    const colMontX = pw - 12;   // bò dwat Montan
-
-    const tableW = pw - 28;     // 182 mm
+    const tableW   = pw - 28;       // 182 mm (maji 14 mm chak bò)
+    const colDesc  = 14;            // bò gòch Deskripsyon
+    const colBal   = 119;           // sant Pwa Balans
+    const colVol   = 152;           // sant Pwa Volimik
+    const colMontX = pw - 12;       // bò dwat Montan
+    const tblHeaderH = 12;
 
     doc.setFillColor(tqR, tqG, tqB);
-    doc.rect(14, y - 5, tableW, 10, 'F');
+    doc.rect(14, y, tableW, tblHeaderH, 'F');
     doc.setFontSize(8.5);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(255, 255, 255);
-    doc.text('Deskripsyon',   colDesc + 3,  y);
-    doc.text('Pwa Balans',    colBal,        y, { align: 'center' });
-    doc.text('Pwa Volimik',   colVol,        y, { align: 'center' });
-    doc.text('Montan',        colMontX,      y, { align: 'right'  });
-    y += 8;
+    const hY = y + 8;
+    doc.text('Deskripsyon',  colDesc + 4,  hY);
+    doc.text('Pwa Balans',   colBal,        hY, { align: 'center' });
+    doc.text('Pwa Volimik',  colVol,        hY, { align: 'center' });
+    doc.text('Montan',       colMontX,      hY, { align: 'right'  });
+    y += tblHeaderH;
 
     /* ══════════════════════════════════════════
-       4. RANJE PRENSIPAL — Deskripsyon (maks 100 mo)
+       4. RANJE PRENSIPAL — yon sèl fwa (pa de fwa)
+       Deskripsyon (maks 100 mo, pasaj liy otomatik)
+       Pwa Balans | Pwa Volimik avèk "lb"
        ══════════════════════════════════════════ */
     const rawDesc   = (e.desc || 'Sèvis lojistik');
     const words     = rawDesc.split(/\s+/);
@@ -331,59 +350,36 @@ function buildPOSPdf(e) {
     const montant      = '$' + (e.servicePrix || 0).toFixed(2);
 
     doc.setFontSize(8.5);
-    const descMaxW   = 90; 
+    const descMaxW   = 88;
     const descSplits = doc.splitTextToSize(shortDesc, descMaxW);
-    const rowH       = Math.max(descSplits.length * 5, 12) + 4;
+    /* Wotè ranje = nombre liy × 5.5 mm + pading vètikal 10 mm min */
+    const mainRowH   = Math.max(descSplits.length * 5.5 + 10, 18);
 
-    // Fond ranje a
+    /* Fond ranje */
     doc.setFillColor(252, 250, 245);
-    doc.rect(14, y - 4, tableW, rowH, 'F');
-
-    // Tèks Deskripsyon
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(30, 30, 30);
-    doc.text(descSplits, colDesc + 3, y);
-
-    // Pwa ak Montan (aliye nan mitan wotè ranje a)
-    const middle = y + (rowH / 2) - 3;
-    doc.setFont('helvetica', 'bold');
-    doc.text(pwaBalansVal, colBal, middle, { align: 'center' });
-    doc.text(pwaVolimVal, colVol, middle, { align: 'center' });
-    doc.setTextColor(bruR, bruG, bruB);
-    doc.text(montant, colMontX, middle, { align: 'right' });
-
-    y += rowH;
-
-    /* Fon ranje alternans */
-    doc.setFillColor(250, 248, 244);
-    doc.rect(14, y - 4, tableW, mainRowH, 'F');
+    doc.rect(14, y, tableW, mainRowH, 'F');
 
     /* Sèpasyon kolòn (liy vètikal leje) */
-    doc.setDrawColor(220, 210, 195);
+    doc.setDrawColor(210, 200, 185);
     doc.setLineWidth(0.25);
-    doc.line(colBal - 14, y - 4, colBal - 14, y - 4 + mainRowH);
-    doc.line(colVol - 11, y - 4, colVol - 11, y - 4 + mainRowH);
-    doc.line(colMontX - 16, y - 4, colMontX - 16, y - 4 + mainRowH);
+    const colSepY1 = y;
+    const colSepY2 = y + mainRowH;
+    doc.line(colBal - 15, colSepY1, colBal - 15, colSepY2);
+    doc.line(colVol - 12, colSepY1, colVol - 12, colSepY2);
+    doc.line(colMontX - 18, colSepY1, colMontX - 18, colSepY2);
 
-    /* Kontni ranje */
-    const midRow = y + (mainRowH / 2) - 2;
-
-    /* Deskripsyon */
+    /* Tèks Deskripsyon — aliye anlè ranje + pading 5 mm */
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
     doc.setTextColor(30, 30, 30);
-    doc.text(descSplits, colDesc + 3, y);
+    doc.text(descSplits, colDesc + 4, y + 7);
 
-    /* Pwa Balans */
-    doc.setFontSize(9);
+    /* Pwa Balans + Pwa Volimik + Montan — aliye mitan vètikal ranje */
+    const midRow = y + mainRowH / 2 + 1.5;
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(40, 40, 40);
+    doc.setFontSize(9);
+    doc.setTextColor(35, 35, 35);
     doc.text(pwaBalansVal, colBal, midRow, { align: 'center' });
-
-    /* Pwa Volimik */
-    doc.text(pwaVolimVal, colVol, midRow, { align: 'center' });
-
-    /* Montan */
+    doc.text(pwaVolimVal,  colVol, midRow, { align: 'center' });
     doc.setFontSize(9.5);
     doc.setTextColor(bruR, bruG, bruB);
     doc.text(montant, colMontX, midRow, { align: 'right' });
@@ -398,64 +394,60 @@ function buildPOSPdf(e) {
     if (e.balPaye > 0) extraRows.push(['Balans peye', '-$' + e.balPaye.toFixed(2)]);
 
     extraRows.forEach((r, i) => {
-      if (y > ph - 90) { doc.addPage(); y = 20; }
-      doc.setFillColor(i % 2 === 0 ? 245 : 255, i % 2 === 0 ? 247 : 255, i % 2 === 0 ? 242 : 255);
-      doc.rect(14, y - 4, tableW, 8, 'F');
+      if (y > ph - 100) { doc.addPage(); y = 20; }
+      doc.setFillColor(i % 2 === 0 ? 246 : 255, i % 2 === 0 ? 248 : 255, i % 2 === 0 ? 243 : 255);
+      doc.rect(14, y, tableW, 10, 'F');
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8.5);
       doc.setTextColor(40, 40, 40);
-      doc.text(r[0], colDesc + 3, y);
+      doc.text(r[0], colDesc + 4, y + 7);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
       doc.setTextColor(bruR, bruG, bruB);
-      doc.text(r[1], colMontX, y, { align: 'right' });
-      y += 8;
+      doc.text(r[1], colMontX, y + 7, { align: 'right' });
+      y += 10;
     });
 
-    y += 3;
+    y += 4;
 
     /* ══════════════════════════════════════════
        6. SOUBTOTAL
        ══════════════════════════════════════════ */
-    doc.setFillColor(237, 230, 215);
-    doc.rect(14, y - 4, tableW, 9, 'F');
+    doc.setFillColor(235, 228, 213);
+    doc.rect(14, y, tableW, 11, 'F');
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(60, 40, 10);
-    doc.text('Soubtotal', colDesc + 3, y);
-    doc.text('$' + (e.subtotal || 0).toFixed(2), colMontX, y, { align: 'right' });
-    y += 12;
+    doc.text('Soubtotal', colDesc + 4, y + 7.5);
+    doc.text('$' + (e.subtotal || 0).toFixed(2), colMontX, y + 7.5, { align: 'right' });
+    y += 16;
 
     /* ══════════════════════════════════════════
        7. TOTAL FINAL USD (bannè brun)
        ══════════════════════════════════════════ */
-    y += 4;
-    // Bannè Total USD
     doc.setFillColor(bruR, bruG, bruB);
-    doc.rect(14, y, tableW, 12, 'F');
+    doc.rect(14, y, tableW, 14, 'F');
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(12);
-    doc.text('TOTAL FINAL', colDesc + 3, y + 8);
-    doc.text('$' + (e.total || 0).toFixed(2), colMontX, y + 8, { align: 'right' });
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TOTAL FINAL', colDesc + 4, y + 9.5);
+    doc.text('$' + (e.total || 0).toFixed(2), colMontX, y + 9.5, { align: 'right' });
+    y += 14;
 
-    y += 12;
-    // Bannè Total HTG (135)
+    /* ══════════════════════════════════════════
+       8. KONVÈSYON HTG — bannè lò, trè vizib
+       Taux: 135 HTG / $1
+       ══════════════════════════════════════════ */
     const totalHTG = Math.round((e.total || 0) * 135);
     doc.setFillColor(orR, orG, orB);
-    doc.rect(14, y, tableW, 10, 'F');
-    doc.setTextColor(40, 20, 0);
-    doc.setFontSize(11);
-    doc.text('KONT VALÈ AN HTG', colDesc + 3, y + 6.5);
-    doc.text(totalHTG.toLocaleString('en-US') + ' HTG', colMontX, y + 6.5, { align: 'right' });
-
-    /* ── WATERMARK (Logo nan background) ── */
-    if (imgData) {
-      doc.saveGraphicsState();
-      doc.setGState(new doc.GState({opacity: 0.06}));
-      // Mete l nan mitan paj la
-      doc.addImage(imgData, 'PNG', 55, 130, 100, 100);
-      doc.restoreGraphicsState();
-    }
+    doc.rect(14, y, tableW, 14, 'F');
+    doc.setTextColor(30, 15, 0);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Valè an Goud (135 HTG / $1)', colDesc + 4, y + 9.5);
+    doc.setFontSize(12);
+    doc.text(totalHTG.toLocaleString('en-US') + ' HTG', colMontX, y + 9.5, { align: 'right' });
+    y += 20;
 
     /* ══════════════════════════════════════════
        9. ZON NOT
@@ -466,84 +458,62 @@ function buildPOSPdf(e) {
       doc.setTextColor(70, 70, 70);
       const noteLines = doc.splitTextToSize('Not: ' + e.note, tableW);
       doc.text(noteLines, 14, y);
-      y += noteLines.length * 5 + 5;
+      y += noteLines.length * 5.5 + 6;
     } else {
       doc.setFontSize(8);
       doc.setFont('helvetica', 'italic');
-      doc.setTextColor(170, 160, 145);
+      doc.setTextColor(160, 150, 135);
       doc.text('Not:', 14, y);
       doc.setDrawColor(200, 190, 175);
       doc.setLineWidth(0.3);
       doc.line(28, y, pw - 14, y);
       y += 7;
       doc.line(14, y, pw - 14, y);
-      y += 8;
+      y += 9;
     }
 
     /* ══════════════════════════════════════════
        10. KONDISYON PEMAN
        ══════════════════════════════════════════ */
-    doc.setFillColor(245, 242, 235);
-    doc.rect(14, y, tableW, 24, 'F');
+    doc.setFillColor(246, 242, 236);
+    doc.rect(14, y, tableW, 26, 'F');
     doc.setDrawColor(orR, orG, orB);
     doc.setLineWidth(0.5);
-    doc.rect(14, y, tableW, 24);
+    doc.rect(14, y, tableW, 26);
 
     doc.setFontSize(8.5);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(bruR, bruG, bruB);
-    doc.text('Patnè fyab ou pou pwojè komès ak livrezon USA-Ayiti', 18, y + 8);
+    doc.text('Patnè fyab ou pou pwojè komès ak livrezon USA-Ayiti', 19, y + 9);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(50, 50, 50);
     doc.setFontSize(8);
-    doc.text('Achte sou entènèt avèk nou ak konfyans ak sekirite.', 18, y + 14);
-    doc.text('Mòd peman: Natcash · Sogebank · Zelle  ·  Taux: 135 goud pou $1', 18, y + 20);
-    y += 28;
+    doc.text('Achte sou entènèt avèk nou ak konfyans ak sekirite.', 19, y + 16);
+    doc.text('Mòd peman: Natcash · Sogebank · Zelle  ·  Taux: 135 goud pou $1', 19, y + 22);
+    y += 31;
 
     /* ══════════════════════════════════════════
        11. SIYATI
        ══════════════════════════════════════════ */
-    /* Espas siyati a gòch */
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 100, 100);
     doc.text('Siyati kliyan:', 14, y + 6);
     doc.setDrawColor(160, 150, 135);
     doc.setLineWidth(0.3);
-    doc.line(14, y + 14, 80, y + 14);
+    doc.line(14, y + 15, 82, y + 15);
 
-    /* Siyati Responsab a dwat */
     doc.setFontSize(13);
     doc.setFont('times', 'bolditalic');
     doc.setTextColor(40, 20, 5);
     doc.text('Responsab Sid (Thomas Kabe)', pw - 14, y + 6, { align: 'right' });
     doc.setDrawColor(orR, orG, orB);
     doc.setLineWidth(0.5);
-    doc.line(pw - 14, y + 9, pw - 14 - 80, y + 9);
-    y += 20;
+    doc.line(pw - 14, y + 10, pw - 14 - 82, y + 10);
+    y += 22;
 
     /* ══════════════════════════════════════════
-       12. WATERMARK — nan zòn vid anba paj la
-       Pozisyon kalkile dapre y final ak pye paj
-       ══════════════════════════════════════════ */
-    if (imgData) {
-      /* Espas vid = ant y final ak pye paj (ph - 14) */
-      const footerTop = ph - 14;
-      const voidH     = footerTop - y;       // wote espas vid
-      const wmSize    = Math.min(voidH - 4, 55);  // adapte nan espas
-
-      if (wmSize > 10) {
-        const wmX = (pw - wmSize) / 2;
-        const wmY = y + (voidH - wmSize) / 2;
-
-        if (doc.setGState) doc.setGState(doc.GState({ opacity: 0.09 }));
-        doc.addImage(imgData, 'PNG', wmX, wmY, wmSize, wmSize);
-        if (doc.setGState) doc.setGState(doc.GState({ opacity: 1 }));
-      }
-    }
-
-    /* ══════════════════════════════════════════
-       13. PYE PAJ — bannè touez tout lajè
+       12. PYE PAJ — bannè touez tout lajè
        ══════════════════════════════════════════ */
     doc.setFillColor(tqR, tqG, tqB);
     doc.rect(0, ph - 14, pw, 14, 'F');
