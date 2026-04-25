@@ -200,15 +200,34 @@ function buildPOSPdf(e) {
   const orR  = 212, orG  = 175, orB  = 55;  // or
   const tqR  = 0,   tqG  = 150, tqB  = 166; // turquoise bannière
 
-  /* ─── Watermark ────────────────────────────── */
-  doc.setFontSize(38);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(220, 220, 220);
-  doc.setGState && doc.setGState(doc.GState({ opacity: 0.25 }));
-  doc.text('Les Cayes', pw / 2, ph / 2 - 12, { align: 'center', angle: 30 });
-  doc.text('Dropshipping', pw / 2, ph / 2 + 12, { align: 'center', angle: 30 });
-  doc.setGState && doc.setGState(doc.GState({ opacity: 1 }));
-  doc.setTextColor(0, 0, 0);
+  logoPromise.then(imgData => {
+    /* ============================================================
+       NOUVEAU : Logique du Watermark (Image en arrière-plan)
+       ============================================================ */
+    if (imgData) {
+      // 1. Définir une très faible opacité (ex: 7%)
+      doc.setGState && doc.setGState(doc.GState({ opacity: 0.07 }));
+
+      // 2. Calculer le centre et la taille (A4 = 210x297mm)
+      const watermarkWidth  = 120; // Taille souhaitée au centre
+      const watermarkHeight = 120; 
+      const centerX = (pw / 2) - (watermarkWidth / 2);
+      const centerY = (ph / 2) - (watermarkHeight / 2);
+
+      // 3. Ajouter l'image. jsPDF ne gère pas nativement la rotation d'image,
+      // mais au centre de la page, un logo droit est plus propre.
+      doc.addImage(imgData, 'PNG', centerX, centerY, watermarkWidth, watermarkHeight);
+
+      // 4. Restaurer l'opacité à 100% pour le reste du document
+      doc.setGState && doc.setGState(doc.GState({ opacity: 1 }));
+    }
+    /* ============================================================ */
+
+    /* --- Suite de ton code existant (En-tête, etc.) --- */
+    if (imgData) {
+      doc.addImage(imgData, 'PNG', 8, 4, 32, 32); // Ton logo d'en-tête (inchangé)
+    }
+    // ... reste de ton code pour l'en-tête blanc, etc.
 
   /* ─── Bannière supérieure turquoise ─────────── */
   doc.setFillColor(tqR, tqG, tqB);
@@ -295,13 +314,15 @@ function buildPOSPdf(e) {
 /* ─── Lignes tableau ───────────────────────── */
 const tableRows = [];
 
-// On prépare l'affichage détaillé du poids (Balans vs Volim)
-const bWeight = e.realWeight > 0 ? e.realWeight.toFixed(2) : "0";
-const vWeight = e.volWeight > 0  ? e.volWeight.toFixed(2)  : "0";
-const pwaDesc = `Balans: ${bWeight}\nVolim: ${vWeight}`; 
+// On affiche le poids réel pesé (Balans) et le poids calculé (Volim)
+const pwaReyel = e.realWeight > 0 ? e.realWeight.toFixed(2) + ' lb' : '0.00 lb';
+const pwaVol   = e.volWeight > 0  ? e.volWeight.toFixed(2)  + ' lb' : '0.00 lb';
+
+// Le texte qui apparaîtra dans la colonne "Pwa"
+const pwaDesc = `Balans: ${pwaReyel}\nVolim: ${pwaVol}`; 
 
 tableRows.push([
-  e.desc || 'Frè shipping',
+  e.desc || 'Frè ekspedisyon',
   pwaDesc,
   '$' + (e.servicePrix || e.subtotal || 0).toFixed(2)
 ]);
