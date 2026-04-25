@@ -204,7 +204,7 @@ function buildPOSPdf(e) {
   doc.setFontSize(38);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(220, 220, 220);
-  doc.setGState && doc.setGState(doc.GState({ opacity: 0.08 }));
+  doc.setGState && doc.setGState(doc.GState({ opacity: 0.25 }));
   doc.text('Les Cayes', pw / 2, ph / 2 - 12, { align: 'center', angle: 30 });
   doc.text('Dropshipping', pw / 2, ph / 2 + 12, { align: 'center', angle: 30 });
   doc.setGState && doc.setGState(doc.GState({ opacity: 1 }));
@@ -245,8 +245,8 @@ function buildPOSPdf(e) {
 
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
-    doc.text('Patnè fyab ou pou pwojè komès ak livrezon USA vers Haïti', 46, 21);
-    doc.text('USA: 14030 NW 5th Pl North, Miami · Haïti: Camp-Perrin, Matinière, Les Cayes', 46, 27);
+    doc.text('USA: 14030 NW 5th Pl North, Miami', 46, 27);
+        doc.text('Haïti: P-au-P, Au Cap, Miragoane, Cayes, Camp-Perrin, Léogane, Jérémie', 46, 27);
     doc.text('+509 31 01 39 68  ·  lescayesdropshipping@gmail.com', 46, 33);
 
     /* Numéro et date — coin droit */
@@ -292,17 +292,22 @@ function buildPOSPdf(e) {
     doc.text('Montant', pw - 16, y, { align: 'right' });
     y += 7;
 
-    /* ─── Lignes tableau ───────────────────────── */
-    const tableRows = [];
-    const pwaDesc = e.finalWeight > 0 ? e.finalWeight.toFixed(2) + ' lb' : '—';
+/* ─── Lignes tableau ───────────────────────── */
+const tableRows = [];
 
-    tableRows.push([
-      e.desc || 'Frè ekspedisyon',
-      pwaDesc,
-      '$' + (e.servicePrix || e.subtotal || 0).toFixed(2)
-    ]);
-    if (e.balRest > 0)  tableRows.push(['Balance restante', '', '+$' + e.balRest.toFixed(2)]);
-    if (e.balPaye > 0)  tableRows.push(['Balance à payer',  '', '−$' + e.balPaye.toFixed(2)]);
+// On prépare l'affichage détaillé du poids (Balans vs Volim)
+const bWeight = e.realWeight > 0 ? e.realWeight.toFixed(2) : "0";
+const vWeight = e.volWeight > 0  ? e.volWeight.toFixed(2)  : "0";
+const pwaDesc = `Balans: ${bWeight}\nVolim: ${vWeight}`; 
+
+tableRows.push([
+  e.desc || 'Frè shipping',
+  pwaDesc,
+  '$' + (e.servicePrix || e.subtotal || 0).toFixed(2)
+]);
+
+if (e.balRest > 0)  tableRows.push(['Balance restante', '', '+$' + e.balRest.toFixed(2)]);
+if (e.balPaye > 0)  tableRows.push(['Balance à payer',  '', '−$' + e.balPaye.toFixed(2)]);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9.5);
@@ -376,11 +381,11 @@ function buildPOSPdf(e) {
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(bruR, bruG, bruB);
-    doc.text('Kondisyon peman / Conditions de paiement', 17, y + 7);
+    doc.text('Patnè fyab ou pou pwojè komès ak livrezon USA vers Haïti', 17, y + 7);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(50, 50, 50);
     doc.text('Achte sou entènèt avè nou ak konfyans.', 17, y + 13);
-    doc.text('Taux 135 goud = $1 · Natcash · Moncash · Zelle pou dola ameriken', 17, y + 18);
+    doc.text('Taux 135 goud pou $1 · Natcash · Sogebank · Zelle', 17, y + 18);
     y += 26;
 
     /* ─── Signature ────────────────────────────── */
@@ -392,7 +397,7 @@ function buildPOSPdf(e) {
     doc.setFontSize(13);
     doc.setFont('times', 'bolditalic');
     doc.setTextColor(40, 20, 5);
-    doc.text("L'Agent Sud (Thomas Kabé)", pw - 14, y, { align: 'right' });
+    doc.text("Responsab Sud (Thomas Kabé)", pw - 14, y, { align: 'right' });
 
     /* ─── Pied de page ─────────────────────────── */
     doc.setFillColor(tqR, tqG, tqB);
