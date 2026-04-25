@@ -439,7 +439,7 @@ function buildPOSPdf(e) {
        Taux: 135 HTG / $1
        ══════════════════════════════════════════ */
     const totalHTG = Math.round((e.total || 0) * 135);
-    doc.setFillColor(orR, orG, orB);
+    doc.setFillColor(245, 230, 180);
     doc.rect(14, y, tableW, 14, 'F');
     doc.setTextColor(30, 15, 0);
     doc.setFontSize(10);
