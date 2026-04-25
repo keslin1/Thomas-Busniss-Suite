@@ -1,15 +1,15 @@
 /* ══════════════════════════════════════════════
-   THOMAS BUSINESS SUITE — pos.js  v2
+   THOMAS BUSINESS SUITE — pos.js  v3
    Kalkimatris · Sistèm POS & Fakti PDF
    ══════════════════════════════════════════════
 
-   RÈGLES DE CALCUL CORRIGÉES :
-   • Pwa Volimik  = (L × l × H) / 4000  [cm → lb approx]
+   RÈGLES DE CALCUL :
+   • Pwa Volimik  = (L × l × H) / 4000  [cm → lb]
    • Pwa Final    = PwaVol + PwaReyèl
    • Tarif fixe   = $4.90/lb  (toujours)
-   • Minimum      = $25.00 sauf si Custom Price
+   • Minimòm      = $25.00 sauf si Pri Espesyal
    • Total        = PrixService + BalRest − BalPaye
-   • Affichage    = $XX.XX  +  XXXX HTG (135 HTG/$)
+   • Afichaj      = $XX.XX  +  XXXX HTG (135 HTG/$)
    ══════════════════════════════════════════════ */
 
 const POS_KEY    = 'tbs_pos_history';
@@ -56,7 +56,7 @@ function calcLive() {
   const balRest     = parseFloat(document.getElementById('posDebt')?.value)        || 0;
   const balPaye     = parseFloat(document.getElementById('posChange')?.value)      || 0;
 
-  /* Pwa Volimétrique corrigé : diviser par 4000 (standard aérien cm³→lb) */
+  /* Pwa Volimétrik : divize pa 4000 (estanda ayeyen cm³→lb) */
   const volWeight   = (L * W * H) / 4000;
 
   /* Pwa Final = vol + reyèl */
@@ -67,32 +67,31 @@ function calcLive() {
   let tarifApplied = TARIF_LB;
 
   if (customPrice > 0) {
-    /* Custom price : remplace toute la logique automatique */
     subtotal    = customPrice;
     servicePrix = customPrice;
-    tarifApplied = 0; // indicateur "prix manuel"
+    tarifApplied = 0;
   } else if (finalWeight > 0) {
     const brut  = finalWeight * TARIF_LB;
     subtotal    = brut;
     servicePrix = brut < MIN_CHARGE ? MIN_CHARGE : brut;
   }
 
-  /* Total = PrixService + BalanceRestante − BalancePaye */
+  /* Total = PrixService + BalanceRestant − BalancePaye */
   const total    = Math.max(0, servicePrix + balRest - balPaye);
   const totalHTG = total * HTG_RATE;
 
-  /* ── Affichage ─────────────────────────────── */
+  /* ── Afichaj ─────────────────────────────── */
   const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
 
   setTxt('resVolWeight',    volWeight > 0   ? volWeight.toFixed(2) + ' lb'   : '— lb');
   setTxt('resFinalWeight',  finalWeight > 0 ? finalWeight.toFixed(2) + ' lb' : '— lb');
-  setTxt('resTarif',        customPrice > 0 ? 'Prix manuel' : (finalWeight > 0 ? '$' + TARIF_LB.toFixed(2) + '/lb' : '—'));
+  setTxt('resTarif',        customPrice > 0 ? 'Pri Espesyal' : (finalWeight > 0 ? '$' + TARIF_LB.toFixed(2) + '/lb' : '—'));
   setTxt('resSubtotal',     subtotal > 0    ? '$' + subtotal.toFixed(2)      : '—');
   setTxt('resService',      servicePrix > 0 ? '$' + servicePrix.toFixed(2)   : '—');
   setTxt('resTotal',        '$' + total.toFixed(2));
   setTxt('resTotalHTG',     totalHTG.toFixed(0) + ' HTG');
 
-  /* Indicateur minimum appliqué */
+  /* Endikasyon minimòm aplike */
   const minBadge = document.getElementById('resMinBadge');
   if (minBadge) {
     if (customPrice <= 0 && finalWeight > 0 && (finalWeight * TARIF_LB) < MIN_CHARGE) {
@@ -105,7 +104,7 @@ function calcLive() {
   return { volWeight, finalWeight, tarifApplied, subtotal, servicePrix, total, totalHTG, balRest, balPaye, customPrice };
 }
 
-/* ── Autocomplete client ───────────────────── */
+/* ── Autocomplete kliyan ───────────────────── */
 function initPosAutocomplete() {
   const nameInput = document.getElementById('posClientName');
   const addrInput = document.getElementById('posClientAddress');
@@ -150,7 +149,7 @@ function removePosDropdown() {
   if (dd) dd.remove();
 }
 
-/* ── Generate Invoice PDF ──────────────────── */
+/* ── Jenere Fakti PDF ──────────────────────── */
 function generatePOSInvoice() {
   const clientName = (document.getElementById('posClientName')?.value  || '').trim();
   const clientAddr = (document.getElementById('posClientAddress')?.value || '').trim();
@@ -164,14 +163,21 @@ function generatePOSInvoice() {
     return;
   }
 
-  /* Numéro de facture auto-incrémenté */
+  /* Nimewo fakti otomatik */
   const hist    = getPosHistory();
   const invoiceNo = String((hist.length > 0 ? (parseInt(hist[0].invoiceNo || '0') + 1) : 1)).padStart(3, '0');
+
+  /* Tronke deskripsyon a 100 mo */
+  const descWords = desc.split(/\s+/).filter(Boolean);
+  const descTrimmed = descWords.length > 100 ? descWords.slice(0, 100).join(' ') + '…' : desc;
 
   const entry = {
     id: uid(),
     invoiceNo,
-    clientName, clientAddr, desc, note: noteField,
+    clientName, clientAddr,
+    desc: descTrimmed,
+    note: noteField,
+    realWeight: vals.finalWeight - vals.volWeight, // pwa balan reyèl
     ...vals,
     date: Date.now(),
   };
@@ -191,53 +197,16 @@ function buildPOSPdf(e) {
   if (!window.jspdf) { showToast('⚠️ jsPDF pa chaje'); return; }
   const { jsPDF } = window.jspdf;
 
-  /* Format A4 portrait */
+  /* Format A4 potret */
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pw = 210, ph = 297;
 
-  /* Palette brand LCD */
+  /* Palèt koulè LCD */
   const bruR = 101, bruG = 51,  bruB = 19;  // brun LCD
-  const orR  = 212, orG  = 175, orB  = 55;  // or
-  const tqR  = 0,   tqG  = 150, tqB  = 166; // turquoise bannière
+  const orR  = 212, orG  = 175, orB  = 55;  // lò
+  const tqR  = 0,   tqG  = 150, tqB  = 166; // tikyiz bannye
 
-  logoPromise.then(imgData => {
-    /* ============================================================
-       NOUVEAU : Logique du Watermark (Image en arrière-plan)
-       ============================================================ */
-    if (imgData) {
-      // 1. Définir une très faible opacité (ex: 7%)
-      doc.setGState && doc.setGState(doc.GState({ opacity: 0.07 }));
-
-      // 2. Calculer le centre et la taille (A4 = 210x297mm)
-      const watermarkWidth  = 120; // Taille souhaitée au centre
-      const watermarkHeight = 120; 
-      const centerX = (pw / 2) - (watermarkWidth / 2);
-      const centerY = (ph / 2) - (watermarkHeight / 2);
-
-      // 3. Ajouter l'image. jsPDF ne gère pas nativement la rotation d'image,
-      // mais au centre de la page, un logo droit est plus propre.
-      doc.addImage(imgData, 'PNG', centerX, centerY, watermarkWidth, watermarkHeight);
-
-      // 4. Restaurer l'opacité à 100% pour le reste du document
-      doc.setGState && doc.setGState(doc.GState({ opacity: 1 }));
-    }
-    /* ============================================================ */
-
-    /* --- Suite de ton code existant (En-tête, etc.) --- */
-    if (imgData) {
-      doc.addImage(imgData, 'PNG', 8, 4, 32, 32); // Ton logo d'en-tête (inchangé)
-    }
-    // ... reste de ton code pour l'en-tête blanc, etc.
-
-  /* ─── Bannière supérieure turquoise ─────────── */
-  doc.setFillColor(tqR, tqG, tqB);
-  doc.rect(0, 0, pw, 42, 'F');
-
-  /* Ligne or de séparation */
-  doc.setFillColor(orR, orG, orB);
-  doc.rect(0, 42, pw, 1.5, 'F');
-
-  /* Logo */
+  /* ── Chaje logo yon sèl fwa ──────────────── */
   const logoPromise = new Promise(resolve => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
@@ -252,112 +221,190 @@ function buildPOSPdf(e) {
   });
 
   logoPromise.then(imgData => {
+
+    /* ══════════════════════════════════════════
+       WATERMARK — Logo nan mitan paj la (7% opasité)
+       ══════════════════════════════════════════ */
     if (imgData) {
-      doc.addImage(imgData, 'PNG', 8, 4, 32, 32);
+      if (doc.setGState) doc.setGState(doc.GState({ opacity: 0.07 }));
+      const wmW = 120, wmH = 120;
+      const wmX = (pw - wmW) / 2;
+      const wmY = (ph - wmH) / 2;
+      doc.addImage(imgData, 'PNG', wmX, wmY, wmW, wmH);
+      if (doc.setGState) doc.setGState(doc.GState({ opacity: 1 }));
     }
 
-    /* Texte en-tête */
+    /* ══════════════════════════════════════════
+       BANNYE SUPERYÈ — Tikyiz
+       ══════════════════════════════════════════ */
+    doc.setFillColor(tqR, tqG, tqB);
+    doc.rect(0, 0, pw, 44, 'F');
+
+    /* Liy lò separasyon */
+    doc.setFillColor(orR, orG, orB);
+    doc.rect(0, 44, pw, 1.5, 'F');
+
+    /* Logo nan bannye a */
+    if (imgData) {
+      doc.addImage(imgData, 'PNG', 8, 5, 30, 30);
+    }
+
+    /* ── Tèks an-tèt ─────────────────────────── */
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(16);
+    doc.setFontSize(15);
     doc.setFont('helvetica', 'bold');
-    doc.text('LES CAYES DROPSHIPPING', 46, 14);
+    doc.text('LES CAYES DROPSHIPPING', 44, 15);
 
-    doc.setFontSize(8);
+    doc.setFontSize(7.5);
     doc.setFont('helvetica', 'normal');
-    doc.text('USA: 14030 NW 5th Pl North, Miami', 46, 27);
-        doc.text('Haïti: P-au-P, Au Cap, Miragoane, Cayes, Camp-Perrin, Léogane, Jérémie', 46, 27);
-    doc.text('+509 31 01 39 68  ·  lescayesdropshipping@gmail.com', 46, 33);
+    /* Chak adrès sou pwòp liy pa li */
+    doc.text('USA: 14030 NW 5th Pl North, Miami', 44, 23);
+    doc.text('Ayiti: P-au-P · Okap · Miragwàn · Okay · Kan-Peren · Leyogàn · Jeremi', 44, 29);
+    doc.text('+509 31 01 39 68  ·  lescayesdropshipping@gmail.com', 44, 35);
 
-    /* Numéro et date — coin droit */
+    /* Nimewo fakti ak dat — kwen dwat */
     const dateTxt = new Date(e.date).toLocaleDateString('fr-HT', { day: '2-digit', month: '2-digit', year: '2-digit' });
     doc.setFontSize(8.5);
     doc.setFont('helvetica', 'bold');
-    doc.text('FACTURE  #' + (e.invoiceNo || '—'), pw - 12, 14, { align: 'right' });
+    doc.setTextColor(255, 255, 255);
+    doc.text('FAKTI  #' + (e.invoiceNo || '—'), pw - 12, 15, { align: 'right' });
     doc.setFont('helvetica', 'normal');
-    doc.text('Date: ' + dateTxt, pw - 12, 20, { align: 'right' });
+    doc.setFontSize(7.5);
+    doc.text('Dat: ' + dateTxt, pw - 12, 22, { align: 'right' });
 
-    let y = 54;
+    /* ══════════════════════════════════════════
+       BLÒK KLIYAN
+       ══════════════════════════════════════════ */
+    let y = 56;
 
-    /* ─── Bloc client ──────────────────────────── */
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(20, 20, 20);
-    if (e.clientName) { doc.text(e.clientName, 14, y); y += 7; }
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(70, 70, 70);
-    if (e.clientAddr) { doc.text(e.clientAddr, 14, y); y += 5.5; }
-    if (e.desc) {
-      const dLines = doc.splitTextToSize(e.desc, pw - 28);
-      doc.text(dLines, 14, y);
-      y += dLines.length * 5;
+    /* Non kliyan an gras */
+    if (e.clientName) {
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(20, 20, 20);
+      doc.text(e.clientName, 14, y);
+      y += 7;
     }
 
-    y += 4;
+    /* Adrès kliyan avèk etikèt "Adrès:" */
+    if (e.clientAddr) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(70, 70, 70);
+      doc.text('Adrès: ', 14, y);
+      const labelW = doc.getTextWidth('Adrès: ');
+      doc.setFont('helvetica', 'normal');
+      doc.text(e.clientAddr, 14 + labelW, y);
+      y += 6;
+    }
+
+    y += 3;
+
+    /* Liy separasyon lò */
     doc.setDrawColor(orR, orG, orB);
     doc.setLineWidth(0.5);
     doc.line(14, y, pw - 14, y);
     y += 8;
 
-    /* ─── En-tête tableau ──────────────────────── */
+    /* ══════════════════════════════════════════
+       TABLO — An-tèt kolòn
+       ══════════════════════════════════════════ */
     doc.setFillColor(tqR, tqG, tqB);
     doc.rect(14, y - 5, pw - 28, 9, 'F');
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(255, 255, 255);
-    doc.text('Description', 17, y);
+    doc.text('Deskripsyon', 17, y);
     doc.text('Pwa', 118, y, { align: 'right' });
-    doc.text('Montant', pw - 16, y, { align: 'right' });
+    doc.text('Montan', pw - 16, y, { align: 'right' });
     y += 7;
 
-/* ─── Lignes tableau ───────────────────────── */
-const tableRows = [];
+    /* ══════════════════════════════════════════
+       TABLO — Liy done
+       ══════════════════════════════════════════ */
 
-// On affiche le poids réel pesé (Balans) et le poids calculé (Volim)
-const pwaReyel = e.realWeight > 0 ? e.realWeight.toFixed(2) + ' lb' : '0.00 lb';
-const pwaVol   = e.volWeight > 0  ? e.volWeight.toFixed(2)  + ' lb' : '0.00 lb';
+    /* Pwa Balan (reyèl) ak Pwa Volimik */
+    const realW = (e.realWeight != null && e.realWeight > 0)
+      ? e.realWeight.toFixed(2) + ' lb'
+      : (e.volWeight != null && e.finalWeight != null)
+        ? ((e.finalWeight - e.volWeight) > 0 ? (e.finalWeight - e.volWeight).toFixed(2) + ' lb' : '0.00 lb')
+        : '0.00 lb';
+    const volW  = e.volWeight > 0 ? e.volWeight.toFixed(2) + ' lb' : '0.00 lb';
 
-// Le texte qui apparaîtra dans la colonne "Pwa"
-const pwaDesc = `Balans: ${pwaReyel}\nVolim: ${pwaVol}`; 
+    /* Deskripsyon tronke nan 100 mo, afiche sèlman nan kolòn tablo */
+    const descText = e.desc || 'Frè ekspedisyon';
 
-tableRows.push([
-  e.desc || 'Frè ekspedisyon',
-  pwaDesc,
-  '$' + (e.servicePrix || e.subtotal || 0).toFixed(2)
-]);
+    /* Kalkilasyon wotè liy deskripsyon (multiline) */
+    const descColW = 95; // lajè kolòn deskripsyon (mm)
+    const descLines = doc.splitTextToSize(descText, descColW);
 
-if (e.balRest > 0)  tableRows.push(['Balance restante', '', '+$' + e.balRest.toFixed(2)]);
-if (e.balPaye > 0)  tableRows.push(['Balance à payer',  '', '−$' + e.balPaye.toFixed(2)]);
+    /* Wotè pwa (2 liy: Balan + Volim) */
+    const pwaLines = ['Balan: ' + realW, 'Volim: ' + volW];
 
+    /* Liy prensipal */
+    const rowH = Math.max(descLines.length, pwaLines.length) * 5.5 + 4;
+
+    /* Koulè fon altène */
+    doc.setFillColor(255, 255, 255);
+    doc.rect(14, y - 4, pw - 28, rowH, 'F');
+
+    /* Deskripsyon — kolòn gòch */
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9.5);
-    tableRows.forEach((r, i) => {
-      if (y > ph - 70) { doc.addPage(); y = 20; }
-      doc.setFillColor(i % 2 === 0 ? 255 : 248, i % 2 === 0 ? 255 : 250, i % 2 === 0 ? 255 : 250);
+    doc.setFontSize(8.5);
+    doc.setTextColor(30, 30, 30);
+    doc.text(descLines, 17, y);
+
+    /* Pwa Balan ak Pwa Volimik — kolòn mitan */
+    doc.setFontSize(8.5);
+    pwaLines.forEach((line, idx) => {
+      doc.text(line, 118, y + idx * 5.5, { align: 'right' });
+    });
+
+    /* Montan — kolòn dwat */
+    doc.setTextColor(bruR, bruG, bruB);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text('$' + (e.servicePrix || e.subtotal || 0).toFixed(2), pw - 16, y, { align: 'right' });
+
+    y += rowH;
+
+    /* Liy balance si aplikab */
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    if (e.balRest > 0) {
+      doc.setFillColor(248, 248, 248);
       doc.rect(14, y - 4, pw - 28, 8, 'F');
       doc.setTextColor(30, 30, 30);
-      doc.text(r[0], 17, y);
-      if (r[1]) doc.text(r[1], 118, y, { align: 'right' });
+      doc.text('Balans ki rete', 17, y);
       doc.setTextColor(bruR, bruG, bruB);
-      if (r[2]) doc.text(r[2], pw - 16, y, { align: 'right' });
+      doc.text('+$' + e.balRest.toFixed(2), pw - 16, y, { align: 'right' });
       doc.setTextColor(30, 30, 30);
       y += 8;
-    });
+    }
+    if (e.balPaye > 0) {
+      doc.setFillColor(255, 255, 255);
+      doc.rect(14, y - 4, pw - 28, 8, 'F');
+      doc.setTextColor(30, 30, 30);
+      doc.text('Balans ki peye', 17, y);
+      doc.setTextColor(bruR, bruG, bruB);
+      doc.text('−$' + e.balPaye.toFixed(2), pw - 16, y, { align: 'right' });
+      doc.setTextColor(30, 30, 30);
+      y += 8;
+    }
 
     y += 2;
 
-    /* ─── Subtotal ─────────────────────────────── */
+    /* ── Soutatàl ─────────────────────────────── */
     doc.setFillColor(240, 234, 224);
     doc.rect(14, y - 4, pw - 28, 8, 'F');
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(60, 40, 10);
-    doc.text('Subtotal', 17, y);
+    doc.text('Soutatàl', 17, y);
     doc.text('$' + (e.subtotal || 0).toFixed(2), pw - 16, y, { align: 'right' });
     y += 10;
 
-    /* ─── Total principal ──────────────────────── */
+    /* ── Total prensipal ──────────────────────── */
     doc.setFillColor(bruR, bruG, bruB);
     doc.rect(14, y - 5, pw - 28, 11, 'F');
     doc.setFontSize(13);
@@ -367,15 +414,18 @@ if (e.balPaye > 0)  tableRows.push(['Balance à payer',  '', '−$' + e.balPaye.
     doc.text('$' + (e.total || 0).toFixed(2), pw - 16, y, { align: 'right' });
     y += 12;
 
-    /* ─── Équivalent HTG (italique, opacité réduite) ─ */
-    const htgAmt = ((e.total || 0) * HTG_RATE).toFixed(0);
+    /* ── Ekivalan HTG (anba pri total) ─────────── */
+    const htgAmt = Math.round((e.total || 0) * HTG_RATE);
     doc.setFontSize(8.5);
     doc.setFont('helvetica', 'italic');
     doc.setTextColor(140, 120, 90);
-    doc.text('≈ ' + parseInt(htgAmt).toLocaleString('fr-HT') + ' HTG  (taux 135 HTG/$)', pw - 16, y, { align: 'right' });
+    doc.text(
+      '≈ ' + htgAmt.toLocaleString('fr-HT') + ' HTG  (to 135 HTG/$1)',
+      pw - 16, y, { align: 'right' }
+    );
     y += 10;
 
-    /* ─── Zone Note ────────────────────────────── */
+    /* ── Zòn Nòt ──────────────────────────────── */
     if (e.note) {
       doc.setFontSize(8.5);
       doc.setFont('helvetica', 'italic');
@@ -396,20 +446,20 @@ if (e.balPaye > 0)  tableRows.push(['Balance à payer',  '', '−$' + e.balPaye.
       y += 10;
     }
 
-    /* ─── Bloc conditions de paiement ─────────── */
+    /* ── Kondisyon peman ──────────────────────── */
     doc.setFillColor(245, 242, 235);
     doc.rect(14, y, pw - 28, 22, 'F');
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(bruR, bruG, bruB);
-    doc.text('Patnè fyab ou pou pwojè komès ak livrezon USA vers Haïti', 17, y + 7);
+    doc.text('Patnè fyab ou pou pwojè komès ak livrezon USA — Ayiti', 17, y + 7);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(50, 50, 50);
     doc.text('Achte sou entènèt avè nou ak konfyans.', 17, y + 13);
-    doc.text('Taux 135 goud pou $1 · Natcash · Sogebank · Zelle', 17, y + 18);
+    doc.text('To: 135 goud pou $1 · Natcash · Sogebank · Zelle', 17, y + 18);
     y += 26;
 
-    /* ─── Signature ────────────────────────────── */
+    /* ── Siyati ───────────────────────────────── */
     doc.setDrawColor(orR, orG, orB);
     doc.setLineWidth(0.5);
     doc.line(14, y, pw - 14, y);
@@ -418,16 +468,16 @@ if (e.balPaye > 0)  tableRows.push(['Balance à payer',  '', '−$' + e.balPaye.
     doc.setFontSize(13);
     doc.setFont('times', 'bolditalic');
     doc.setTextColor(40, 20, 5);
-    doc.text("Responsab Sud (Thomas Kabé)", pw - 14, y, { align: 'right' });
+    doc.text('Responsab Sid (Thomas Kabé)', pw - 14, y, { align: 'right' });
 
-    /* ─── Pied de page ─────────────────────────── */
+    /* ── Pye paj ──────────────────────────────── */
     doc.setFillColor(tqR, tqG, tqB);
     doc.rect(0, ph - 12, pw, 12, 'F');
     doc.setFontSize(7);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(255, 255, 255);
     doc.text(
-      'Les Cayes Dropshipping · lescayesdropshipping@gmail.com · +509 31 01 39 68 · Camp-Perrin, Les Cayes',
+      'Les Cayes Dropshipping · lescayesdropshipping@gmail.com · +509 31 01 39 68 · Kan-Peren, Okay',
       pw / 2, ph - 5, { align: 'center' }
     );
 
@@ -436,7 +486,7 @@ if (e.balPaye > 0)  tableRows.push(['Balance à payer',  '', '−$' + e.balPaye.
   });
 }
 
-/* ── Render History ─────────────────────────── */
+/* ── Afiche Istorik ─────────────────────────── */
 function renderPosHistory() {
   const list = getPosHistory();
   const el   = document.getElementById('posHistoryList');
@@ -452,7 +502,7 @@ function renderPosHistory() {
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
         <div>
           <div style="font-size:0.9rem;font-weight:600;color:#ddd8cc;">${h.clientName || '—'}</div>
-          ${h.clientAddr ? `<div style="font-size:0.72rem;color:rgba(200,190,175,0.5);">${h.clientAddr}</div>` : ''}
+          ${h.clientAddr ? `<div style="font-size:0.72rem;color:rgba(200,190,175,0.5);">Adrès: ${h.clientAddr}</div>` : ''}
           <div style="font-size:0.72rem;color:rgba(200,190,175,0.4);margin-top:2px;">
             #${h.invoiceNo || '—'} · ${new Date(h.date).toLocaleDateString('fr-HT',{day:'2-digit',month:'2-digit',year:'numeric'})}
           </div>
@@ -479,7 +529,7 @@ function togglePosHistory() {
   if (!panel.classList.contains('hidden')) renderPosHistory();
 }
 
-/* ── Réinitialisation formulaire ────────────── */
+/* ── Reinisyalize fòmilè ────────────────────── */
 function clearPosForm() {
   ['posL','posW','posH','posWeight','posCustomPrice','posDebt','posChange',
    'posClientName','posClientAddress','posDescription','posNote'].forEach(id => {
@@ -494,7 +544,7 @@ function clearPosForm() {
 document.addEventListener('DOMContentLoaded', () => {
   initPosAutocomplete();
 
-  /* Attacher calcLive à tous les champs de saisie POS */
+  /* Atache calcLive a tout chan sezi POS yo */
   const liveFields = ['posL','posW','posH','posWeight','posCustomPrice','posDebt','posChange'];
   liveFields.forEach(id => {
     const el = document.getElementById(id);
