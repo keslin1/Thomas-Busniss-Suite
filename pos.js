@@ -449,26 +449,26 @@ function buildPOSPdf(e) {
     y += 4;
 
     /* ══════════════════════════════════════════
-       6. SOUBTOTAL
+       6. SIBTOTAL
        ══════════════════════════════════════════ */
     doc.setFillColor(235, 228, 213);
     doc.rect(14, y, tableW, 11, 'F');
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(60, 40, 10);
-    doc.text('Soubtotal', colDesc + 4, y + 7.5);
+    doc.text('Sibtotal', colDesc + 4, y + 7.5);
     doc.text('$' + (e.subtotal || 0).toFixed(2), colMontX, y + 7.5, { align: 'right' });
     y += 16;
 
     /* ══════════════════════════════════════════
-       7. TOTAL FINAL USD (bannè brun)
+       7. TOTAL USD (bannè brun)
        ══════════════════════════════════════════ */
     doc.setFillColor(bruR, bruG, bruB);
     doc.rect(14, y, tableW, 14, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(13);
     doc.setFont('helvetica', 'bold');
-    doc.text('TOTAL FINAL', colDesc + 4, y + 9.5);
+    doc.text('TOTAL', colDesc + 4, y + 9.5);
     doc.text('$' + (e.total || 0).toFixed(2), colMontX, y + 9.5, { align: 'right' });
     y += 14;
 
@@ -527,7 +527,7 @@ function buildPOSPdf(e) {
     doc.setTextColor(50, 50, 50);
     doc.setFontSize(8);
     doc.text('Achte sou entènèt avè n ak konfyans.', 19, y + 16);
-    doc.text('Mòd peman: Natcash · Sogebank · Zelle  ·  Taux: 135 goud pou $1', 19, y + 22);
+    doc.text('Mòd pèman: Cash · Natcash · Sogebank · Zelle', 19, y + 22);
     y += 31;
 
     /* ══════════════════════════════════════════
