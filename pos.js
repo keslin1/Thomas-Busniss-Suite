@@ -274,17 +274,18 @@ function buildPOSPdf(e) {
     let y = 56;
 
     if (e.clientName) {
-      doc.setFontSize(13);
+      doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(20, 20, 20);
-      doc.text(e.clientName, 14, y);
-      y += 8;
+      doc.text(e.clientName.toUpperCase(), 14, y);
+      y += 7;
     }
 
     if (e.clientAddr) {
-      doc.setFontSize(9.5);
+      doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(60, 60, 60);
+      // Mete mo "Adres:" devan
       doc.text('Adres: ' + e.clientAddr, 14, y);
       y += 6;
     }
@@ -321,22 +322,37 @@ function buildPOSPdf(e) {
     /* ══════════════════════════════════════════
        4. RANJE PRENSIPAL — Deskripsyon (maks 100 mo)
        ══════════════════════════════════════════ */
-    const rawDesc   = (e.desc || 'Fre ekspedisyon');
+    const rawDesc   = (e.desc || 'Sèvis lojistik');
     const words     = rawDesc.split(/\s+/);
     const shortDesc = words.slice(0, 100).join(' ') + (words.length > 100 ? '...' : '');
 
-    /* Valè pwa — klè ak inite */
     const pwaBalansVal = (e.realWeight > 0 ? e.realWeight.toFixed(2) : '0.00') + ' lb';
     const pwaVolimVal  = (e.volWeight  > 0 ? e.volWeight.toFixed(2)  : '0.00') + ' lb';
-    const montant      = '$' + (e.servicePrix || e.subtotal || 0).toFixed(2);
+    const montant      = '$' + (e.servicePrix || 0).toFixed(2);
 
-    /* Wote deskripsyon */
-    const descMaxW   = 95;   // mm disponib pou tèks deskripsyon
     doc.setFontSize(8.5);
+    const descMaxW   = 90; 
     const descSplits = doc.splitTextToSize(shortDesc, descMaxW);
-    const descH      = descSplits.length * 5;
-    const minRowH    = 14;   // wote minimòm pou pwa
-    const mainRowH   = Math.max(descH, minRowH) + 6;
+    const rowH       = Math.max(descSplits.length * 5, 12) + 4;
+
+    // Fond ranje a
+    doc.setFillColor(252, 250, 245);
+    doc.rect(14, y - 4, tableW, rowH, 'F');
+
+    // Tèks Deskripsyon
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(30, 30, 30);
+    doc.text(descSplits, colDesc + 3, y);
+
+    // Pwa ak Montan (aliye nan mitan wotè ranje a)
+    const middle = y + (rowH / 2) - 3;
+    doc.setFont('helvetica', 'bold');
+    doc.text(pwaBalansVal, colBal, middle, { align: 'center' });
+    doc.text(pwaVolimVal, colVol, middle, { align: 'center' });
+    doc.setTextColor(bruR, bruG, bruB);
+    doc.text(montant, colMontX, middle, { align: 'right' });
+
+    y += rowH;
 
     /* Fon ranje alternans */
     doc.setFillColor(250, 248, 244);
@@ -413,33 +429,33 @@ function buildPOSPdf(e) {
     /* ══════════════════════════════════════════
        7. TOTAL FINAL USD (bannè brun)
        ══════════════════════════════════════════ */
+    y += 4;
+    // Bannè Total USD
     doc.setFillColor(bruR, bruG, bruB);
-    doc.rect(14, y - 5, tableW, 13, 'F');
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
+    doc.rect(14, y, tableW, 12, 'F');
     doc.setTextColor(255, 255, 255);
-    doc.text('TOTAL', colDesc + 3, y + 2);
-    doc.text('$' + (e.total || 0).toFixed(2), colMontX, y + 2, { align: 'right' });
-    y += 16;
+    doc.setFontSize(12);
+    doc.text('TOTAL FINAL', colDesc + 3, y + 8);
+    doc.text('$' + (e.total || 0).toFixed(2), colMontX, y + 8, { align: 'right' });
 
-    /* ══════════════════════════════════════════
-       8. EKIVALAN HTG (bannè lò) — pwòp, anba total
-       ══════════════════════════════════════════ */
-    const htgAmt = Math.round((e.total || 0) * HTG_RATE);
+    y += 12;
+    // Bannè Total HTG (135)
+    const totalHTG = Math.round((e.total || 0) * 135);
     doc.setFillColor(orR, orG, orB);
-    doc.rect(14, y - 4, tableW, 12, 'F');
+    doc.rect(14, y, tableW, 10, 'F');
+    doc.setTextColor(40, 20, 0);
+    doc.setFontSize(11);
+    doc.text('KONT VALÈ AN HTG', colDesc + 3, y + 6.5);
+    doc.text(totalHTG.toLocaleString('en-US') + ' HTG', colMontX, y + 6.5, { align: 'right' });
 
-    doc.setFontSize(10.5);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(50, 25, 5);
-    doc.text('Ekivalan HTG', colDesc + 3, y + 1);
-    doc.text(htgAmt.toLocaleString('fr-HT') + ' HTG', colMontX, y + 1, { align: 'right' });
-
-    doc.setFontSize(7.5);
-    doc.setFont('helvetica', 'italic');
-    doc.setTextColor(80, 50, 10);
-    doc.text('Taux: 135 goud pou $1 ameriken', colDesc + 3, y + 7);
-    y += 18;
+    /* ── WATERMARK (Logo nan background) ── */
+    if (imgData) {
+      doc.saveGraphicsState();
+      doc.setGState(new doc.GState({opacity: 0.06}));
+      // Mete l nan mitan paj la
+      doc.addImage(imgData, 'PNG', 55, 130, 100, 100);
+      doc.restoreGraphicsState();
+    }
 
     /* ══════════════════════════════════════════
        9. ZON NOT
