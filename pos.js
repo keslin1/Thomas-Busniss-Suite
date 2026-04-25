@@ -334,9 +334,9 @@ function buildPOSPdf(e) {
     doc.setTextColor(255, 255, 255);
     const hY = y + 8;
     doc.text('Deskripsyon',  colDesc + 4,  hY);
-    doc.text('Pwa Balans',   colBal,        hY, { align: 'center' });
-    doc.text('Pwa Volimik',  colVol,        hY, { align: 'center' });
-    doc.text('Montan',       colMontX,      hY, { align: 'right'  });
+    doc.text('Scale Weight',   colBal,        hY, { align: 'center' });
+    doc.text('DIM Weight',  colVol,        hY, { align: 'center' });
+    doc.text('Amount',       colMontX,      hY, { align: 'right'  });
     y += tblHeaderH;
 
     /* ══════════════════════════════════════════
