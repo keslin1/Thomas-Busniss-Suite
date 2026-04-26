@@ -520,7 +520,7 @@ function buildPOSPdf(e) {
        ══════════════════════════════════════════ */
     /* Not rabè otomatik si gen yon dimisyon */
     const autoDiscountNote = (e.discountPct > 0)
-      ? 'Ou benefisye yon dimisyon ' + e.discountPct + '% sou fakti sa a.'
+      ? 'Ou benefisye yon diminisyon ' + e.discountPct + '% pou kantite kòmand sa.'
       : '';
     const fullNote = [autoDiscountNote, e.note].filter(Boolean).join(' ');
 
