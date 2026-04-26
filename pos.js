@@ -56,25 +56,44 @@ function calcLive() {
   const balRest     = parseFloat(document.getElementById('posDebt')?.value)        || 0;
   const balPaye     = parseFloat(document.getElementById('posChange')?.value)      || 0;
 
-  /* Pwa Volimik : divize pa 4000 (estanda ayeryen cm3 -> lb) */
+  /* Pwa Volimik : TOUJOU fòmil (L×W×H)/4000 — pa janm chanje pou customPrice */
   const volWeight   = (L * W * H) / 4000;
 
   /* Pwa Final = volimik + balans */
   const finalWeight = volWeight + realWeight;
 
+  /* ── Subtotal = Pwa Total × 4.90 TOUJOU (pri nòmal algorit) ── */
   let subtotal    = 0;
+  let discount    = 0;   // montant rabè si customPrice < subtotal
   let servicePrix = 0;
-  let tarifApplied = TARIF_LB;
 
-  if (customPrice > 0) {
-    subtotal     = customPrice;
-    servicePrix  = customPrice;
-    tarifApplied = 0;
-  } else if (finalWeight > 0) {
-    const brut  = finalWeight * TARIF_LB;
-    subtotal    = brut;
-    servicePrix = brut < MIN_CHARGE ? MIN_CHARGE : brut;
+  if (finalWeight > 0) {
+    const brut = finalWeight * TARIF_LB;
+    subtotal   = brut < MIN_CHARGE ? MIN_CHARGE : brut;
   }
+
+  /* ── Si customPrice aktif : kalkile Rabè ── */
+  if (customPrice > 0 && subtotal > 0) {
+    if (customPrice < subtotal) {
+      discount    = subtotal - customPrice;
+      servicePrix = customPrice;
+    } else {
+      /* customPrice >= subtotal : aplike l dirèkteman (pa gen rabè) */
+      servicePrix = customPrice;
+      discount    = 0;
+    }
+  } else if (customPrice > 0 && subtotal === 0) {
+    /* Kalkil pwa pa disponib, sèvi customPrice dirèkteman */
+    subtotal    = customPrice;
+    servicePrix = customPrice;
+  } else {
+    servicePrix = subtotal;
+  }
+
+  /* ── Pousantaj rabè (pou not otomatik) ── */
+  const discountPct = (subtotal > 0 && discount > 0)
+    ? Math.round((discount / subtotal) * 100)
+    : 0;
 
   /* Total = PrixServis + BalRes - BalPaye */
   const total    = Math.max(0, servicePrix + balRest - balPaye);
@@ -85,7 +104,7 @@ function calcLive() {
 
   setTxt('resVolWeight',   volWeight > 0   ? volWeight.toFixed(2) + ' lb'   : '- lb');
   setTxt('resFinalWeight', finalWeight > 0 ? finalWeight.toFixed(2) + ' lb' : '- lb');
-  setTxt('resTarif',       customPrice > 0 ? 'Pri espesyal' : (finalWeight > 0 ? '$' + TARIF_LB.toFixed(2) + '/lb' : '-'));
+  setTxt('resTarif',       finalWeight > 0 ? '$' + TARIF_LB.toFixed(2) + '/lb' : '-');
   setTxt('resSubtotal',    subtotal > 0    ? '$' + subtotal.toFixed(2)      : '-');
   setTxt('resService',     servicePrix > 0 ? '$' + servicePrix.toFixed(2)   : '-');
   setTxt('resTotal',       '$' + total.toFixed(2));
@@ -101,7 +120,7 @@ function calcLive() {
     }
   }
 
-  return { volWeight, finalWeight, tarifApplied, subtotal, servicePrix, total, totalHTG, balRest, balPaye, customPrice, realWeight };
+  return { volWeight, finalWeight, subtotal, discount, discountPct, servicePrix, total, totalHTG, balRest, balPaye, customPrice, realWeight };
 }
 
 /* ── Otokomplete kliyan ───────────────────────── */
@@ -351,15 +370,8 @@ function buildPOSPdf(e) {
     /* ── Pwa Balans : toujou pwa reyèl ── */
     const pwaBalansVal = (e.realWeight > 0 ? e.realWeight.toFixed(2) : '0.00') + ' lb';
 
-    /* ── Pwa Volimik : si Pri Espesyal, ajiste pou ke
-         (PwaBalans + PwaVolimik) × 4.90 = customPrice exactman ── */
-    let displayVolWeight;   // lb ki pral parèt nan PDF
-    if (e.customPrice > 0) {
-      // Nouveau_Pwa_Volimik = (customPrice / 4.90) - realWeight
-      displayVolWeight = Math.max(0, (e.customPrice / TARIF_LB) - (e.realWeight || 0));
-    } else {
-      displayVolWeight = e.volWeight || 0;
-    }
+    /* ── Pwa Volimik : TOUJOU pwa reyèl (L×W×H)/4000 — pa janm ajiste ── */
+    const displayVolWeight = e.volWeight || 0;
 
     /* Récupère L, W, H stockés dans l'entrée (si disponibles) */
     const dimL = e.dimL || 0;
@@ -449,7 +461,7 @@ function buildPOSPdf(e) {
     y += 4;
 
     /* ══════════════════════════════════════════
-       6. SIBTOTAL
+       6. SIBTOTAL (pri nòmal selon pwa)
        ══════════════════════════════════════════ */
     doc.setFillColor(235, 228, 213);
     doc.rect(14, y, tableW, 11, 'F');
@@ -458,7 +470,23 @@ function buildPOSPdf(e) {
     doc.setTextColor(60, 40, 10);
     doc.text('Sibtotal', colDesc + 4, y + 7.5);
     doc.text('$' + (e.subtotal || 0).toFixed(2), colMontX, y + 7.5, { align: 'right' });
-    y += 16;
+    y += 13;
+
+    /* ══════════════════════════════════════════
+       6b. RABÈ (si customPrice < subtotal)
+       ══════════════════════════════════════════ */
+    const discount    = e.discount    || 0;
+    const discountPct = e.discountPct || 0;
+    if (discount > 0) {
+      doc.setFillColor(240, 255, 240);
+      doc.rect(14, y, tableW, 11, 'F');
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(30, 100, 30);
+      doc.text('Rabè (' + discountPct + '%)', colDesc + 4, y + 7.5);
+      doc.text('-$' + discount.toFixed(2), colMontX, y + 7.5, { align: 'right' });
+      y += 13;
+    }
 
     /* ══════════════════════════════════════════
        7. TOTAL USD (bannè brun)
@@ -490,11 +518,17 @@ function buildPOSPdf(e) {
     /* ══════════════════════════════════════════
        9. ZON NOT
        ══════════════════════════════════════════ */
-    if (e.note) {
+    /* Not rabè otomatik si gen yon dimisyon */
+    const autoDiscountNote = (e.discountPct > 0)
+      ? 'Ou benefisye yon dimisyon ' + e.discountPct + '% sou fakti sa a.'
+      : '';
+    const fullNote = [autoDiscountNote, e.note].filter(Boolean).join(' ');
+
+    if (fullNote) {
       doc.setFontSize(8.5);
       doc.setFont('helvetica', 'italic');
-      doc.setTextColor(70, 70, 70);
-      const noteLines = doc.splitTextToSize('Not: ' + e.note, tableW);
+      doc.setTextColor(autoDiscountNote ? 30 : 70, autoDiscountNote ? 100 : 70, autoDiscountNote ? 30 : 70);
+      const noteLines = doc.splitTextToSize('Not: ' + fullNote, tableW);
       doc.text(noteLines, 14, y);
       y += noteLines.length * 5.5 + 6;
     } else {
