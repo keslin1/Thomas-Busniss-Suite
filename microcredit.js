@@ -88,21 +88,24 @@ function renderMCHistory() {
 
   const balEl = document.getElementById('mcBalance');
   const usdEl = document.getElementById('mcBalanceUSD');
-  if (balEl) balEl.textContent = balance.toLocaleString('fr-HT') + ' HTG';
+  if (balEl) balEl.textContent = fmtHTG(balance) + ' HTG';
   if (usdEl) usdEl.textContent = '≈ $' + (balance / MC_RATE).toFixed(2) + ' USD';
 
-  /* ── Bouton PDF : visible dès que ≥15 transactions non encore exportées ── */
-  const lastExport  = getMCLastExportIdx();        // dernier index exporté (0-based)
-  const available   = txns.length - (lastExport + 1); // transactions disponibles pour export
+  /* ── Bouton PDF : toujours visible, actif si ≥15 transactions disponibles ── */
+  const lastExport  = getMCLastExportIdx();
+  const available   = txns.length - (lastExport + 1);
   const pdfBtn      = document.getElementById('mcReceiptBtn');
   const pdfCountEl  = document.getElementById('mcReceiptCount');
 
   if (pdfBtn) {
-    if (available >= 15) {
-      pdfBtn.classList.remove('hidden');
-      if (pdfCountEl) pdfCountEl.textContent = available + ' disponib';
-    } else {
-      pdfBtn.classList.add('hidden');
+    /* Le bouton reste toujours présent pour permettre des exports répétés */
+    pdfBtn.classList.remove('hidden');
+    pdfBtn.style.opacity = available >= 15 ? '1' : '0.45';
+    pdfBtn.style.pointerEvents = available >= 15 ? 'auto' : 'none';
+    if (pdfCountEl) {
+      pdfCountEl.textContent = available >= 15
+        ? available + ' disponib'
+        : (available > 0 ? available + ' (min 15)' : 'Tout ekspòte');
     }
   }
 
@@ -126,8 +129,8 @@ function renderMCHistory() {
           <div class="mc-item-date">${mcFmtDate(t.txDate || t.date)}</div>
         </div>
         <div class="mc-item-amounts">
-          <div class="mc-item-amount ${t.type}">${sign}${t.amount.toLocaleString('fr-HT')} HTG</div>
-          <div class="mc-item-balance">Balans: ${t.balance.toLocaleString('fr-HT')}</div>
+          <div class="mc-item-amount ${t.type}">${sign}${fmtHTG(t.amount)} HTG</div>
+          <div class="mc-item-balance">Balans: ${fmtHTG(t.balance)}</div>
         </div>
         <div class="mc-item-actions">
           <button onclick="openMCEdit('${t.id}')">✏️</button>
@@ -469,7 +472,7 @@ function generateMCReceiptPDF(sliceArg) {
     doc.text(noteTxt, 35, y);
     const sign = t.type === 'depo' ? '+' : '−';
     doc.setTextColor(t.type === 'depo' ? gR : 180, t.type === 'depo' ? gG : 30, t.type === 'depo' ? gB : 30);
-    doc.text(sign + t.amount.toLocaleString('fr-HT'), pw - 12, y, { align: 'right' });
+    doc.text(sign + fmtHTG(t.amount), pw - 12, y, { align: 'right' });
     if (t.type === 'depo') totalDepo  += t.amount;
     else                   totalRetre += t.amount;
     y += 7;
@@ -483,14 +486,14 @@ function generateMCReceiptPDF(sliceArg) {
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(gR, gG, gB);
   doc.text('Total depo:', 12, y);
-  doc.text('+' + totalDepo.toLocaleString('fr-HT') + ' HTG', pw - 12, y, { align: 'right' });
+  doc.text('+' + fmtHTG(totalDepo) + ' HTG', pw - 12, y, { align: 'right' });
   y += 8;
 
   doc.setFillColor(250, 235, 232);
   doc.rect(10, y - 4, pw - 20, 8, 'F');
   doc.setTextColor(180, 30, 30);
   doc.text('Total retrè:', 12, y);
-  doc.text('−' + totalRetre.toLocaleString('fr-HT') + ' HTG', pw - 12, y, { align: 'right' });
+  doc.text('−' + fmtHTG(totalRetre) + ' HTG', pw - 12, y, { align: 'right' });
   y += 10;
 
   /* ─── Solde final du batch ─────────────────── */
@@ -500,7 +503,7 @@ function generateMCReceiptPDF(sliceArg) {
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(10);
   doc.text('BALANS FINAL', 12, y);
-  doc.text(finalBal.toLocaleString('fr-HT') + ' HTG', pw - 12, y, { align: 'right' });
+  doc.text(fmtHTG(finalBal) + ' HTG', pw - 12, y, { align: 'right' });
   y += 14;
 
   /* ─── Signature ────────────────────────────── */
@@ -527,6 +530,229 @@ function generateMCReceiptPDF(sliceArg) {
   doc.save(fname);
 }
 
+/* ══════════════════════════════════════════════
+   COURBE DE CROISSANCE DYNAMIQUE
+   ══════════════════════════════════════════════
+   Règles couleur :
+   • Vert  : dernier dépôt < 4 jours
+   • Jaune : inactivité 4–7 jours
+   • Rouge : inactivité > 7 jours
+   La courbe descend automatiquement après 7j sans dépôt.
+   ══════════════════════════════════════════════ */
+
+function renderMCGrowthChart() {
+  const canvas = document.getElementById('mcGrowthChart');
+  if (!canvas) return;
+
+  const data = getMCData();
+  const txns = recalcBalances(data.transactions);
+  if (txns.length === 0) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    return;
+  }
+
+  /* ── Calculer jours depuis dernier dépôt ─── */
+  const now = Date.now();
+  const lastDepoTxn = [...txns].reverse().find(t => t.type === 'depo');
+  const lastDepoTs  = lastDepoTxn ? (lastDepoTxn.txDate || lastDepoTxn.date) : 0;
+  const daysSinceDepo = lastDepoTs ? Math.floor((now - lastDepoTs) / 86400000) : 999;
+
+  let lineColor;
+  if (daysSinceDepo < 4)       lineColor = '#4caf50'; // vert
+  else if (daysSinceDepo <= 7) lineColor = '#ffb300'; // jaune
+  else                          lineColor = '#e53935'; // rouge
+
+  /* ── Construire les points : regrouper par jour ─ */
+  /* On génère un point par date unique, + décroissance si >7j inactif */
+  const byDay = {};
+  txns.forEach(t => {
+    const d  = new Date(t.txDate || t.date);
+    const dk = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    byDay[dk] = t.balance; // dernier solde de la journée
+  });
+
+  let points = Object.entries(byDay).sort(([a],[b]) => a.localeCompare(b));
+
+  /* Si inactivité > 7 jours : ajouter un point aujourd'hui avec solde décroissant */
+  if (daysSinceDepo > 7 && points.length > 0) {
+    const lastBal  = points[points.length - 1][1];
+    const decay    = Math.max(0, lastBal - lastBal * 0.03 * (daysSinceDepo - 7)); // -3%/j après 7j
+    const todayKey = new Date(now).toISOString().slice(0, 10);
+    if (points[points.length - 1][0] !== todayKey) {
+      points.push([todayKey, Math.round(decay)]);
+    }
+  }
+
+  const labels  = points.map(([dk]) => dk.slice(5));   // MM-DD
+  const values  = points.map(([, v]) => v);
+
+  /* ── Détruire l'instance Chart.js précédente ─ */
+  if (canvas._mcChart) {
+    canvas._mcChart.destroy();
+  }
+
+  /* ── Dégradé sous la courbe ──────────────── */
+  const ctx = canvas.getContext('2d');
+  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.offsetHeight || 160);
+  gradient.addColorStop(0, lineColor + '44');
+  gradient.addColorStop(1, lineColor + '05');
+
+  canvas._mcChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Solde HTG',
+        data: values,
+        borderColor: lineColor,
+        backgroundColor: gradient,
+        borderWidth: 2.5,
+        pointRadius: 4,
+        pointBackgroundColor: lineColor,
+        pointBorderColor: '#fff',
+        pointBorderWidth: 1.5,
+        tension: 0.35,
+        fill: true,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => fmtHTG(ctx.parsed.y) + ' HTG'
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#9ab88a', font: { size: 10 } },
+          grid:  { color: 'rgba(255,255,255,0.05)' }
+        },
+        y: {
+          ticks: {
+            color: '#9ab88a',
+            font:  { size: 10 },
+            callback: v => fmtHTG(v)
+          },
+          grid: { color: 'rgba(255,255,255,0.07)' }
+        }
+      }
+    }
+  });
+
+  /* ── Indicateur texte d'inactivité ──────── */
+  const infoEl = document.getElementById('mcActivityStatus');
+  if (infoEl) {
+    if (daysSinceDepo < 4) {
+      infoEl.textContent  = '● Aktivite resan — depo < 4 jou';
+      infoEl.style.color  = '#4caf50';
+    } else if (daysSinceDepo <= 7) {
+      infoEl.textContent  = '● Enaktivite 4–7 jou — fè yon depo';
+      infoEl.style.color  = '#ffb300';
+    } else {
+      infoEl.textContent  = '⚠ Alèt — plis pase 7 jou san depo';
+      infoEl.style.color  = '#e53935';
+    }
+  }
+}
+
+/* ══════════════════════════════════════════════
+   BILAN MENSUEL AUTOMATIQUE (le 5 du mois)
+   ══════════════════════════════════════════════ */
+
+const MC_MONTHLY_KEY = 'tbs_mc_monthly_bilan';
+
+function checkMCMonthlyBilan() {
+  const now   = new Date();
+  if (now.getDate() !== 5) return; // uniquement le 5 du mois
+
+  const stored = JSON.parse(localStorage.getItem(MC_MONTHLY_KEY) || '{}');
+  const thisMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  if (stored.lastGenerated === thisMonth) return; // déjà généré ce mois-ci
+
+  _generateMCMonthlyBilan(now, stored);
+}
+
+function _generateMCMonthlyBilan(now, stored) {
+  const data  = getMCData();
+  const txns  = recalcBalances(data.transactions);
+  if (txns.length === 0) return;
+
+  /* Période : 1er du mois précédent → dernier jour du mois précédent */
+  const prevMonth    = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+
+  const filtered = txns.filter(t => {
+    const d = new Date(t.txDate || t.date);
+    return d >= prevMonth && d <= prevMonthEnd;
+  });
+
+  if (filtered.length === 0) return;
+
+  const firstBal = filtered[0].balance - (filtered[0].type === 'depo' ? filtered[0].amount : -filtered[0].amount);
+  const lastBal  = filtered[filtered.length - 1].balance;
+  const diff     = lastBal - firstBal;
+  const pct      = firstBal !== 0 ? ((diff / Math.abs(firstBal)) * 100).toFixed(1) : '0.0';
+
+  let label, labelColor;
+  if (diff > 0 && parseFloat(pct) >= 5) {
+    label = 'Kapital friktifye ✅'; labelColor = '#4caf50';
+  } else if (diff >= 0) {
+    label = 'Nivo mwayen ⚠️';      labelColor = '#ffb300';
+  } else {
+    label = 'Kapital an bès 🔻';   labelColor = '#e53935';
+  }
+
+  /* Sauvegarder le bilan */
+  const thisMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  const bilan = { lastGenerated: thisMonth, pct, diff, label };
+  localStorage.setItem(MC_MONTHLY_KEY, JSON.stringify(bilan));
+
+  /* Afficher dans le widget si présent */
+  renderMCMonthlyBilan();
+}
+
+function renderMCMonthlyBilan() {
+  const el = document.getElementById('mcMonthlyBilan');
+  if (!el) return;
+
+  const stored = JSON.parse(localStorage.getItem(MC_MONTHLY_KEY) || '{}');
+  if (!stored.lastGenerated) {
+    el.innerHTML = '<span style="color:#888;font-size:0.78rem;">Bilan disponib chak 5 du mwa.</span>';
+    return;
+  }
+
+  const sign      = stored.diff >= 0 ? '+' : '';
+  let labelColor  = stored.label.includes('✅') ? '#4caf50' : stored.label.includes('⚠') ? '#ffb300' : '#e53935';
+
+  el.innerHTML = `
+    <div style="font-size:0.75rem;color:#9ab88a;margin-bottom:4px;">
+      Bilan ${stored.lastGenerated}
+    </div>
+    <div style="font-size:1.1rem;font-weight:700;color:${labelColor};">${stored.label}</div>
+    <div style="font-size:0.85rem;color:#cde0c5;margin-top:2px;">
+      ${sign}${stored.pct}% &nbsp;·&nbsp; ${sign}${fmtHTG(stored.diff)} HTG
+    </div>
+  `;
+}
+
+/* ── Init graphique + bilan au chargement de la section ─── */
+function initMCDashboard() {
+  renderMCGrowthChart();
+  checkMCMonthlyBilan();
+  renderMCMonthlyBilan();
+}
+
 function escHtml(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ── Formatage monétaire : virgule comme séparateur de milliers ─────────── */
+function fmtHTG(n) {
+  /* Toujours utiliser la virgule : 2,888 HTG — jamais d'espace ni de slash */
+  return Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
 }
