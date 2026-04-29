@@ -62,12 +62,7 @@ function getCurrentBalance() {
 /* ── Utils date ─────────────────────────────── */
 function mcFmtDate(ts) {
   if (!ts) return '—';
-  return new Date(ts).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-}
-
-/* Formatage monétaire garanti avec virgule comme séparateur de milliers */
-function mcFmtAmt(n) {
-  return Number(n).toLocaleString('fr-FR');
+  return new Date(ts).toLocaleDateString('fr-HT', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 function mcDateInputToTs(val) {
@@ -93,25 +88,21 @@ function renderMCHistory() {
 
   const balEl = document.getElementById('mcBalance');
   const usdEl = document.getElementById('mcBalanceUSD');
-  if (balEl) balEl.textContent = mcFmtAmt(balance) + ' HTG';
+  if (balEl) balEl.textContent = balance.toLocaleString('fr-HT') + ' HTG';
   if (usdEl) usdEl.textContent = '≈ $' + (balance / MC_RATE).toFixed(2) + ' USD';
 
-  /* ── Bouton PDF : toujours visible, badge mis à jour ── */
-  const lastExport  = getMCLastExportIdx();
-  const available   = txns.length - (lastExport + 1);
+  /* ── Bouton PDF : visible dès que ≥15 transactions non encore exportées ── */
+  const lastExport  = getMCLastExportIdx();        // dernier index exporté (0-based)
+  const available   = txns.length - (lastExport + 1); // transactions disponibles pour export
   const pdfBtn      = document.getElementById('mcReceiptBtn');
   const pdfCountEl  = document.getElementById('mcReceiptCount');
 
   if (pdfBtn) {
-    pdfBtn.classList.remove('hidden'); // bouton toujours actif
-    if (pdfCountEl) {
-      if (available >= 15) {
-        pdfCountEl.textContent = available + ' disponib';
-        pdfCountEl.style.display = '';
-      } else {
-        pdfCountEl.textContent = '';
-        pdfCountEl.style.display = 'none';
-      }
+    if (available >= 15) {
+      pdfBtn.classList.remove('hidden');
+      if (pdfCountEl) pdfCountEl.textContent = available + ' disponib';
+    } else {
+      pdfBtn.classList.add('hidden');
     }
   }
 
@@ -135,8 +126,8 @@ function renderMCHistory() {
           <div class="mc-item-date">${mcFmtDate(t.txDate || t.date)}</div>
         </div>
         <div class="mc-item-amounts">
-          <div class="mc-item-amount ${t.type}">${sign}${mcFmtAmt(t.amount)} HTG</div>
-          <div class="mc-item-balance">Balans: ${mcFmtAmt(t.balance)}</div>
+          <div class="mc-item-amount ${t.type}">${sign}${t.amount.toLocaleString('fr-HT')} HTG</div>
+          <div class="mc-item-balance">Balans: ${t.balance.toLocaleString('fr-HT')}</div>
         </div>
         <div class="mc-item-actions">
           <button onclick="openMCEdit('${t.id}')">✏️</button>
@@ -145,10 +136,6 @@ function renderMCHistory() {
       </div>
     `;
   }).join('');
-
-  /* Courbe de croissance + bilan mensuel */
-  renderMCGrowthChart();
-  checkMCMonthlyReport();
 }
 
 /* ── Form ───────────────────────────────────── */
@@ -482,7 +469,7 @@ function generateMCReceiptPDF(sliceArg) {
     doc.text(noteTxt, 35, y);
     const sign = t.type === 'depo' ? '+' : '−';
     doc.setTextColor(t.type === 'depo' ? gR : 180, t.type === 'depo' ? gG : 30, t.type === 'depo' ? gB : 30);
-    doc.text(sign + mcFmtAmt(t.amount), pw - 12, y, { align: 'right' });
+    doc.text(sign + t.amount.toLocaleString('fr-HT'), pw - 12, y, { align: 'right' });
     if (t.type === 'depo') totalDepo  += t.amount;
     else                   totalRetre += t.amount;
     y += 7;
@@ -496,14 +483,14 @@ function generateMCReceiptPDF(sliceArg) {
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(gR, gG, gB);
   doc.text('Total depo:', 12, y);
-  doc.text('+' + mcFmtAmt(totalDepo) + ' HTG', pw - 12, y, { align: 'right' });
+  doc.text('+' + totalDepo.toLocaleString('fr-HT') + ' HTG', pw - 12, y, { align: 'right' });
   y += 8;
 
   doc.setFillColor(250, 235, 232);
   doc.rect(10, y - 4, pw - 20, 8, 'F');
   doc.setTextColor(180, 30, 30);
   doc.text('Total retrè:', 12, y);
-  doc.text('−' + mcFmtAmt(totalRetre) + ' HTG', pw - 12, y, { align: 'right' });
+  doc.text('−' + totalRetre.toLocaleString('fr-HT') + ' HTG', pw - 12, y, { align: 'right' });
   y += 10;
 
   /* ─── Solde final du batch ─────────────────── */
@@ -513,7 +500,7 @@ function generateMCReceiptPDF(sliceArg) {
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(10);
   doc.text('BALANS FINAL', 12, y);
-  doc.text(mcFmtAmt(finalBal) + ' HTG', pw - 12, y, { align: 'right' });
+  doc.text(finalBal.toLocaleString('fr-HT') + ' HTG', pw - 12, y, { align: 'right' });
   y += 14;
 
   /* ─── Signature ────────────────────────────── */
@@ -540,265 +527,6 @@ function generateMCReceiptPDF(sliceArg) {
   doc.save(fname);
 }
 
-/* ══════════════════════════════════════════════
-   COURBE DE CROISSANCE DYNAMIQUE
-   ══════════════════════════════════════════════
-   Règles :
-   • Couleur verte  : dernier dépôt il y a < 4 jours
-   • Couleur jaune  : entre 4 et 7 jours sans dépôt
-   • Couleur rouge  : plus de 7 jours sans dépôt
-   • La courbe descend automatiquement après 7 jours sans dépôt
-   ══════════════════════════════════════════════ */
-
-function getMCChartColor(lastDepoTs) {
-  if (!lastDepoTs) return '#e53935'; // rouge par défaut si aucun dépôt
-  const daysSince = (Date.now() - lastDepoTs) / 86400000;
-  if (daysSince < 4)  return '#4caf50'; // vert
-  if (daysSince <= 7) return '#ffc107'; // jaune
-  return '#e53935';                      // rouge
-}
-
-function renderMCGrowthChart() {
-  const canvas = document.getElementById('mcGrowthChart');
-  if (!canvas) return;
-
-  const data  = getMCData();
-  const txns  = recalcBalances(data.transactions);
-  if (txns.length === 0) {
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = 'rgba(255,255,255,0.3)';
-    ctx.font = '12px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('Okenn done disponib', canvas.width / 2, canvas.height / 2);
-    return;
-  }
-
-  /* Dernier dépôt */
-  const deposits     = txns.filter(t => t.type === 'depo');
-  const lastDepoTs   = deposits.length > 0 ? deposits[deposits.length - 1].txDate || deposits[deposits.length - 1].date : null;
-  const chartColor   = getMCChartColor(lastDepoTs);
-  const daysSinceDepo = lastDepoTs ? (Date.now() - lastDepoTs) / 86400000 : 999;
-
-  /* Construire les points : regrouper par jour */
-  const dayMap = {};
-  txns.forEach(t => {
-    const d   = new Date(t.txDate || t.date);
-    const key = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-    dayMap[key] = t.balance; // solde fin de journée
-  });
-
-  let keys = Object.keys(dayMap).sort();
-
-  /* Ajouter des points de déclin après 7 jours sans dépôt */
-  if (daysSinceDepo > 7) {
-    const lastKey = keys[keys.length - 1];
-    const lastVal = dayMap[lastKey];
-    const declineDays = Math.min(Math.floor(daysSinceDepo - 7), 14);
-    const lastDate    = new Date(lastDepoTs);
-    for (let i = 1; i <= declineDays; i++) {
-      const d   = new Date(lastDate.getTime() + (7 + i) * 86400000);
-      const key = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-      if (!dayMap[key]) {
-        const declineRate = lastVal * 0.02 * i; // déclin visuel de 2% par jour
-        dayMap[key] = Math.max(0, lastVal - declineRate);
-        keys.push(key);
-      }
-    }
-    keys = Object.keys(dayMap).sort();
-  }
-
-  const values = keys.map(k => dayMap[k]);
-  const W = canvas.width  = canvas.offsetWidth  || 320;
-  const H = canvas.height = canvas.offsetHeight || 140;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, W, H);
-
-  const padL = 10, padR = 14, padT = 14, padB = 28;
-  const chartW = W - padL - padR;
-  const chartH = H - padT - padB;
-  const maxVal = Math.max(...values) || 1;
-  const minVal = Math.min(...values, 0);
-  const range  = maxVal - minVal || 1;
-
-  const toX = i => padL + (i / (keys.length - 1 || 1)) * chartW;
-  const toY = v => padT + chartH - ((v - minVal) / range) * chartH;
-
-  /* Grille légère */
-  ctx.strokeStyle = 'rgba(255,255,255,0.07)';
-  ctx.lineWidth = 0.5;
-  [0.25, 0.5, 0.75, 1].forEach(f => {
-    const y = padT + chartH * (1 - f);
-    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + chartW, y); ctx.stroke();
-  });
-
-  /* Remplissage sous la courbe */
-  ctx.beginPath();
-  ctx.moveTo(toX(0), toY(values[0]));
-  values.forEach((v, i) => { if (i > 0) ctx.lineTo(toX(i), toY(v)); });
-  ctx.lineTo(toX(values.length - 1), padT + chartH);
-  ctx.lineTo(toX(0), padT + chartH);
-  ctx.closePath();
-  const grad = ctx.createLinearGradient(0, padT, 0, padT + chartH);
-  grad.addColorStop(0, chartColor + '55');
-  grad.addColorStop(1, chartColor + '08');
-  ctx.fillStyle = grad;
-  ctx.fill();
-
-  /* Ligne principale */
-  ctx.beginPath();
-  ctx.strokeStyle = chartColor;
-  ctx.lineWidth = 2;
-  ctx.lineJoin = 'round';
-  ctx.moveTo(toX(0), toY(values[0]));
-  values.forEach((v, i) => { if (i > 0) ctx.lineTo(toX(i), toY(v)); });
-  ctx.stroke();
-
-  /* Points de données */
-  values.forEach((v, i) => {
-    ctx.beginPath();
-    ctx.arc(toX(i), toY(v), 3, 0, Math.PI * 2);
-    ctx.fillStyle = chartColor;
-    ctx.fill();
-    ctx.strokeStyle = '#1a2018';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-  });
-
-  /* Étiquettes dates (premier et dernier) */
-  ctx.fillStyle = 'rgba(255,255,255,0.45)';
-  ctx.font = '9px sans-serif';
-  ctx.textAlign = 'left';
-  ctx.fillText(keys[0]?.slice(5) || '', padL, H - 8);
-  ctx.textAlign = 'right';
-  ctx.fillText(keys[keys.length-1]?.slice(5) || '', padL + chartW, H - 8);
-
-  /* Badge statut */
-  const statusEl = document.getElementById('mcChartStatus');
-  if (statusEl) {
-    let statusTxt = '', statusColor = chartColor;
-    if (daysSinceDepo < 4)       statusTxt = '● Aktivite resan (< 4 jou)';
-    else if (daysSinceDepo <= 7)  statusTxt = '● Ensaktivite modere (4–7 jou)';
-    else                          statusTxt = '● Alèt: ' + Math.floor(daysSinceDepo) + ' jou san depo';
-    statusEl.textContent  = statusTxt;
-    statusEl.style.color  = statusColor;
-  }
-}
-
-/* ══════════════════════════════════════════════
-   BILAN MENSUEL AUTOMATIQUE (Le 5 du mois)
-   ══════════════════════════════════════════════ */
-const MC_MONTHLY_KEY = 'tbs_mc_monthly_checked';
-
-function checkMCMonthlyReport() {
-  const now     = new Date();
-  const day     = now.getDate();
-  const monthId = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
-
-  /* Afficher uniquement le 5 du mois, et une seule fois par mois */
-  if (day !== 5) return;
-  const lastCheck = localStorage.getItem(MC_MONTHLY_KEY);
-  if (lastCheck === monthId) return;
-
-  /* Calculer la période : 1er → dernier jour du mois précédent */
-  const prevMonth    = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-  const startTs      = prevMonth.getTime();
-  const endTs        = prevMonthEnd.getTime();
-
-  const data  = getMCData();
-  const txns  = recalcBalances(data.transactions);
-  const inPeriod = txns.filter(t => {
-    const ts = t.txDate || t.date;
-    return ts >= startTs && ts <= endTs;
-  });
-
-  if (inPeriod.length === 0) return; // pas de données pour le mois écoulé
-
-  /* Solde début et fin de période */
-  const balStart = txns.find(t => (t.txDate || t.date) >= startTs)
-    ? (txns[txns.findIndex(t => (t.txDate||t.date) >= startTs) - 1]?.balance || 0)
-    : 0;
-  const balEnd = inPeriod[inPeriod.length - 1].balance;
-  const diff   = balEnd - balStart;
-  const pct    = balStart > 0 ? ((diff / balStart) * 100).toFixed(1) : '—';
-
-  let label, labelColor;
-  if (diff > 0 && Math.abs(pct) >= 1) {
-    label = 'Kapital friktye ✅';     labelColor = '#4caf50';
-  } else if (diff >= 0) {
-    label = 'Nivo mwayen ⚠️';          labelColor = '#ffc107';
-  } else {
-    label = 'Kapital ap bese 🔴';      labelColor = '#e53935';
-  }
-
-  /* Afficher le modal de bilan */
-  _showMCMonthlyModal({
-    monthLabel : prevMonth.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }),
-    balStart   : mcFmtAmt(balStart),
-    balEnd     : mcFmtAmt(balEnd),
-    diff       : (diff >= 0 ? '+' : '') + mcFmtAmt(diff),
-    pct        : pct,
-    label,
-    labelColor,
-    txCount    : inPeriod.length,
-  });
-
-  localStorage.setItem(MC_MONTHLY_KEY, monthId);
-}
-
-function _showMCMonthlyModal(info) {
-  const old = document.getElementById('mcMonthlyModalOverlay');
-  if (old) old.remove();
-
-  const overlay = document.createElement('div');
-  overlay.id = 'mcMonthlyModalOverlay';
-  overlay.style.cssText = `
-    position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9500;
-    display:flex;align-items:center;justify-content:center;padding:20px;
-  `;
-  overlay.innerHTML = `
-    <div style="background:#1a2018;border-radius:16px;padding:24px;width:100%;max-width:340px;
-                border:1px solid rgba(80,160,60,0.35);box-shadow:0 8px 32px rgba(0,0,0,0.5);">
-      <div style="font-size:0.75rem;color:#8fbc70;margin-bottom:4px;letter-spacing:0.05em;">
-        Bilan mensyèl otomatik
-      </div>
-      <div style="font-size:1rem;font-weight:700;color:#e8f5e0;margin-bottom:16px;">
-        ${info.monthLabel}
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
-        <div style="background:rgba(255,255,255,0.05);border-radius:10px;padding:12px;">
-          <div style="font-size:0.7rem;color:#8fbc70;margin-bottom:4px;">Solde inisyal</div>
-          <div style="font-size:0.95rem;font-weight:700;color:#e8f5e0;">${info.balStart} HTG</div>
-        </div>
-        <div style="background:rgba(255,255,255,0.05);border-radius:10px;padding:12px;">
-          <div style="font-size:0.7rem;color:#8fbc70;margin-bottom:4px;">Solde final</div>
-          <div style="font-size:0.95rem;font-weight:700;color:#e8f5e0;">${info.balEnd} HTG</div>
-        </div>
-      </div>
-      <div style="background:rgba(255,255,255,0.05);border-radius:10px;padding:14px;margin-bottom:14px;text-align:center;">
-        <div style="font-size:0.75rem;color:#8fbc70;margin-bottom:6px;">Evolisyon mwa a</div>
-        <div style="font-size:1.3rem;font-weight:800;color:${info.labelColor};">${info.diff} HTG</div>
-        <div style="font-size:0.85rem;color:${info.labelColor};margin-top:4px;">${info.pct !== '—' ? info.pct + '%' : ''}</div>
-      </div>
-      <div style="border-radius:10px;padding:12px;text-align:center;margin-bottom:16px;
-                  background:${info.labelColor}22;border:1px solid ${info.labelColor}55;">
-        <div style="font-size:1rem;font-weight:700;color:${info.labelColor};">${info.label}</div>
-        <div style="font-size:0.75rem;color:rgba(255,255,255,0.5);margin-top:4px;">
-          ${info.txCount} tranzaksyon nan mwa a
-        </div>
-      </div>
-      <button onclick="document.getElementById('mcMonthlyModalOverlay').remove()"
-        style="width:100%;padding:12px;border-radius:10px;border:none;
-               background:linear-gradient(135deg,#226614,#2d8020);
-               color:white;font-weight:700;font-size:0.9rem;cursor:pointer;">
-        Fèmen
-      </button>
-    </div>
-  `;
-  document.body.appendChild(overlay);
-}
-
-
+function escHtml(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
