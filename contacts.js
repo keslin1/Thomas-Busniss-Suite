@@ -82,6 +82,7 @@ function filterContacts() { renderContacts(); }
 
 /* ── Form ─────────────────────────────────── */
 function openContactForm() {
+  const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%23222'/%3E%3Ccircle cx='32' cy='26' r='12' fill='%23555'/%3E%3Cellipse cx='32' cy='52' rx='18' ry='12' fill='%23555'/%3E%3C/svg%3E";
   document.getElementById('contactFormTitle').textContent = 'Nouvo Kontakt';
   document.getElementById('contId').value = '';
   document.getElementById('contName').value = '';
@@ -90,7 +91,7 @@ function openContactForm() {
   document.getElementById('contGroup').value = '';
   document.getElementById('contAddress').value = '';
   document.getElementById('contNote').value = '';
-  document.getElementById('contAvatarPreview').src = 'data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%23222'/%3E%3Ccircle cx='32' cy='26' r='12' fill='%23555'/%3E%3Cellipse cx='32' cy='52' rx='18' ry='12' fill='%23555'/%3E%3C/svg%3E';
+  document.getElementById('contAvatarPreview').src = DEFAULT_AVATAR;
   document.getElementById('contactFormOverlay').classList.remove('hidden');
 }
 
@@ -135,6 +136,7 @@ function editContact(id) {
   const list = getContacts();
   const c = list.find(x => x.id === id);
   if (!c) return;
+  const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%23222'/%3E%3Ccircle cx='32' cy='26' r='12' fill='%23555'/%3E%3Cellipse cx='32' cy='52' rx='18' ry='12' fill='%23555'/%3E%3C/svg%3E";
   document.getElementById('contactFormTitle').textContent = 'Modifye Kontakt';
   document.getElementById('contId').value = c.id;
   document.getElementById('contName').value = c.name;
@@ -143,7 +145,7 @@ function editContact(id) {
   document.getElementById('contGroup').value = c.group || '';
   document.getElementById('contAddress').value = c.address || '';
   document.getElementById('contNote').value = c.note || '';
-  document.getElementById('contAvatarPreview').src = c.avatar || 'data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%23222'/%3E%3Ccircle cx='32' cy='26' r='12' fill='%23555'/%3E%3Cellipse cx='32' cy='52' rx='18' ry='12' fill='%23555'/%3E%3C/svg%3E';
+  document.getElementById('contAvatarPreview').src = c.avatar || DEFAULT_AVATAR;
   document.getElementById('contactFormOverlay').classList.remove('hidden');
 }
 
