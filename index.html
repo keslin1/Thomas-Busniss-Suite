@@ -477,13 +477,32 @@
 
       </div><!-- /livret-wrapper -->
 
+      <!-- ── Graphique de flux financier ── -->
+      <div class="mc-chart-section">
+        <div class="mc-chart-header">
+          <span class="mc-chart-title">📈 Kourb kapital</span>
+          <span id="mcActivityStatus" style="font-size:0.72rem;font-weight:600;">—</span>
+        </div>
+        <div class="mc-chart-canvas-wrap">
+          <canvas id="mcGrowthChart"></canvas>
+        </div>
+      </div>
+
+      <!-- ── Bilan mensuel ── -->
+      <div class="mc-bilan-section">
+        <div class="mc-bilan-label">📊 Bilan mwa pase</div>
+        <div id="mcMonthlyBilan">
+          <span style="color:#555;font-size:0.78rem;">Bilan disponib chak 5 du mwa.</span>
+        </div>
+      </div>
+
       <!-- Historique -->
       <div class="mc-history-header" style="display:flex;align-items:center;justify-content:space-between;padding:0 14px;">
         <span class="mc-history-title">📋 Istorik Tranzaksyon</span>
         <button id="mcReceiptBtn" class="hidden"
                 onclick="generateMCReceiptPDF()"
                 style="background:rgba(22,101,52,0.35);border:1px solid rgba(22,101,52,0.6);border-radius:8px;color:#4ade80;font-size:0.75rem;padding:5px 10px;cursor:pointer;">
-          📄 Reçu 15 txn
+          📄 Reçu — <span id="mcReceiptCount">15 txn</span>
         </button>
       </div>
       <div id="mcHistoryList" class="list-container" style="padding:0 0 80px;"></div>
@@ -665,6 +684,7 @@
   <div id="toast" class="toast hidden"></div>
 
   <!-- Scripts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="app.js"></script>
   <script src="customers.js"></script>

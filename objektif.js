@@ -1,6 +1,14 @@
 /* ══════════════════════════════════════════════
-   THOMAS BUSINESS SUITE — objektif.js
+   THOMAS BUSINESS SUITE — objektif.js  v3
    Plan d'action · Pwogram e Woutin
+   ──────────────────────────────────────────────
+   NOUVEAUTÉS v3 :
+   • Drag & Drop pour réorganiser les plans
+     (ordre persisté dans localStorage via `order`)
+   • Clic sur le texte du plan → édition inline
+   • Suppression de la case à cocher de validation
+   • Migration sécurisée : aucune donnée existante
+     n'est écrasée ou corrompue
    ══════════════════════════════════════════════ */
 
 const OBJ_KEY = 'tbs_objektif';
@@ -11,10 +19,14 @@ const OBJ_COLORS = [
   '#8e44ad', '#2980b9', '#27ae60', '#d35400',
 ];
 
-let objOpenId  = null;
+let objOpenId     = null;
 let objToastTimer = null;
 
-/* ── Storage ──────────────────────────────── */
+/* ── Drag state ───────────────────────────────── */
+let _dragSrcObjId  = null;
+let _dragSrcPlanId = null;
+
+/* ── Storage ──────────────────────────────────── */
 function getObjectifs() {
   try { return JSON.parse(localStorage.getItem(OBJ_KEY)) || []; }
   catch { return []; }
@@ -24,7 +36,28 @@ function saveObjectifs(list) {
   localStorage.setItem(OBJ_KEY, JSON.stringify(list));
 }
 
-/* ── Utils ────────────────────────────────── */
+/* ── Migration sécurisée ─────────────────────── */
+/*
+  Ajoute la propriété `order` à chaque plan qui n'en a pas encore,
+  sans toucher aux autres données.  Appelée une seule fois au init.
+*/
+function migrateObjectifsOrder() {
+  const list    = getObjectifs();
+  let changed   = false;
+
+  list.forEach(obj => {
+    (obj.plans || []).forEach((plan, idx) => {
+      if (plan.order === undefined || plan.order === null) {
+        plan.order = idx;
+        changed    = true;
+      }
+    });
+  });
+
+  if (changed) saveObjectifs(list);
+}
+
+/* ── Utils ────────────────────────────────────── */
 function objUid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
@@ -41,18 +74,18 @@ function objFmtDate(ts) {
 
 function objFmtDateInput(ts) {
   if (!ts) return '';
-  const d = new Date(ts);
-  const y = d.getFullYear();
-  const m = String(d.getMonth()+1).padStart(2,'0');
+  const d   = new Date(ts);
+  const y   = d.getFullYear();
+  const m   = String(d.getMonth()+1).padStart(2,'0');
   const day = String(d.getDate()).padStart(2,'0');
   return `${y}-${m}-${day}`;
 }
 
 /*
   LOGIQUE CHECK :
-  ✔  (check)   = Accompli    → 100% pou plan sa a
-  ✕  (fail)    = Non accompli → 0%  pou plan sa a
-  pending       = En attente  → compte ni check ni fail
+  ✔  check   = Accompli    → 100% pou plan sa a
+  ✕  fail    = Non accompli → 0%  pou plan sa a
+  pending     = En attente  → compte ni check ni fail
 */
 function calcProgress(plans) {
   const total = plans.length;
@@ -77,7 +110,12 @@ function objShowToast(msg) {
   objToastTimer = setTimeout(() => el.classList.add('hidden'), 2500);
 }
 
-/* ── Render ───────────────────────────────── */
+/* ── Tri par ordre ────────────────────────────── */
+function sortedPlans(plans) {
+  return [...plans].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
+
+/* ── Render ───────────────────────────────────── */
 function renderObjectifs() {
   const list = getObjectifs();
   const body = document.getElementById('objBody');
@@ -98,6 +136,9 @@ function renderObjectifs() {
     const card = document.querySelector(`.obj-card[data-id="${objOpenId}"]`);
     if (card) card.classList.add('open');
   }
+
+  /* Attacher les handlers drag & drop après le rendu */
+  _attachDragHandlers();
 }
 
 function renderObjCard(obj) {
@@ -107,7 +148,8 @@ function renderObjCard(obj) {
   const color  = obj.color || '#8b3dbc';
   const isOpen = obj.id === objOpenId;
 
-  const plansHtml = plans.map(p => renderPlanItem(obj.id, p)).join('');
+  const sorted   = sortedPlans(plans);
+  const plansHtml = sorted.map(p => renderPlanItem(obj.id, p)).join('');
 
   return `
     <div class="obj-card ${isOpen ? 'open' : ''}" data-id="${obj.id}">
@@ -126,7 +168,7 @@ function renderObjCard(obj) {
       <div class="obj-progress-bar-wrap">
         <div class="obj-progress-bar-fill" style="width:${pct}%;background:${color};"></div>
       </div>
-      <div class="obj-plans" id="plans-${obj.id}">
+      <div class="obj-plans" id="plans-${obj.id}" data-obj-id="${obj.id}">
         ${plansHtml}
         <button class="add-plan-btn" onclick="openPlanForm('${obj.id}')">+ Ajoute yon plan</button>
       </div>
@@ -137,6 +179,14 @@ function renderObjCard(obj) {
     </div>`;
 }
 
+/*
+  renderPlanItem v3 :
+  - Suppression de la case à cocher
+  - Poignée drag handle à gauche
+  - Clic sur le texte → édition inline
+  - Boutons ✔ / ✕ / ↺ maintenus
+  - Boutons ✏️ et 🗑️ maintenus
+*/
 function renderPlanItem(objId, p) {
   let statusClass = '';
   if (p.status === 'check') statusClass = 'plan-success';
@@ -148,28 +198,32 @@ function renderPlanItem(objId, p) {
     : '';
   const dueTxt = p.dueDate ? `<span>Limit: ${objFmtDate(p.dueDate)}</span>` : '';
 
-  // Boutons d'action :
-  // pending → ✔ (Reyisi / Accompli) + ✕ (Non accompli)
-  // check   → ↺ (Remete an atant)
-  // fail    → ↺ (Remete an atant)
+  /* Boutons de statut (sans case à cocher) */
   let actionBtns = '';
   if (p.status === 'pending') {
     actionBtns = `
-      <button class="plan-btn check" onclick="setPlanStatus('${objId}','${p.id}','check')" title="Accompli (100%)">✔</button>
-      <button class="plan-btn fail"  onclick="setPlanStatus('${objId}','${p.id}','fail')"  title="Non accompli (0%)">✕</button>`;
+      <button class="plan-btn check" onclick="setPlanStatus('${objId}','${p.id}','check')" title="Accompli">✔</button>
+      <button class="plan-btn fail"  onclick="setPlanStatus('${objId}','${p.id}','fail')"  title="Non accompli">✕</button>`;
   } else {
     actionBtns = `
       <button class="plan-btn cancel" onclick="setPlanStatus('${objId}','${p.id}','pending')" title="Remete an atant">↺</button>`;
   }
 
-  // Boutons édition plan + suppression plan
   const editPlanBtn = `<button class="plan-edit-btn" onclick="openEditPlanForm('${objId}','${p.id}')" title="Modifye plan">✏️</button>`;
   const delPlanBtn  = `<button class="plan-del-btn"  onclick="deletePlan('${objId}','${p.id}')" title="Efase plan">🗑️</button>`;
 
   return `
-    <div class="plan-item ${statusClass}" data-plan-id="${p.id}">
+    <div class="plan-item ${statusClass}"
+         data-plan-id="${p.id}"
+         data-obj-id="${objId}"
+         draggable="true">
+      <!-- Poignée drag -->
+      <div class="plan-drag-handle" title="Glise pou reoganize">⠿</div>
       <div class="plan-body">
-        <div class="plan-text">${objEsc(p.text)}</div>
+        <!-- Clic sur le texte → édition inline -->
+        <div class="plan-text plan-text-editable"
+             onclick="inlineEditPlan(event,'${objId}','${p.id}')"
+             title="Klike pou modifye">${objEsc(p.text)}</div>
         <div class="plan-date">${dueTxt}</div>
         ${proofHtml}
       </div>
@@ -184,13 +238,155 @@ function renderPlanItem(objId, p) {
     </div>`;
 }
 
-/* ── Accordéon ────────────────────────────── */
+/* ══════════════════════════════════════════════
+   ÉDITION INLINE (clic sur le texte du plan)
+   ══════════════════════════════════════════════ */
+function inlineEditPlan(evt, objId, planId) {
+  /* Éviter de déclencher si l'utilisateur clique sur un bouton enfant */
+  evt.stopPropagation();
+
+  const textEl = evt.currentTarget;
+  if (textEl.querySelector('input')) return; /* déjà en édition */
+
+  const currentText = textEl.textContent.trim();
+
+  /* Remplacer le texte par un champ input */
+  textEl.innerHTML = `
+    <input type="text"
+           class="plan-inline-input"
+           value="${objEsc(currentText)}"
+           onclick="event.stopPropagation()"
+           onkeydown="handleInlineKey(event,'${objId}','${planId}',this)"
+           onblur="commitInlineEdit('${objId}','${planId}',this)" />`;
+
+  const input = textEl.querySelector('input');
+  input.focus();
+  input.select();
+}
+
+function handleInlineKey(evt, objId, planId, input) {
+  if (evt.key === 'Enter') { input.blur(); }
+  if (evt.key === 'Escape') {
+    /* Annuler — re-rendre sans modification */
+    objOpenId = objId;
+    renderObjectifs();
+  }
+}
+
+function commitInlineEdit(objId, planId, input) {
+  const newText = (input.value || '').trim();
+  if (!newText) {
+    objOpenId = objId;
+    renderObjectifs();
+    return;
+  }
+
+  const list = getObjectifs();
+  const obj  = list.find(o => o.id === objId);
+  if (!obj) return;
+  const plan = obj.plans.find(p => p.id === planId);
+  if (!plan) return;
+
+  if (plan.text !== newText) {
+    plan.text     = newText;
+    obj.updatedAt = Date.now();
+    saveObjectifs(list);
+    objShowToast('✅ Plan modifye');
+  }
+
+  objOpenId = objId;
+  renderObjectifs();
+}
+
+/* ══════════════════════════════════════════════
+   DRAG & DROP — réorganisation des plans
+   ══════════════════════════════════════════════ */
+function _attachDragHandlers() {
+  document.querySelectorAll('.plan-item[draggable="true"]').forEach(item => {
+    item.addEventListener('dragstart', _onDragStart);
+    item.addEventListener('dragover',  _onDragOver);
+    item.addEventListener('drop',      _onDrop);
+    item.addEventListener('dragend',   _onDragEnd);
+  });
+}
+
+function _onDragStart(evt) {
+  _dragSrcObjId  = this.dataset.objId;
+  _dragSrcPlanId = this.dataset.planId;
+  this.classList.add('plan-dragging');
+  evt.dataTransfer.effectAllowed = 'move';
+  evt.dataTransfer.setData('text/plain', _dragSrcPlanId);
+}
+
+function _onDragOver(evt) {
+  evt.preventDefault();
+  evt.dataTransfer.dropEffect = 'move';
+
+  /* Indiquer visuellement la position cible */
+  document.querySelectorAll('.plan-item').forEach(el => el.classList.remove('plan-drag-over'));
+  this.classList.add('plan-drag-over');
+}
+
+function _onDrop(evt) {
+  evt.preventDefault();
+  evt.stopPropagation();
+
+  const targetPlanId = this.dataset.planId;
+  const targetObjId  = this.dataset.objId;
+
+  /* On n'autorise le déplacement que dans le même objectif */
+  if (_dragSrcPlanId === targetPlanId || _dragSrcObjId !== targetObjId) {
+    _cleanDragClasses();
+    return;
+  }
+
+  /* Réordonner dans le localStorage */
+  const list = getObjectifs();
+  const obj  = list.find(o => o.id === _dragSrcObjId);
+  if (!obj) { _cleanDragClasses(); return; }
+
+  const sorted = sortedPlans(obj.plans);
+  const srcIdx = sorted.findIndex(p => p.id === _dragSrcPlanId);
+  const tgtIdx = sorted.findIndex(p => p.id === targetPlanId);
+
+  if (srcIdx === -1 || tgtIdx === -1) { _cleanDragClasses(); return; }
+
+  /* Déplacer l'élément */
+  const [moved] = sorted.splice(srcIdx, 1);
+  sorted.splice(tgtIdx, 0, moved);
+
+  /* Réécrire la propriété `order` sans toucher aux autres propriétés */
+  sorted.forEach((plan, idx) => {
+    const original = obj.plans.find(p => p.id === plan.id);
+    if (original) original.order = idx;
+  });
+
+  obj.updatedAt = Date.now();
+  saveObjectifs(list);
+  _cleanDragClasses();
+
+  objOpenId = _dragSrcObjId;
+  renderObjectifs();
+  objShowToast('↕️ Lòd plan yo mete ajou');
+}
+
+function _onDragEnd() {
+  _cleanDragClasses();
+}
+
+function _cleanDragClasses() {
+  document.querySelectorAll('.plan-item').forEach(el => {
+    el.classList.remove('plan-dragging', 'plan-drag-over');
+  });
+}
+
+/* ── Accordéon ────────────────────────────────── */
 function toggleObjCard(id) {
   objOpenId = (objOpenId === id) ? null : id;
   renderObjectifs();
 }
 
-/* ── Objectif Form ────────────────────────── */
+/* ── Objectif Form ────────────────────────────── */
 function buildColorSwatches(selected) {
   const row = document.getElementById('objColorRow');
   if (!row) return;
@@ -219,11 +415,11 @@ function openObjForm(id = null) {
   if (id) {
     const obj = getObjectifs().find(o => o.id === id);
     if (!obj) return;
-    titleEl.textContent = 'Modifye Objektif';
+    titleEl.textContent = 'Modifye objektif';
     inputEl.value = obj.title;
     buildColorSwatches(obj.color || OBJ_COLORS[0]);
   } else {
-    titleEl.textContent = 'Nouvo Objektif';
+    titleEl.textContent = 'Nouvo objektif';
     inputEl.value = '';
     buildColorSwatches(OBJ_COLORS[0]);
   }
@@ -269,13 +465,13 @@ function deleteObjectif(id) {
   objShowToast('🗑️ Objektif efase');
 }
 
-/* ── Plan Form (Ajoute) ───────────────────── */
+/* ── Plan Form (Ajoute) ──────────────────────── */
 function openPlanForm(objId) {
-  document.getElementById('planObjId').value   = objId;
-  document.getElementById('planEditId').value  = '';       // nouveau
+  document.getElementById('planObjId').value    = objId;
+  document.getElementById('planEditId').value   = '';
   document.getElementById('planTextInput').value = '';
   document.getElementById('planDateInput').value = '';
-  document.getElementById('planFormTitle').textContent = 'Ajoute yon Plan';
+  document.getElementById('planFormTitle').textContent = 'Ajoute yon plan';
   document.getElementById('planFormOverlay').classList.remove('hidden');
 }
 
@@ -283,7 +479,7 @@ function closePlanForm() {
   document.getElementById('planFormOverlay').classList.add('hidden');
 }
 
-/* ── Plan Form (Édition) ───────────────────── */
+/* ── Plan Form (Édition) ─────────────────────── */
 function openEditPlanForm(objId, planId) {
   const list = getObjectifs();
   const obj  = list.find(o => o.id === objId);
@@ -291,11 +487,11 @@ function openEditPlanForm(objId, planId) {
   const plan = obj.plans.find(p => p.id === planId);
   if (!plan) return;
 
-  document.getElementById('planObjId').value    = objId;
-  document.getElementById('planEditId').value   = planId;
+  document.getElementById('planObjId').value     = objId;
+  document.getElementById('planEditId').value    = planId;
   document.getElementById('planTextInput').value = plan.text || '';
   document.getElementById('planDateInput').value = objFmtDateInput(plan.dueDate);
-  document.getElementById('planFormTitle').textContent = 'Modifye Plan';
+  document.getElementById('planFormTitle').textContent = 'Modifye plan';
   document.getElementById('planFormOverlay').classList.remove('hidden');
 }
 
@@ -313,7 +509,6 @@ function savePlan() {
   if (!obj) return;
 
   if (editId) {
-    // Édition d'un plan existant
     const plan = obj.plans.find(p => p.id === editId);
     if (plan) {
       plan.text    = text;
@@ -322,13 +517,15 @@ function savePlan() {
     obj.updatedAt = Date.now();
     objShowToast('✅ Plan modifye');
   } else {
-    // Nouveau plan
+    /* Ordre : placer le nouveau plan à la fin */
+    const maxOrder = obj.plans.reduce((mx, p) => Math.max(mx, p.order ?? 0), -1);
     obj.plans.push({
-      id: objUid(),
+      id:        objUid(),
       text,
       dueDate,
-      status: 'pending',
-      proof: null,
+      status:    'pending',
+      proof:     null,
+      order:     maxOrder + 1,
       createdAt: Date.now(),
     });
     obj.updatedAt = Date.now();
@@ -341,7 +538,7 @@ function savePlan() {
   renderObjectifs();
 }
 
-/* ── Plan Delete ──────────────────────────── */
+/* ── Plan Delete ─────────────────────────────── */
 function deletePlan(objId, planId) {
   if (!confirm('Efase plan sa a?')) return;
   const list = getObjectifs();
@@ -355,12 +552,7 @@ function deletePlan(objId, planId) {
   objShowToast('🗑️ Plan efase');
 }
 
-/* ── Plan Status ──────────────────────────── */
-/*
-  ✔ check  = Accompli   (contribue 100% pou plan sa a nan kalkil la)
-  ✕ fail   = Non accompli (0% — plan manke)
-  ↺ pending = Remete an atant
-*/
+/* ── Plan Status ─────────────────────────────── */
 function setPlanStatus(objId, planId, status) {
   const list = getObjectifs();
   const obj  = list.find(o => o.id === objId);
@@ -381,7 +573,7 @@ function setPlanStatus(objId, planId, status) {
   objShowToast(msgs[status] || '');
 }
 
-/* ── Proof (Photo preuve) ─────────────────── */
+/* ── Proof (Photo preuve) ────────────────────── */
 function openProofOverlay(objId, planId) {
   document.getElementById('proofObjId').value  = objId;
   document.getElementById('proofPlanId').value = planId;
@@ -459,13 +651,15 @@ function deleteProof() {
   objShowToast('🗑️ Foto prèv efase');
 }
 
-/* ── Navigation ──────────────────────────── */
+/* ── Navigation ──────────────────────────────── */
 function objGoBack() {
   if (typeof goBack === 'function') goBack();
   else window.history.back();
 }
 
-/* ── Init ─────────────────────────────────── */
+/* ── Init ────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
+  /* Migration sécurisée avant tout rendu */
+  migrateObjectifsOrder();
   renderObjectifs();
 });

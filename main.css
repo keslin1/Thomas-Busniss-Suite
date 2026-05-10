@@ -1821,3 +1821,145 @@ img { display: block; }
   background: rgba(80,30,120,0.92) !important;
   border-bottom: 2px solid #8b3dbc !important;
 }
+
+
+/* ══════════════════════════════════════════════
+   PLAN D'ACTION v3 — DRAG & DROP + INLINE EDIT
+   Ajouter à la fin de main.css
+   ══════════════════════════════════════════════ */
+
+/* ── Poignée drag ── */
+.plan-drag-handle {
+  font-size: 1.1rem;
+  color: rgba(200,190,175,0.25);
+  cursor: grab;
+  flex-shrink: 0;
+  line-height: 1;
+  margin-top: 3px;
+  transition: color 0.15s;
+  touch-action: none;
+}
+.plan-drag-handle:active { cursor: grabbing; }
+.plan-item:hover .plan-drag-handle { color: rgba(200,190,175,0.55); }
+
+/* ── État en cours de déplacement ── */
+.plan-item.plan-dragging {
+  opacity: 0.35;
+  border-style: dashed !important;
+}
+
+/* ── Indicateur de zone de dépôt ── */
+.plan-item.plan-drag-over {
+  border-color: rgba(139,61,188,0.7) !important;
+  background: rgba(139,61,188,0.12) !important;
+  transform: scale(1.015);
+  transition: transform 0.1s, background 0.1s, border-color 0.1s;
+}
+
+/* ── Texte cliquable pour édition ── */
+.plan-text-editable {
+  cursor: text;
+  border-radius: 5px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  transition: background 0.15s;
+}
+.plan-text-editable:hover {
+  background: rgba(255,255,255,0.06);
+}
+
+/* ── Input édition inline ── */
+.plan-inline-input {
+  width: 100%;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(139,61,188,0.6);
+  border-radius: 6px;
+  color: #f0e8d8;
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  padding: 4px 8px;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(139,61,188,0.2);
+}
+.plan-inline-input:focus {
+  border-color: #8b3dbc;
+  box-shadow: 0 0 0 3px rgba(139,61,188,0.3);
+}
+
+/* ── Boutons édition & suppression plan ── */
+.plan-edit-btn, .plan-del-btn {
+  width: 27px;
+  height: 27px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 0.78rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.05);
+  color: rgba(200,190,175,0.5);
+  transition: background 0.15s, color 0.15s;
+}
+.plan-edit-btn:hover { background: rgba(160,196,255,0.15); color: #a0c4ff; }
+.plan-del-btn:hover  { background: rgba(248,113,113,0.15); color: #f87171; }
+
+/* ══════════════════════════════════════════════
+   MICRO CRÉDIT — GRAPHIQUE DE FLUX & DASHBOARD
+   ══════════════════════════════════════════════ */
+
+/* Conteneur du graphique */
+.mc-chart-section {
+  margin: 16px 14px 4px;
+  background: rgba(10,40,20,0.6);
+  border: 1px solid rgba(22,101,52,0.3);
+  border-radius: 14px;
+  padding: 14px 14px 10px;
+}
+
+.mc-chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.mc-chart-title {
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(155,184,138,0.8);
+}
+
+#mcActivityStatus {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  transition: color 0.4s;
+}
+
+.mc-chart-canvas-wrap {
+  position: relative;
+  height: 160px;
+  width: 100%;
+}
+
+/* Bilan mensuel */
+.mc-bilan-section {
+  margin: 0 14px 10px;
+  background: rgba(8,24,14,0.7);
+  border: 1px solid rgba(22,101,52,0.2);
+  border-radius: 10px;
+  padding: 11px 14px;
+}
+
+.mc-bilan-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(155,184,138,0.55);
+  margin-bottom: 4px;
+}

@@ -531,14 +531,34 @@ function generateMCReceiptPDF(sliceArg) {
 }
 
 /* ══════════════════════════════════════════════
-   COURBE DE CROISSANCE DYNAMIQUE
+   COURBE DE CROISSANCE DYNAMIQUE  v2
    ══════════════════════════════════════════════
-   Règles couleur :
-   • Vert  : dernier dépôt < 4 jours
-   • Jaune : inactivité 4–7 jours
-   • Rouge : inactivité > 7 jours
-   La courbe descend automatiquement après 7j sans dépôt.
+   Règles couleur (spécification révisée) :
+   🟢 Vert   : dernier dépôt < 4 jours
+   🟡 Jaune  : inactivité 8 à 14 jours
+   🔴 Rouge  : inactivité > 17 jours
+   (entre 4–7j et 15–17j : transition douce)
+
+   Automatisme de descente :
+   La courbe décroît automatiquement si aucun dépôt
+   n'est enregistré depuis plus de 7 jours (-3%/j).
    ══════════════════════════════════════════════ */
+
+function _mcLineColor(daysSinceDepo) {
+  if (daysSinceDepo < 4)        return '#4caf50'; // 🟢 Vert — très récent
+  if (daysSinceDepo <= 7)       return '#7ecb6e'; // Vert clair — acceptable
+  if (daysSinceDepo <= 14)      return '#ffb300'; // 🟡 Jaune — attention
+  if (daysSinceDepo <= 17)      return '#ff7043'; // Orange — alerte modérée
+  return '#e53935';                               // 🔴 Rouge — danger
+}
+
+function _mcStatusText(daysSinceDepo) {
+  if (daysSinceDepo < 4)   return { text: '● Aktivite resan — depo < 4 jou',       color: '#4caf50' };
+  if (daysSinceDepo <= 7)  return { text: '● Aktif — fè yon depo byento',           color: '#7ecb6e' };
+  if (daysSinceDepo <= 14) return { text: '⚠ Enaktivite 8–14 jou — fè yon depo',   color: '#ffb300' };
+  if (daysSinceDepo <= 17) return { text: '⚠ Alèt modere — 15–17 jou san depo',    color: '#ff7043' };
+  return                          { text: '🔴 Alèt kritik — plis pase 17 jou san depo', color: '#e53935' };
+}
 
 function renderMCGrowthChart() {
   const canvas = document.getElementById('mcGrowthChart');
@@ -546,57 +566,59 @@ function renderMCGrowthChart() {
 
   const data = getMCData();
   const txns = recalcBalances(data.transactions);
+
+  /* ── État vide ── */
   if (txns.length === 0) {
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const infoEl = document.getElementById('mcActivityStatus');
+    if (infoEl) { infoEl.textContent = '— Okenn depo ankò'; infoEl.style.color = '#555'; }
     return;
   }
 
   /* ── Calculer jours depuis dernier dépôt ─── */
   const now = Date.now();
-  const lastDepoTxn = [...txns].reverse().find(t => t.type === 'depo');
-  const lastDepoTs  = lastDepoTxn ? (lastDepoTxn.txDate || lastDepoTxn.date) : 0;
+  const lastDepoTxn   = [...txns].reverse().find(t => t.type === 'depo');
+  const lastDepoTs    = lastDepoTxn ? (lastDepoTxn.txDate || lastDepoTxn.date) : 0;
   const daysSinceDepo = lastDepoTs ? Math.floor((now - lastDepoTs) / 86400000) : 999;
 
-  let lineColor;
-  if (daysSinceDepo < 4)       lineColor = '#4caf50'; // vert
-  else if (daysSinceDepo <= 7) lineColor = '#ffb300'; // jaune
-  else                          lineColor = '#e53935'; // rouge
+  const lineColor = _mcLineColor(daysSinceDepo);
+  const statusInfo = _mcStatusText(daysSinceDepo);
 
   /* ── Construire les points : regrouper par jour ─ */
-  /* On génère un point par date unique, + décroissance si >7j inactif */
   const byDay = {};
   txns.forEach(t => {
     const d  = new Date(t.txDate || t.date);
     const dk = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-    byDay[dk] = t.balance; // dernier solde de la journée
+    byDay[dk] = t.balance;
   });
 
   let points = Object.entries(byDay).sort(([a],[b]) => a.localeCompare(b));
 
-  /* Si inactivité > 7 jours : ajouter un point aujourd'hui avec solde décroissant */
+  /* Si inactivité > 7 jours : ajouter un point aujourd'hui avec solde décroissant (-3%/j) */
   if (daysSinceDepo > 7 && points.length > 0) {
     const lastBal  = points[points.length - 1][1];
-    const decay    = Math.max(0, lastBal - lastBal * 0.03 * (daysSinceDepo - 7)); // -3%/j après 7j
+    const decay    = Math.max(0, lastBal - lastBal * 0.03 * (daysSinceDepo - 7));
     const todayKey = new Date(now).toISOString().slice(0, 10);
     if (points[points.length - 1][0] !== todayKey) {
       points.push([todayKey, Math.round(decay)]);
     }
   }
 
-  const labels  = points.map(([dk]) => dk.slice(5));   // MM-DD
-  const values  = points.map(([, v]) => v);
+  const labels = points.map(([dk]) => dk.slice(5));  // MM-DD
+  const values = points.map(([, v]) => v);
 
   /* ── Détruire l'instance Chart.js précédente ─ */
   if (canvas._mcChart) {
     canvas._mcChart.destroy();
+    canvas._mcChart = null;
   }
 
   /* ── Dégradé sous la courbe ──────────────── */
-  const ctx = canvas.getContext('2d');
+  const ctx      = canvas.getContext('2d');
   const gradient = ctx.createLinearGradient(0, 0, 0, canvas.offsetHeight || 160);
-  gradient.addColorStop(0, lineColor + '44');
-  gradient.addColorStop(1, lineColor + '05');
+  gradient.addColorStop(0, lineColor + '55');
+  gradient.addColorStop(1, lineColor + '04');
 
   canvas._mcChart = new Chart(ctx, {
     type: 'line',
@@ -608,29 +630,35 @@ function renderMCGrowthChart() {
         borderColor: lineColor,
         backgroundColor: gradient,
         borderWidth: 2.5,
-        pointRadius: 4,
+        pointRadius: points.length === 1 ? 5 : 4,
         pointBackgroundColor: lineColor,
-        pointBorderColor: '#fff',
+        pointBorderColor: '#0a2010',
         pointBorderWidth: 1.5,
-        tension: 0.35,
+        tension: 0.38,
         fill: true,
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      animation: { duration: 600, easing: 'easeInOutQuart' },
       plugins: {
         legend: { display: false },
         tooltip: {
+          backgroundColor: 'rgba(10,30,18,0.9)',
+          borderColor: lineColor,
+          borderWidth: 1,
+          titleColor: '#9ab88a',
+          bodyColor: '#e8f5e0',
           callbacks: {
-            label: ctx => fmtHTG(ctx.parsed.y) + ' HTG'
+            label: ctx => ' ' + fmtHTG(ctx.parsed.y) + ' HTG'
           }
         }
       },
       scales: {
         x: {
           ticks: { color: '#9ab88a', font: { size: 10 } },
-          grid:  { color: 'rgba(255,255,255,0.05)' }
+          grid:  { color: 'rgba(255,255,255,0.04)' }
         },
         y: {
           ticks: {
@@ -638,7 +666,7 @@ function renderMCGrowthChart() {
             font:  { size: 10 },
             callback: v => fmtHTG(v)
           },
-          grid: { color: 'rgba(255,255,255,0.07)' }
+          grid: { color: 'rgba(255,255,255,0.06)' }
         }
       }
     }
@@ -647,16 +675,8 @@ function renderMCGrowthChart() {
   /* ── Indicateur texte d'inactivité ──────── */
   const infoEl = document.getElementById('mcActivityStatus');
   if (infoEl) {
-    if (daysSinceDepo < 4) {
-      infoEl.textContent  = '● Aktivite resan — depo < 4 jou';
-      infoEl.style.color  = '#4caf50';
-    } else if (daysSinceDepo <= 7) {
-      infoEl.textContent  = '● Enaktivite 4–7 jou — fè yon depo';
-      infoEl.style.color  = '#ffb300';
-    } else {
-      infoEl.textContent  = '⚠ Alèt — plis pase 7 jou san depo';
-      infoEl.style.color  = '#e53935';
-    }
+    infoEl.textContent = statusInfo.text;
+    infoEl.style.color = statusInfo.color;
   }
 }
 

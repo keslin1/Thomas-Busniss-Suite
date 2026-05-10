@@ -102,7 +102,7 @@ function openModule(name) {
   if (map[name]) {
     navigateTo(map[name]);
     if (name === 'customers')   renderCustomers();
-    if (name === 'microcredit') renderMCHistory();
+    if (name === 'microcredit') { renderMCHistory(); if (typeof initMCDashboard === 'function') initMCDashboard(); }
     if (name === 'contacts')    renderContacts();
     if (name === 'pos')         renderPosHistory();
     if (name === 'objektif')    renderObjectifs();
