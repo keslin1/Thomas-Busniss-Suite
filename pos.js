@@ -1,6 +1,6 @@
 /* ══════════════════════════════════════════════
    THOMAS BUSINESS SUITE — pos.js  v4
-   Kalkimatris · Sistèm POS & Fakti PDF
+   Jeneratè Fich · Sistèm POS & Fakti PDF
    ══════════════════════════════════════════════
 
    RÈGLEMAN KALKIL :
@@ -489,31 +489,33 @@ function buildPOSPdf(e) {
     }
 
     /* ══════════════════════════════════════════
-       7. TOTAL USD (bannè brun)
-       ══════════════════════════════════════════ */
-    doc.setFillColor(bruR, bruG, bruB);
-    doc.rect(14, y, tableW, 14, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(13);
-    doc.setFont('helvetica', 'bold');
-    doc.text('TOTAL', colDesc + 4, y + 9.5);
-    doc.text('$' + (e.total || 0).toFixed(2), colMontX, y + 9.5, { align: 'right' });
-    y += 14;
-
-    /* ══════════════════════════════════════════
-       8. KONVÈSYON HTG — bannè lò, trè vizib
-       Taux: 135 HTG / $1
+       7. TOTAL HTG — bannè prensipal (an gras, nwa, trè vizib)
+       Goud an premye — montan prensipal pou kliyan
        ══════════════════════════════════════════ */
     const totalHTG = Math.round((e.total || 0) * 135);
-    doc.setFillColor(255, 248, 220);
-    doc.rect(14, y, tableW, 14, 'F');
-    doc.setTextColor(80, 55, 10);
-    doc.setFontSize(10);
+    doc.setFillColor(20, 20, 20);
+    doc.rect(14, y, tableW, 16, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.text('Valè an Goud (135 HTG / $1)', colDesc + 4, y + 9.5);
-    doc.setFontSize(12);
-    doc.text(totalHTG.toLocaleString('en-US') + ' HTG', colMontX, y + 9.5, { align: 'right' });
-    y += 20;
+    doc.text('TOTAL (HTG)', colDesc + 4, y + 10.5);
+    doc.setFontSize(14);
+    doc.text(totalHTG.toLocaleString('en-US') + ' HTG', colMontX, y + 10.5, { align: 'right' });
+    y += 16;
+
+    /* ══════════════════════════════════════════
+       8. KONVÈSYON USD — liy discrè an-ba
+       Konvèsyon referans sèlman (135 HTG / $1)
+       ══════════════════════════════════════════ */
+    doc.setFillColor(230, 225, 215);
+    doc.rect(14, y, tableW, 11, 'F');
+    doc.setTextColor(120, 100, 70);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Ekivalan USD (135 HTG / $1)', colDesc + 4, y + 7.5);
+    doc.setFontSize(9);
+    doc.text('≈ $' + (e.total || 0).toFixed(2), colMontX, y + 7.5, { align: 'right' });
+    y += 17;
 
     /* ══════════════════════════════════════════
        9. ZON NOT

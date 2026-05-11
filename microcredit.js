@@ -544,23 +544,100 @@ function generateMCReceiptPDF(sliceArg) {
    n'est enregistré depuis plus de 7 jours (-3%/j).
    ══════════════════════════════════════════════ */
 
+/* ══════════════════════════════════════════════
+   COURBE DE CROISSANCE DYNAMIQUE  v3
+   ══════════════════════════════════════════════
+   Design : Fond blanc (#FFFFFF), axes/textes noir (#000000)
+   Filtre : 1 mois, 2 mois, 12 mois
+   Couleur courbe dynamique selon inactivité :
+   🟢 Vert   : dernier dépôt < 4 jours
+   🟡 Jaune  : inactivité 4 à 7 jours
+   🔴 Rouge  : inactivité > 7 jours
+   Descente simulée : -3%/jour si inactivité > 7j
+   ══════════════════════════════════════════════ */
+
+/* Période active (en mois) — modifiée par le sélecteur */
+let mcChartPeriodMonths = 1;
+
 function _mcLineColor(daysSinceDepo) {
-  if (daysSinceDepo < 4)        return '#4caf50'; // 🟢 Vert — très récent
-  if (daysSinceDepo <= 7)       return '#7ecb6e'; // Vert clair — acceptable
-  if (daysSinceDepo <= 14)      return '#ffb300'; // 🟡 Jaune — attention
-  if (daysSinceDepo <= 17)      return '#ff7043'; // Orange — alerte modérée
-  return '#e53935';                               // 🔴 Rouge — danger
+  if (daysSinceDepo < 4)        return '#16a34a'; // 🟢 Vert — très récent
+  if (daysSinceDepo <= 7)       return '#ca8a04'; // 🟡 Jaune — attention
+  return '#dc2626';                               // 🔴 Rouge — danger
 }
 
 function _mcStatusText(daysSinceDepo) {
-  if (daysSinceDepo < 4)   return { text: '● Aktivite resan — depo < 4 jou',       color: '#4caf50' };
-  if (daysSinceDepo <= 7)  return { text: '● Aktif — fè yon depo byento',           color: '#7ecb6e' };
-  if (daysSinceDepo <= 14) return { text: '⚠ Enaktivite 8–14 jou — fè yon depo',   color: '#ffb300' };
-  if (daysSinceDepo <= 17) return { text: '⚠ Alèt modere — 15–17 jou san depo',    color: '#ff7043' };
-  return                          { text: '🔴 Alèt kritik — plis pase 17 jou san depo', color: '#e53935' };
+  if (daysSinceDepo < 4)   return { text: '● Aktivite resan — depo < 4 jou',       color: '#16a34a' };
+  if (daysSinceDepo <= 7)  return { text: '⚠ Atansyon — 4 a 7 jou san depo',        color: '#ca8a04' };
+  if (daysSinceDepo <= 14) return { text: '⚠ Enaktivite 8–14 jou — fè yon depo',   color: '#d97706' };
+  if (daysSinceDepo <= 17) return { text: '⚠ Alèt modere — 15–17 jou san depo',    color: '#ea580c' };
+  return                          { text: '🔴 Alèt kritik — plis pase 17 jou san depo', color: '#dc2626' };
+}
+
+/* ── Sélecteur de période ──────────────────────
+   Injecte les boutons-filtre au-dessus du canvas
+   si pas encore présents, puis redessine le chart.
+   ──────────────────────────────────────────── */
+function _mcEnsurePeriodSelector() {
+  if (document.getElementById('mcPeriodSelector')) return;
+
+  const wrap = document.querySelector('.mc-chart-canvas-wrap');
+  if (!wrap) return;
+
+  const bar = document.createElement('div');
+  bar.id = 'mcPeriodSelector';
+  bar.style.cssText = `
+    display:flex; gap:6px; justify-content:flex-end;
+    padding: 4px 0 10px 0;
+  `;
+
+  const periods = [
+    { label: '1 mwa',   months: 1  },
+    { label: '2 mwa',   months: 2  },
+    { label: '12 mwa',  months: 12 },
+  ];
+
+  periods.forEach(p => {
+    const btn = document.createElement('button');
+    btn.textContent  = p.label;
+    btn.dataset.months = p.months;
+    btn.style.cssText = `
+      padding:4px 11px; border-radius:20px; border:1px solid #bbb;
+      background: ${p.months === mcChartPeriodMonths ? '#111' : '#f5f5f5'};
+      color:       ${p.months === mcChartPeriodMonths ? '#fff' : '#333'};
+      font-size:0.72rem; font-weight:600; cursor:pointer;
+      font-family:'Rajdhani',sans-serif; transition:all 0.15s;
+    `;
+    btn.addEventListener('click', () => {
+      mcChartPeriodMonths = p.months;
+      /* Mettre à jour le style de tous les boutons */
+      bar.querySelectorAll('button').forEach(b => {
+        const active = parseInt(b.dataset.months) === mcChartPeriodMonths;
+        b.style.background = active ? '#111' : '#f5f5f5';
+        b.style.color       = active ? '#fff' : '#333';
+      });
+      renderMCGrowthChart();
+    });
+    bar.appendChild(btn);
+  });
+
+  /* Insérer avant le canvas */
+  wrap.insertBefore(bar, wrap.firstChild);
+}
+
+/* ── Appliquer le style "fond blanc" au conteneur canvas ── */
+function _mcStyleChartWrap() {
+  const wrap = document.querySelector('.mc-chart-canvas-wrap');
+  if (!wrap) return;
+  wrap.style.background    = '#ffffff';
+  wrap.style.borderRadius  = '10px';
+  wrap.style.padding       = '12px 8px 8px 8px';
+  wrap.style.border        = '1px solid #e5e7eb';
 }
 
 function renderMCGrowthChart() {
+  _mcStyleChartWrap();
+  _mcEnsurePeriodSelector();
+
   const canvas = document.getElementById('mcGrowthChart');
   if (!canvas) return;
 
@@ -572,7 +649,7 @@ function renderMCGrowthChart() {
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const infoEl = document.getElementById('mcActivityStatus');
-    if (infoEl) { infoEl.textContent = '— Okenn depo ankò'; infoEl.style.color = '#555'; }
+    if (infoEl) { infoEl.textContent = '— Okenn depo ankò'; infoEl.style.color = '#888'; }
     return;
   }
 
@@ -582,16 +659,34 @@ function renderMCGrowthChart() {
   const lastDepoTs    = lastDepoTxn ? (lastDepoTxn.txDate || lastDepoTxn.date) : 0;
   const daysSinceDepo = lastDepoTs ? Math.floor((now - lastDepoTs) / 86400000) : 999;
 
-  const lineColor = _mcLineColor(daysSinceDepo);
+  const lineColor  = _mcLineColor(daysSinceDepo);
   const statusInfo = _mcStatusText(daysSinceDepo);
+
+  /* ── Fenêtre temporelle selon période choisie ─ */
+  const windowStart = new Date(now);
+  windowStart.setMonth(windowStart.getMonth() - mcChartPeriodMonths);
+  windowStart.setHours(0, 0, 0, 0);
 
   /* ── Construire les points : regrouper par jour ─ */
   const byDay = {};
   txns.forEach(t => {
-    const d  = new Date(t.txDate || t.date);
+    const ts = t.txDate || t.date;
+    if (ts < windowStart.getTime()) return; // hors fenêtre
+    const d  = new Date(ts);
     const dk = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
     byDay[dk] = t.balance;
   });
+
+  /* Ajouter le solde au début de la fenêtre (interpolé depuis les txns antérieures) */
+  const windowKey = windowStart.getFullYear() + '-' +
+    String(windowStart.getMonth()+1).padStart(2,'0') + '-' +
+    String(windowStart.getDate()).padStart(2,'0');
+
+  /* Trouver le dernier solde avant la fenêtre */
+  const beforeWindow = txns.filter(t => (t.txDate || t.date) < windowStart.getTime());
+  if (beforeWindow.length > 0 && !byDay[windowKey]) {
+    byDay[windowKey] = beforeWindow[beforeWindow.length - 1].balance;
+  }
 
   let points = Object.entries(byDay).sort(([a],[b]) => a.localeCompare(b));
 
@@ -605,8 +700,32 @@ function renderMCGrowthChart() {
     }
   }
 
-  const labels = points.map(([dk]) => dk.slice(5));  // MM-DD
+  if (points.length === 0) {
+    /* Aucune donnée dans la fenêtre */
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '13px Rajdhani, sans-serif';
+    ctx.fillStyle = '#999';
+    ctx.textAlign = 'center';
+    ctx.fillText('Okenn done nan peryòd sa a', canvas.offsetWidth / 2, 80);
+    return;
+  }
+
+  /* ── Formater les labels (axe X) ─────────────── */
+  const fmtLabel = (dk) => {
+    const [, m, d] = dk.split('-');
+    if (mcChartPeriodMonths <= 2) return d + '/' + m;        // JJ/MM
+    return m + '/' + dk.slice(0, 4).slice(2);               // MM/AA
+  };
+
+  const labels = points.map(([dk]) => fmtLabel(dk));
   const values = points.map(([, v]) => v);
+
+  /* ── Dates complètes pour le tooltip ─────────── */
+  const fullDates = points.map(([dk]) => {
+    const [y, m, d] = dk.split('-');
+    return d + '/' + m + '/' + y;
+  });
 
   /* ── Détruire l'instance Chart.js précédente ─ */
   if (canvas._mcChart) {
@@ -616,9 +735,9 @@ function renderMCGrowthChart() {
 
   /* ── Dégradé sous la courbe ──────────────── */
   const ctx      = canvas.getContext('2d');
-  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.offsetHeight || 160);
-  gradient.addColorStop(0, lineColor + '55');
-  gradient.addColorStop(1, lineColor + '04');
+  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.offsetHeight || 180);
+  gradient.addColorStop(0, lineColor + '33');
+  gradient.addColorStop(1, lineColor + '05');
 
   canvas._mcChart = new Chart(ctx, {
     type: 'line',
@@ -630,9 +749,9 @@ function renderMCGrowthChart() {
         borderColor: lineColor,
         backgroundColor: gradient,
         borderWidth: 2.5,
-        pointRadius: points.length === 1 ? 5 : 4,
+        pointRadius: points.length <= 15 ? 4 : 2,
         pointBackgroundColor: lineColor,
-        pointBorderColor: '#0a2010',
+        pointBorderColor: '#ffffff',
         pointBorderWidth: 1.5,
         tension: 0.38,
         fill: true,
@@ -641,32 +760,40 @@ function renderMCGrowthChart() {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      animation: { duration: 600, easing: 'easeInOutQuart' },
+      animation: { duration: 500, easing: 'easeInOutQuart' },
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: 'rgba(10,30,18,0.9)',
+          backgroundColor: '#ffffff',
           borderColor: lineColor,
-          borderWidth: 1,
-          titleColor: '#9ab88a',
-          bodyColor: '#e8f5e0',
+          borderWidth: 1.5,
+          titleColor: '#111111',
+          bodyColor: '#333333',
+          padding: 10,
           callbacks: {
-            label: ctx => ' ' + fmtHTG(ctx.parsed.y) + ' HTG'
+            title: (items) => fullDates[items[0].dataIndex] || items[0].label,
+            label: ctx => ' ' + fmtHTG(ctx.parsed.y) + ' HTG',
           }
         }
       },
       scales: {
         x: {
-          ticks: { color: '#9ab88a', font: { size: 10 } },
-          grid:  { color: 'rgba(255,255,255,0.04)' }
+          ticks: {
+            color: '#111111',
+            font: { size: 10, family: "'Rajdhani', sans-serif" },
+            maxRotation: mcChartPeriodMonths >= 12 ? 45 : 0,
+            autoSkip: true,
+            maxTicksLimit: mcChartPeriodMonths >= 12 ? 12 : 8,
+          },
+          grid:  { color: 'rgba(0,0,0,0.07)' }
         },
         y: {
           ticks: {
-            color: '#9ab88a',
-            font:  { size: 10 },
-            callback: v => fmtHTG(v)
+            color: '#111111',
+            font:  { size: 10, family: "'Rajdhani', sans-serif" },
+            callback: v => fmtHTG(v),
           },
-          grid: { color: 'rgba(255,255,255,0.06)' }
+          grid: { color: 'rgba(0,0,0,0.07)' }
         }
       }
     }
@@ -747,15 +874,27 @@ function renderMCMonthlyBilan() {
   }
 
   const sign      = stored.diff >= 0 ? '+' : '';
-  let labelColor  = stored.label.includes('✅') ? '#4caf50' : stored.label.includes('⚠') ? '#ffb300' : '#e53935';
+  let bgColor, txtColor, borderColor;
+  if (stored.label.includes('✅')) {
+    bgColor = '#f0fdf4'; txtColor = '#15803d'; borderColor = '#86efac';
+  } else if (stored.label.includes('⚠')) {
+    bgColor = '#fefce8'; txtColor = '#854d0e'; borderColor = '#fde68a';
+  } else {
+    bgColor = '#fef2f2'; txtColor = '#991b1b'; borderColor = '#fca5a5';
+  }
 
   el.innerHTML = `
-    <div style="font-size:0.75rem;color:#9ab88a;margin-bottom:4px;">
-      Bilan ${stored.lastGenerated}
-    </div>
-    <div style="font-size:1.1rem;font-weight:700;color:${labelColor};">${stored.label}</div>
-    <div style="font-size:0.85rem;color:#cde0c5;margin-top:2px;">
-      ${sign}${stored.pct}% &nbsp;·&nbsp; ${sign}${fmtHTG(stored.diff)} HTG
+    <div style="
+      background:${bgColor}; border:1px solid ${borderColor};
+      border-radius:10px; padding:10px 14px; margin:0 2px;
+    ">
+      <div style="font-size:0.72rem;color:#555;margin-bottom:3px;">
+        Bilan ${stored.lastGenerated}
+      </div>
+      <div style="font-size:1rem;font-weight:700;color:${txtColor};">${stored.label}</div>
+      <div style="font-size:0.82rem;color:#444;margin-top:2px;font-family:'Space Mono',monospace;">
+        ${sign}${stored.pct}%&nbsp;&nbsp;·&nbsp;&nbsp;${sign}${fmtHTG(stored.diff)} HTG
+      </div>
     </div>
   `;
 }
