@@ -493,9 +493,9 @@ function buildPOSPdf(e) {
        Goud an premye — montan prensipal pou kliyan
        ══════════════════════════════════════════ */
     const totalHTG = Math.round((e.total || 0) * 135);
-    doc.setFillColor(20, 20, 20);
-    doc.rect(14, y, tableW, 16, 'F');
-    doc.setTextColor(255, 255, 255);
+doc.setFillColor(255, 243, 196);
+doc.rect(14, y, tableW, 16, 'F');
+doc.setTextColor(101, 51, 19);
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
     doc.text('TOTAL (HTG)', colDesc + 4, y + 10.5);
