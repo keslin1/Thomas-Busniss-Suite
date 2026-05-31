@@ -483,7 +483,7 @@ function buildPOSPdf(e) {
       doc.saveGraphicsState();
       doc.setGState(new doc.GState({ opacity: 0.55 }));
       doc.setTextColor(30, 100, 30);
-      doc.text('Rabè', colDesc + 4, y + 7.5);
+      doc.text('Discount', colDesc + 4, y + 7.5);
       doc.text('-' + discountPct + '%', colMontX, y + 7.5, { align: 'right' });
       doc.restoreGraphicsState();
       y += 13;
@@ -522,9 +522,9 @@ function buildPOSPdf(e) {
     /* ══════════════════════════════════════════
        9. ZON NOT
        ══════════════════════════════════════════ */
-    /* Not rabè otomatik si gen yon dimisyon */
+    /* Not rabè otomatik si gen yon diminisyon */
     const autoDiscountNote = (e.discountPct > 0)
-      ? 'Ou benefisye yon dimisyon ' + e.discountPct + '% sou fakti sa a.'
+      ? 'Ou benefisye yon diminisyon ' + e.discountPct + '% sou fakti sa a.'
       : '';
     const fullNote = [autoDiscountNote, e.note].filter(Boolean).join(' ');
 
