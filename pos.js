@@ -493,6 +493,7 @@ function buildPOSPdf(e) {
        7. TOTAL (USD) — bannè prensipal (te rele "Sibtotal")
        Se liy ofisyèl final la (servicePrix aprè rabè)
        ══════════════════════════════════════════ */
+doc.saveGraphicsState();
     doc.setFillColor(255, 243, 196);
     doc.rect(14, y, tableW, 16, 'F');
     doc.setTextColor(101, 51, 19);
@@ -500,6 +501,7 @@ function buildPOSPdf(e) {
     doc.setFont('helvetica', 'bold');
     doc.text('Total (USD)', colDesc + 4, y + 10.5);
     doc.text('$' + (e.servicePrix || 0).toFixed(2), colMontX, y + 10.5, { align: 'right' });
+    doc.restoreGraphicsState();
     y += 16;
 
     /* ══════════════════════════════════════════
