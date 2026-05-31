@@ -254,7 +254,7 @@ function buildPOSPdf(e) {
        ══════════════════════════════════════════ */
     if (imgData) {
       doc.saveGraphicsState();
-      doc.setGState(new doc.GState({ opacity: 0.07 }));
+      doc.setGState(new doc.GState({ opacity: 0.18 }));
       const wmSize = 110;
       const wmX = (pw - wmSize) / 2;
       const wmY = (ph - wmSize) / 2 - 10;
@@ -355,7 +355,8 @@ function buildPOSPdf(e) {
     doc.text('Deskripsyon',  colDesc + 4,  hY);
     doc.text('Scale Weight',   colBal,        hY, { align: 'center' });
     doc.text('DIM Weight',  colVol,        hY, { align: 'center' });
-    doc.text('Amount',       colMontX,      hY, { align: 'right'  });
+    const headerAmtLabel = '$' + (e.subtotal || 0).toFixed(2);
+    doc.text(headerAmtLabel, colMontX, hY, { align: 'right' });
     y += tblHeaderH;
 
     /* ══════════════════════════════════════════
@@ -430,9 +431,12 @@ function buildPOSPdf(e) {
       doc.text(volLine2, colVol, midRow, { align: 'center' });
     }
 
+    doc.saveGraphicsState();
+    doc.setGState(new doc.GState({ opacity: 0.55 }));
     doc.setFontSize(9.5);
     doc.setTextColor(bruR, bruG, bruB);
     doc.text(montant, colMontX, midRow, { align: 'right' });
+    doc.restoreGraphicsState();
 
     y += mainRowH;
 
@@ -445,6 +449,8 @@ function buildPOSPdf(e) {
 
     extraRows.forEach((r, i) => {
       if (y > ph - 100) { doc.addPage(); y = 20; }
+      doc.saveGraphicsState();
+      doc.setGState(new doc.GState({ opacity: 0.55 }));
       doc.setFillColor(i % 2 === 0 ? 246 : 255, i % 2 === 0 ? 248 : 255, i % 2 === 0 ? 243 : 255);
       doc.rect(14, y, tableW, 10, 'F');
       doc.setFont('helvetica', 'normal');
@@ -455,66 +461,57 @@ function buildPOSPdf(e) {
       doc.setFontSize(9);
       doc.setTextColor(bruR, bruG, bruB);
       doc.text(r[1], colMontX, y + 7, { align: 'right' });
+      doc.restoreGraphicsState();
       y += 10;
     });
 
     y += 4;
 
     /* ══════════════════════════════════════════
-       6. SIBTOTAL (pri nòmal selon pwa)
-       ══════════════════════════════════════════ */
-    doc.setFillColor(235, 228, 213);
-    doc.rect(14, y, tableW, 11, 'F');
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(60, 40, 10);
-    doc.text('Sibtotal', colDesc + 4, y + 7.5);
-    doc.text('$' + (e.subtotal || 0).toFixed(2), colMontX, y + 7.5, { align: 'right' });
-    y += 13;
-
-    /* ══════════════════════════════════════════
-       6b. RABÈ (si customPrice < subtotal)
+       6. RABÈ (si customPrice < subtotal) — OBLIGATOIREM ANVAN total
+       Afiche sèlman pousantaj (%) — pa montant $
        ══════════════════════════════════════════ */
     const discount    = e.discount    || 0;
     const discountPct = e.discountPct || 0;
     if (discount > 0) {
+      doc.saveGraphicsState();
+      doc.setGState(new doc.GState({ opacity: 0.55 }));
       doc.setFillColor(240, 255, 240);
       doc.rect(14, y, tableW, 11, 'F');
       doc.setFontSize(9);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(30, 100, 30);
-      doc.text('Rabè (' + discountPct + '%)', colDesc + 4, y + 7.5);
-      doc.text('-$' + discount.toFixed(2), colMontX, y + 7.5, { align: 'right' });
+      doc.text('Rabè', colDesc + 4, y + 7.5);
+      doc.text('-' + discountPct + '%', colMontX, y + 7.5, { align: 'right' });
+      doc.restoreGraphicsState();
       y += 13;
     }
 
     /* ══════════════════════════════════════════
-       7. TOTAL HTG — bannè prensipal (an gras, nwa, trè vizib)
-       Goud an premye — montan prensipal pou kliyan
+       7. TOTAL (USD) — liy ofisyèl final (ranplase Sibtotal)
+       Montan definitif an dola — san reduksyon opasité
+       ══════════════════════════════════════════ */
+    doc.setFillColor(235, 228, 213);
+    doc.rect(14, y, tableW, 13, 'F');
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(60, 40, 10);
+    doc.text('Total (USD)', colDesc + 4, y + 9);
+    doc.text('$' + (e.servicePrix || 0).toFixed(2), colMontX, y + 9, { align: 'right' });
+    y += 15;
+
+    /* ══════════════════════════════════════════
+       8. TOTAL HTG — bannè prensipal (an gras, nwa, trè vizib)
+       Goud — montan prensipal pou kliyan
        ══════════════════════════════════════════ */
     const totalHTG = Math.round((e.total || 0) * 135);
-doc.setFillColor(255, 243, 196);
-doc.rect(14, y, tableW, 16, 'F');
-doc.setTextColor(101, 51, 19);
+    doc.setFillColor(255, 243, 196);
+    doc.rect(14, y, tableW, 16, 'F');
+    doc.setTextColor(101, 51, 19);
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
     doc.text('TOTAL (HTG)', colDesc + 4, y + 10.5);
-    doc.setFontSize(14);
     doc.text(totalHTG.toLocaleString('en-US') + ' HTG', colMontX, y + 10.5, { align: 'right' });
-    y += 16;
-
-    /* ══════════════════════════════════════════
-       8. KONVÈSYON USD — liy discrè an-ba
-       Konvèsyon referans sèlman (135 HTG / $1)
-       ══════════════════════════════════════════ */
-    doc.setFillColor(230, 225, 215);
-    doc.rect(14, y, tableW, 11, 'F');
-    doc.setTextColor(120, 100, 70);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Ekivalan USD (135 HTG / $1)', colDesc + 4, y + 7.5);
-    doc.setFontSize(9);
-    doc.text('≈ $' + (e.total || 0).toFixed(2), colMontX, y + 7.5, { align: 'right' });
     y += 17;
 
     /* ══════════════════════════════════════════
