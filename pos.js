@@ -62,38 +62,26 @@ function calcLive() {
   /* Pwa Final = volimik + balans */
   const finalWeight = volWeight + realWeight;
 
-  /* ── Subtotal = Pwa Total × 4.90 TOUJOU (pri nòmal algorit) ── */
+  /* ── Fòmil definitif : (Pwa Reyèl × 4.90) × 2 ── */
   let subtotal    = 0;
-  let discount    = 0;   // montant rabè si customPrice < subtotal
+  let discount    = 0;
+  let discountPct = 0;
   let servicePrix = 0;
 
-  if (finalWeight > 0) {
-    const brut = finalWeight * TARIF_LB;
+  if (realWeight > 0) {
+    const brut = (realWeight * TARIF_LB) * 2;
     subtotal   = brut < MIN_CHARGE ? MIN_CHARGE : brut;
   }
 
-  /* ── Si customPrice aktif : kalkile Rabè ── */
+  /* ── Si customPrice aktif : aplike l dirèkteman ── */
   if (customPrice > 0 && subtotal > 0) {
-    if (customPrice < subtotal) {
-      discount    = subtotal - customPrice;
-      servicePrix = customPrice;
-    } else {
-      /* customPrice >= subtotal : aplike l dirèkteman (pa gen rabè) */
-      servicePrix = customPrice;
-      discount    = 0;
-    }
+    servicePrix = customPrice;
   } else if (customPrice > 0 && subtotal === 0) {
-    /* Kalkil pwa pa disponib, sèvi customPrice dirèkteman */
     subtotal    = customPrice;
     servicePrix = customPrice;
   } else {
     servicePrix = subtotal;
   }
-
-  /* ── Pousantaj rabè (pou not otomatik) ── */
-  const discountPct = (subtotal > 0 && discount > 0)
-    ? Math.round((discount / subtotal) * 100)
-    : 0;
 
   /* Total = PrixServis + BalRes - BalPaye */
   const total    = Math.max(0, servicePrix + balRest - balPaye);
@@ -524,16 +512,13 @@ doc.saveGraphicsState();
     /* ══════════════════════════════════════════
        9. ZON NOT
        ══════════════════════════════════════════ */
-    /* Not rabè otomatik si gen yon diminisyon */
-    const autoDiscountNote = (e.discountPct > 0)
-      ? 'Ou benefisye yon diminisyon ' + e.discountPct + '% sou fakti sa a.'
-      : '';
-    const fullNote = [autoDiscountNote, e.note].filter(Boolean).join(' ');
+    /* Not manyèl sèlman */
+    const fullNote = e.note || '';
 
     if (fullNote) {
       doc.setFontSize(8.5);
       doc.setFont('helvetica', 'italic');
-      doc.setTextColor(autoDiscountNote ? 30 : 70, autoDiscountNote ? 100 : 70, autoDiscountNote ? 30 : 70);
+      doc.setTextColor(70, 70, 70);
       const noteLines = doc.splitTextToSize('Not: ' + fullNote, tableW);
       doc.text(noteLines, 14, y);
       y += noteLines.length * 5.5 + 6;
@@ -604,7 +589,7 @@ doc.saveGraphicsState();
     );
 
     /* Sove PDF */
-    const fname = 'Fakti-LCD-' + (e.clientName || 'Kliyan').replace(/\s+/g, '_') + '-' + (e.invoiceNo || Date.now()) + '.pdf';
+    const fname = 'lcd' + String(e.invoiceNo || '0').padStart(4, '0') + '.pdf';
     doc.save(fname);
   });
 }
