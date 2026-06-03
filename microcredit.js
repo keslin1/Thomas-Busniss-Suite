@@ -874,6 +874,9 @@ function renderMCGrowthChart() {
       responsive: true,
       maintainAspectRatio: false,
       animation: { duration: 500, easing: 'easeInOutQuart' },
+      layout: {
+        padding: { left: 6, right: 6, top: 10, bottom: 2 }
+      },
       plugins: {
         legend: { display: false },
         tooltip: {
