@@ -670,10 +670,10 @@ function _mcEnsurePeriodSelector() {
 function _mcStyleChartWrap() {
   const wrap = document.querySelector('.mc-chart-canvas-wrap');
   if (!wrap) return;
-  wrap.style.background    = '#ffffff';
-  wrap.style.borderRadius  = '10px';
-  wrap.style.padding       = '12px 8px 8px 8px';
-  wrap.style.border        = '1px solid #e5e7eb';
+  /* Ne pas écraser height/position déjà définis dans le HTML */
+  wrap.style.background   = '#ffffff';
+  wrap.style.borderRadius = '10px';
+  wrap.style.border       = '1px solid #e5e7eb';
 }
 
 /* ══════════════════════════════════════════════
@@ -863,7 +863,7 @@ function renderMCGrowthChart() {
         pointBackgroundColor: pointColors,
         pointBorderColor: '#ffffff',
         pointBorderWidth: 1.5,
-        tension: 0.38,
+        tension: 0.25,
         fill: true,
         segment: {
           borderColor: (ctx2) => _segColor(ctx2.p1DataIndex),
@@ -875,8 +875,8 @@ function renderMCGrowthChart() {
       maintainAspectRatio: false,
       animation: { duration: 500, easing: 'easeInOutQuart' },
       layout: {
-        padding: { left: 6, right: 6, top: 10, bottom: 2 }
-      },
+          padding: { left: 8, right: 8, top: 14, bottom: 4 }
+        },
       plugins: {
         legend: { display: false },
         tooltip: {
