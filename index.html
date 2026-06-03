@@ -465,6 +465,14 @@
 
       </div><!-- /livret-wrapper -->
 
+      <!-- ── Graphique croissance ── -->
+      <div style="padding:0 14px 4px;">
+        <div class="mc-chart-canvas-wrap" style="background:#ffffff;border-radius:10px;padding:12px 8px 8px 8px;border:1px solid #e5e7eb;">
+          <canvas id="mcGrowthChart" height="160" style="width:100%;display:block;"></canvas>
+        </div>
+        <p id="mcActivityStatus" style="text-align:center;font-size:0.72rem;margin:6px 0 0;font-family:'Rajdhani',sans-serif;color:#888;"></p>
+      </div>
+
       <!-- Boutons Dépo / Retrè — sous le graphique -->
       <div class="livret-actions" id="mcActionBtns">
         <button class="livret-btn livret-btn-depo" onclick="openMCForm('depo')">

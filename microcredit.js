@@ -15,6 +15,7 @@ const MC_EXPORT_KEY  = 'tbs_mc_last_export_idx'; // index de la dernière transa
 const MC_RATE        = 135; // 135 HTG = $1 USD
 let mcCurrentType    = 'depo';
 let mcCardFlipped    = false;
+let mcChartPeriodMonths = 3; // Période par défaut : 3 mois
 
 /* ── Card Flip ──────────────────────────────── */
 function toggleCardFlip() {
