@@ -616,54 +616,28 @@ function downloadAllMCReceiptPDF() {
 }
 
 /* ── Sélecteur de période ──────────────────────
-   Injecte les boutons-filtre au-dessus du canvas
-   si pas encore présents, puis redessine le chart.
+   Les boutons sont statiques dans le HTML.
+   mcSetPeriod() met à jour l'état actif et redessine.
    ──────────────────────────────────────────── */
-function _mcEnsurePeriodSelector() {
-  if (document.getElementById('mcPeriodSelector')) return;
-
-  const wrap = document.querySelector('.mc-chart-canvas-wrap');
-  if (!wrap) return;
-
-  const bar = document.createElement('div');
-  bar.id = 'mcPeriodSelector';
-  bar.style.cssText = `
-    display:flex; gap:6px; justify-content:flex-end;
-    padding: 4px 0 10px 0;
-  `;
-
-  const periods = [
-    { label: '1 mwa',   months: 1  },
-    { label: '2 mwa',   months: 2  },
-    { label: '3 mwa',   months: 3  },
-    { label: '4 mwa',   months: 4  },
-    { label: '12 mwa',  months: 12 },
-  ];
-
-  periods.forEach(p => {
-    const btn = document.createElement('button');
-    btn.textContent  = p.label;
-    btn.dataset.months = p.months;
-    btn.style.cssText = `
-      padding:4px 11px; border-radius:20px; border:1px solid #bbb;
-      background: ${p.months === mcChartPeriodMonths ? '#111' : '#f5f5f5'};
-      color:       ${p.months === mcChartPeriodMonths ? '#fff' : '#333'};
-      font-size:0.72rem; font-weight:600; cursor:pointer;
-      font-family:'Rajdhani',sans-serif; transition:all 0.15s;
-    `;
-    btn.addEventListener('click', () => {
-      mcChartPeriodMonths = p.months;
-      bar.querySelectorAll('button').forEach(b => {
-        const active = parseInt(b.dataset.months) === mcChartPeriodMonths;
-        b.style.background = active ? '#111' : '#f5f5f5';
-        b.style.color       = active ? '#fff' : '#333';
-      });
-      renderMCGrowthChart();
-    });
-    bar.appendChild(btn);
+function mcSetPeriod(months) {
+  mcChartPeriodMonths = months;
+  document.querySelectorAll('.mc-period-btn').forEach(b => {
+    const active = parseInt(b.dataset.months) === months;
+    b.style.background = active ? '#111' : '#f5f5f5';
+    b.style.color      = active ? '#fff' : '#333';
+    b.style.borderColor = active ? '#111' : '#bbb';
   });
+  renderMCGrowthChart();
+}
 
-  wrap.insertBefore(bar, wrap.firstChild);
+function _mcEnsurePeriodSelector() {
+  /* Les boutons sont dans le HTML — on synchronise juste l'état actif */
+  document.querySelectorAll('.mc-period-btn').forEach(b => {
+    const active = parseInt(b.dataset.months) === mcChartPeriodMonths;
+    b.style.background  = active ? '#111' : '#f5f5f5';
+    b.style.color       = active ? '#fff' : '#333';
+    b.style.borderColor = active ? '#111' : '#bbb';
+  });
 }
 
 /* ── Appliquer le style "fond blanc" au conteneur canvas ── */

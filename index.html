@@ -467,6 +467,15 @@
 
       <!-- ── Graphique croissance ── -->
       <div style="padding:14px 14px 0;">
+        <!-- Sélecteur de période -->
+        <div id="mcPeriodSelector" style="display:flex;gap:6px;justify-content:flex-end;margin-bottom:8px;flex-wrap:wrap;">
+          <button class="mc-period-btn" data-months="1"  onclick="mcSetPeriod(1)"  style="padding:4px 11px;border-radius:20px;border:1px solid #bbb;background:#f5f5f5;color:#333;font-size:0.72rem;font-weight:600;cursor:pointer;font-family:'Rajdhani',sans-serif;transition:all 0.15s;">1 mwa</button>
+          <button class="mc-period-btn" data-months="2"  onclick="mcSetPeriod(2)"  style="padding:4px 11px;border-radius:20px;border:1px solid #bbb;background:#f5f5f5;color:#333;font-size:0.72rem;font-weight:600;cursor:pointer;font-family:'Rajdhani',sans-serif;transition:all 0.15s;">2 mwa</button>
+          <button class="mc-period-btn active" data-months="3"  onclick="mcSetPeriod(3)"  style="padding:4px 11px;border-radius:20px;border:1px solid #111;background:#111;color:#fff;font-size:0.72rem;font-weight:600;cursor:pointer;font-family:'Rajdhani',sans-serif;transition:all 0.15s;">3 mwa</button>
+          <button class="mc-period-btn" data-months="4"  onclick="mcSetPeriod(4)"  style="padding:4px 11px;border-radius:20px;border:1px solid #bbb;background:#f5f5f5;color:#333;font-size:0.72rem;font-weight:600;cursor:pointer;font-family:'Rajdhani',sans-serif;transition:all 0.15s;">4 mwa</button>
+          <button class="mc-period-btn" data-months="12" onclick="mcSetPeriod(12)" style="padding:4px 11px;border-radius:20px;border:1px solid #bbb;background:#f5f5f5;color:#333;font-size:0.72rem;font-weight:600;cursor:pointer;font-family:'Rajdhani',sans-serif;transition:all 0.15s;">12 mwa</button>
+        </div>
+        <!-- Canvas -->
         <div class="mc-chart-canvas-wrap" style="background:#ffffff;border-radius:10px;padding:10px 8px 8px 8px;border:1px solid #e5e7eb;position:relative;height:170px;">
           <canvas id="mcGrowthChart" style="position:absolute;inset:10px 8px 8px 8px;"></canvas>
         </div>
