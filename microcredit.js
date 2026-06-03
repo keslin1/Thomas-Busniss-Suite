@@ -91,21 +91,11 @@ function renderMCHistory() {
   if (balEl) balEl.textContent = fmtHTG(balance) + ' HTG';
   if (usdEl) usdEl.textContent = '≈ $' + (balance / MC_RATE).toFixed(2) + ' USD';
 
-  /* ── Bouton PDF : toujours visible, actif si ≥15 transactions disponibles ── */
-  const lastExport  = getMCLastExportIdx();
-  const available   = txns.length - (lastExport + 1);
-  const pdfBtn      = document.getElementById('mcReceiptBtn');
-  const pdfCountEl  = document.getElementById('mcReceiptCount');
-
+  /* ── Bouton PDF : toujours visible ── */
+  const pdfBtn = document.getElementById('mcReceiptBtn');
   if (pdfBtn) {
-    pdfBtn.classList.remove('hidden');
-    pdfBtn.style.opacity = available > 0 ? '1' : '0.45';
-    pdfBtn.style.pointerEvents = available > 0 ? 'auto' : 'none';
-    if (pdfCountEl) {
-      pdfCountEl.textContent = available > 0
-        ? available + ' disponib'
-        : 'Tout ekspòte';
-    }
+    pdfBtn.style.opacity      = txns.length > 0 ? '1' : '0.4';
+    pdfBtn.style.pointerEvents = txns.length > 0 ? 'auto' : 'none';
   }
 
   const el = document.getElementById('mcHistoryList');
@@ -605,21 +595,23 @@ function generateMCReceiptPDF(sliceArg) {
   doc.save(fname);
 }
 
-/* Période active (en mois) — modifiée par le sélecteur */
-let mcChartPeriodMonths = 1;
 
-function _mcLineColor(daysSinceDepo) {
-  if (daysSinceDepo < 4)        return '#16a34a'; // 🟢 Vert — très récent
-  if (daysSinceDepo <= 7)       return '#ca8a04'; // 🟡 Jaune — attention
-  return '#dc2626';                               // 🔴 Rouge — danger
-}
+/* ══════════════════════════════════════════════
+   TÉLÉCHARGEMENT COMPLET — TOUTES LES TRANSACTIONS
+   Un seul clic, aucune limite, tout le tableau.
+   ══════════════════════════════════════════════ */
+function downloadAllMCReceiptPDF() {
+  const data = getMCData();
+  const txns = recalcBalances(data.transactions);
 
-function _mcStatusText(daysSinceDepo) {
-  if (daysSinceDepo < 4)   return { text: '● Aktivite resan — depo < 4 jou',       color: '#16a34a' };
-  if (daysSinceDepo <= 7)  return { text: '⚠ Atansyon — 4 a 7 jou san depo',        color: '#ca8a04' };
-  if (daysSinceDepo <= 14) return { text: '⚠ Enaktivite 8–14 jou — fè yon depo',   color: '#d97706' };
-  if (daysSinceDepo <= 17) return { text: '⚠ Alèt modere — 15–17 jou san depo',    color: '#ea580c' };
-  return                          { text: '⚠ Enaktivite long — fè yon depo', color: '#dc2626' };
+  if (txns.length === 0) {
+    showToast('⚠️ Okenn tranzaksyon pou ekspòte');
+    return;
+  }
+
+  /* Passer directement à la génération — pas de dialogue, pas de curseur */
+  generateMCReceiptPDF(txns);
+  showToast('📄 PDF konplè ap télécharje… (' + txns.length + ' txn)');
 }
 
 /* ── Sélecteur de période ──────────────────────
@@ -642,6 +634,8 @@ function _mcEnsurePeriodSelector() {
   const periods = [
     { label: '1 mwa',   months: 1  },
     { label: '2 mwa',   months: 2  },
+    { label: '3 mwa',   months: 3  },
+    { label: '4 mwa',   months: 4  },
     { label: '12 mwa',  months: 12 },
   ];
 
@@ -705,7 +699,7 @@ function renderMCGrowthChart() {
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const infoEl = document.getElementById('mcActivityStatus');
-    if (infoEl) { infoEl.textContent = '— Okenn depo ankò'; infoEl.style.color = '#888'; }
+    if (infoEl) { infoEl.textContent = '— Ou pako fè depo'; infoEl.style.color = '#888'; }
     return;
   }
 
@@ -736,15 +730,15 @@ function renderMCGrowthChart() {
 
   let points = Object.entries(byDay).sort(([a],[b]) => a.localeCompare(b));
 
-  /* ── Simulation de décroissance si inactivité > 7j ─ */
+  /* ── Simulation de décroissance si inactivité > 15j ─ */
   const lastDepoTxn   = [...txns].reverse().find(t => t.type === 'depo');
   const lastDepoTs    = lastDepoTxn ? (lastDepoTxn.txDate || lastDepoTxn.date) : 0;
   const daysSinceDepo = lastDepoTs ? Math.floor((now - lastDepoTs) / 86400000) : 999;
 
-  if (daysSinceDepo > 7 && points.length > 0) {
+  if (daysSinceDepo > 15 && points.length > 0) {
     const lastEntry = points[points.length - 1];
     const lastBal   = lastEntry[1].balance;
-    const decay     = Math.max(0, lastBal - lastBal * 0.03 * (daysSinceDepo - 7));
+    const decay     = Math.max(0, lastBal - lastBal * 0.03 * (daysSinceDepo - 15));
     const todayKey  = new Date(now).toISOString().slice(0, 10);
     if (lastEntry[0] !== todayKey) {
       points.push([todayKey, { balance: Math.round(decay), type: 'retrè' }]);
@@ -757,7 +751,7 @@ function renderMCGrowthChart() {
     ctx.font = '13px Rajdhani, sans-serif';
     ctx.fillStyle = '#999';
     ctx.textAlign = 'center';
-    ctx.fillText('Okenn done nan peryòd sa a', canvas.offsetWidth / 2, 80);
+    ctx.fillText('Okenn done pandan peryòd sa a', canvas.offsetWidth / 2, 80);
     return;
   }
 

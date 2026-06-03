@@ -463,46 +463,32 @@
           </div><!-- /livret-flip-wrapper -->
         </div><!-- /livret-flip-scene -->
 
-        <!-- Boutons Dépo / Retrè -->
-        <div class="livret-actions">
-          <button class="livret-btn livret-btn-depo" onclick="openMCForm('depo')">
-            <span class="livret-btn-icon">↑</span>
-            <span class="livret-btn-label">Depo</span>
-          </button>
-          <button class="livret-btn livret-btn-retre" onclick="openMCForm('retrè')">
-            <span class="livret-btn-icon">↓</span>
-            <span class="livret-btn-label">Retrè</span>
-          </button>
-        </div>
-
       </div><!-- /livret-wrapper -->
 
-      <!-- ── Graphique de flux financier ── -->
-      <div class="mc-chart-section">
-        <div class="mc-chart-header">
-          <span class="mc-chart-title">📈 Kourb kapital</span>
-          <span id="mcActivityStatus" style="font-size:0.72rem;font-weight:600;">—</span>
-        </div>
-        <div class="mc-chart-canvas-wrap" style="background:#ffffff;border-radius:10px;padding:12px 8px 8px 8px;border:1px solid #e5e7eb;">
-          <canvas id="mcGrowthChart" style="width:100%;height:180px;display:block;"></canvas>
-        </div>
-      </div>
-
-      <!-- ── Bilan mensuel ── -->
-      <div class="mc-bilan-section">
-        <div class="mc-bilan-label">📊 Bilan mwa pase</div>
-        <div id="mcMonthlyBilan">
-          <span style="color:#555;font-size:0.78rem;">Bilan disponib chak 5 du mwa.</span>
-        </div>
+      <!-- Boutons Dépo / Retrè — sous le graphique -->
+      <div class="livret-actions" id="mcActionBtns">
+        <button class="livret-btn livret-btn-depo" onclick="openMCForm('depo')">
+          <span class="livret-btn-icon">↑</span>
+          <span class="livret-btn-label">Depo</span>
+        </button>
+        <button class="livret-btn livret-btn-retre" onclick="openMCForm('retrè')">
+          <span class="livret-btn-icon">↓</span>
+          <span class="livret-btn-label">Retrè</span>
+        </button>
       </div>
 
       <!-- Historique -->
       <div class="mc-history-header" style="display:flex;align-items:center;justify-content:space-between;padding:0 14px;">
         <span class="mc-history-title">📋 Istorik Tranzaksyon</span>
-        <button id="mcReceiptBtn" class="hidden"
-                onclick="generateMCReceiptPDF()"
-                style="background:rgba(22,101,52,0.35);border:1px solid rgba(22,101,52,0.6);border-radius:8px;color:#4ade80;font-size:0.75rem;padding:5px 10px;cursor:pointer;">
-          📄 Reçu — <span id="mcReceiptCount">15 txn</span>
+        <button id="mcReceiptBtn"
+                onclick="downloadAllMCReceiptPDF()"
+                title="Télécharger tout en PDF"
+                style="background:rgba(22,101,52,0.35);border:1px solid rgba(22,101,52,0.6);border-radius:8px;color:#4ade80;width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
         </button>
       </div>
       <div id="mcHistoryList" class="list-container" style="padding:0 0 80px;"></div>
