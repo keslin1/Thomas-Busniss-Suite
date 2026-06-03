@@ -47,9 +47,22 @@ function recalcBalances(txns) {
   let running = 0;
   return txns.map(t => {
     if (t.type === 'depo') running += t.amount;
-    else                   running -= t.amount;
+    else                   running -= t.amount; // 'retrè' et 'pret' sont des débits
     return { ...t, balance: running };
   });
+}
+
+/* Retourne true si un prêt non régularisé est encore actif */
+function _mcHasActiveLoan(txns) {
+  if (txns.length === 0) return false;
+  const lastBal = txns[txns.length - 1].balance;
+  if (lastBal < 0) return true;
+  // Parcours inverse : 'pret' trouvé avant un dépôt qui ramène solde >= 0 = prêt actif
+  for (let i = txns.length - 1; i >= 0; i--) {
+    if (txns[i].type === 'pret') return true;
+    if (txns[i].type === 'depo' && txns[i].balance >= 0) return false;
+  }
+  return false;
 }
 
 function getCurrentBalance() {
@@ -98,14 +111,11 @@ function renderMCHistory() {
   const pdfCountEl  = document.getElementById('mcReceiptCount');
 
   if (pdfBtn) {
-    /* Le bouton reste toujours présent pour permettre des exports répétés */
     pdfBtn.classList.remove('hidden');
-    pdfBtn.style.opacity = available >= 15 ? '1' : '0.45';
-    pdfBtn.style.pointerEvents = available >= 15 ? 'auto' : 'none';
+    pdfBtn.style.opacity = available > 0 ? '1' : '0.45';
+    pdfBtn.style.pointerEvents = available > 0 ? 'auto' : 'none';
     if (pdfCountEl) {
-      pdfCountEl.textContent = available >= 15
-        ? available + ' disponib'
-        : (available > 0 ? available + ' (min 15)' : 'Tout ekspòte');
+      pdfCountEl.textContent = available > 0 ? available + ' disponib' : 'Tout ekspòte';
     }
   }
 
@@ -119,17 +129,22 @@ function renderMCHistory() {
 
   const reversed = [...txns].reverse();
   el.innerHTML = reversed.map(t => {
-    const sign = t.type === 'depo' ? '+' : '−';
-    const icon = t.type === 'depo' ? '↑' : '↓';
+    const isPret  = t.type === 'pret';
+    const isDepo  = t.type === 'depo';
+    const sign    = isDepo ? '+' : '−';
+    const icon    = isDepo ? '↑' : (isPret ? '⚑' : '↓');
+    const badgeCls = isDepo ? 'depo' : (isPret ? 'pret' : 'retrè');
+    const defaultLabel = isDepo ? 'Depo' : (isPret ? 'Prè' : 'Retrè');
+    const amtColor = isDepo ? 'depo' : (isPret ? 'pret' : 'retrè');
     return `
       <div class="mc-item">
-        <div class="mc-type-badge ${t.type}">${icon}</div>
+        <div class="mc-type-badge ${badgeCls}">${icon}</div>
         <div class="mc-item-info">
-          <div class="mc-item-note">${escHtml(t.note || (t.type === 'depo' ? 'Depo' : 'Retrè'))}</div>
+          <div class="mc-item-note">${escHtml(t.note || defaultLabel)}</div>
           <div class="mc-item-date">${mcFmtDate(t.txDate || t.date)}</div>
         </div>
         <div class="mc-item-amounts">
-          <div class="mc-item-amount ${t.type}">${sign}${fmtHTG(t.amount)} HTG</div>
+          <div class="mc-item-amount ${amtColor}">${sign}${fmtHTG(t.amount)} HTG</div>
           <div class="mc-item-balance">Balans: ${fmtHTG(t.balance)}</div>
         </div>
         <div class="mc-item-actions">
@@ -164,18 +179,25 @@ function previewMCRate() {
 function saveMCTxn() {
   const amount  = parseFloat(document.getElementById('mcAmount').value);
   if (!amount || amount <= 0) { showToast('⚠️ Montan obligatwa'); return; }
-  const note    = document.getElementById('mcNote').value.trim();
+  const noteRaw = document.getElementById('mcNote').value.trim();
   const dateVal = document.getElementById('mcTxDate').value;
   const txDate  = mcDateInputToTs(dateVal);
 
-  if (mcCurrentType === 'retrè') {
-    if (amount > getCurrentBalance()) { showToast('⚠️ Balans ensifizan'); return; }
+  /* ── Détection automatique du Prêt ────────────────────────────────────
+     Si c'est un Retrè mais que le montant dépasse le solde actuel,
+     on l'enregistre comme un Prêt (type 'pret') sans bloquer. */
+  let finalType = mcCurrentType;
+  let note      = noteRaw;
+  if (mcCurrentType === 'retrè' && amount > getCurrentBalance()) {
+    finalType = 'pret';
+    if (!note) note = 'Prè';
+    showToast('ℹ️ Montan depase balans — anrejistre kòm Prè');
   }
 
   const data = getMCData();
   data.transactions.push({
     id: uid(),
-    type: mcCurrentType,
+    type: finalType,
     amount,
     note,
     txDate,
@@ -184,15 +206,10 @@ function saveMCTxn() {
   saveMCData(data);
   closeMCForm();
   renderMCHistory();
-  showToast(mcCurrentType === 'depo' ? '✅ Depo anrejistre' : '✅ Retrè anrejistre');
-
-  /* Vérifier si nouvelles transactions disponibles pour export (≥15) */
-  const lastExport = getMCLastExportIdx();
-  const available  = data.transactions.length - (lastExport + 1);
-  if (available >= 15) {
-    /* Juste mettre à jour le badge — l'utilisateur décidera quand télécharger */
-    renderMCHistory();
-  }
+  renderMCGrowthChart();
+  if (finalType === 'depo')   showToast('✅ Depo anrejistre');
+  else if (finalType === 'pret') showToast('✅ Prè anrejistre');
+  else                           showToast('✅ Retrè anrejistre');
 }
 
 /* ── Edit ───────────────────────────────────── */
@@ -267,8 +284,8 @@ function openMCPdfDialog() {
   const startIdx   = lastExport + 1;
   const available  = txns.length - startIdx;
 
-  if (available < 15) {
-    showToast('⚠️ Mwen pase 15 tranzaksyon disponib pou ekspòte');
+  if (available < 1) {
+    showToast('⚠️ Okenn tranzaksyon disponib pou ekspòte');
     return;
   }
 
@@ -284,7 +301,7 @@ function openMCPdfDialog() {
   const inEl  = document.getElementById('mcPdfCountInput');
   if (maxEl) maxEl.textContent = available;
   if (inEl) {
-    inEl.min   = 15;
+    inEl.min   = 1;
     inEl.max   = available;
     inEl.value = available; // proposer le maximum par défaut
   }
@@ -314,9 +331,9 @@ function _buildMCPdfDialog(available, startIdx) {
         <span id="mcPdfMaxCount">${available}</span> tranzaksyon disponib (apre dènye ekspòtasyon)
       </div>
       <label style="display:block;font-size:0.75rem;color:#9ab88a;margin-bottom:6px;">
-        Konbyen tranzaksyon pou ekspòte ? (min 15)
+        Konbyen tranzaksyon pou ekspòte ?
       </label>
-      <input id="mcPdfCountInput" type="number" min="15" max="${available}" value="${available}"
+      <input id="mcPdfCountInput" type="number" min="1" max="${available}" value="${available}"
         style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(80,160,60,0.4);
                background:#0f1a0d;color:#e8f5e0;font-size:1rem;box-sizing:border-box;margin-bottom:16px;" />
       <div style="display:flex;gap:10px;">
@@ -348,8 +365,8 @@ function confirmMCPdfExport() {
   const countInput = document.getElementById('mcPdfCountInput');
   let count = parseInt(countInput?.value || available);
 
-  if (isNaN(count) || count < 15) {
-    showToast('⚠️ Minimòm 15 tranzaksyon obligatwa');
+  if (isNaN(count) || count < 1) {
+    showToast('⚠️ Minimòm 1 tranzaksyon obligatwa');
     return;
   }
   if (count > available) count = available;
@@ -416,7 +433,7 @@ function generateMCReceiptPDF(sliceArg) {
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(gR, gG, gB);
-  doc.text('ENFÒMASYON MANM — Karnet #0612', 14, y);
+  doc.text('ENFÒMASYON MANM — Kanè #0612', 14, y);
   y += 6;
 
   const memberInfo = [
@@ -462,24 +479,66 @@ function generateMCReceiptPDF(sliceArg) {
   doc.setFontSize(8);
   let totalDepo = 0, totalRetre = 0;
 
+  /* Espace requis en bas de page pour les totaux + solde + signature + footer */
+  const FOOTER_HEIGHT = 60;
+
+  /* Helper : imprimer l'en-tête de tableau sur une nouvelle page */
+  const _printTableHeader = () => {
+    doc.setFillColor(228, 244, 233);
+    doc.rect(10, y - 4.5, pw - 20, 8, 'F');
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(gR, gG, gB);
+    doc.text('Dat',              12, y);
+    doc.text('Deskripsyon',      35, y);
+    doc.text('Montan (HTG)', pw - 12, y, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    y += 6;
+  };
+
   txnsToExport.forEach((t, i) => {
-    if (y > ph - 50) { doc.addPage(); y = 20; }
+    /* Saut de page si plus assez d'espace (lignes + pied) */
+    if (y > ph - FOOTER_HEIGHT) {
+      /* Pied de page numéroté sur chaque page intermédiaire */
+      doc.setFontSize(6.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(150, 150, 150);
+      doc.text('La Sûreté Micro Crédit · Champlois, Camp-Perrin · (509) 4737-9586', pw / 2, ph - 6, { align: 'center' });
+      doc.addPage();
+      y = 20;
+      _printTableHeader();
+    }
     doc.setFillColor(i % 2 === 0 ? 255 : 248, i % 2 === 0 ? 255 : 252, i % 2 === 0 ? 255 : 250);
     doc.rect(10, y - 3.5, pw - 20, 7, 'F');
     doc.setTextColor(50, 50, 50);
     doc.text(mcFmtDate(t.txDate || t.date), 12, y);
-    const noteTxt = (t.note || (t.type === 'depo' ? 'Depo' : 'Retrè')).substring(0, 30);
+    const isPret  = t.type === 'pret';
+    const isDepo  = t.type === 'depo';
+    const defaultLabel = isDepo ? 'Depo' : (isPret ? 'Prè' : 'Retrè');
+    const noteTxt = (t.note || defaultLabel).substring(0, 30);
     doc.text(noteTxt, 35, y);
-    const sign = t.type === 'depo' ? '+' : '−';
-    doc.setTextColor(t.type === 'depo' ? gR : 180, t.type === 'depo' ? gG : 30, t.type === 'depo' ? gB : 30);
+    const sign = isDepo ? '+' : '−';
+    /* Couleur montant : vert=dépôt, jaune=prêt, rouge=retrait */
+    if (isDepo)       doc.setTextColor(gR, gG, gB);
+    else if (isPret)  doc.setTextColor(180, 140, 10);
+    else              doc.setTextColor(180, 30, 30);
     doc.text(sign + fmtHTG(t.amount), pw - 12, y, { align: 'right' });
-    if (t.type === 'depo') totalDepo  += t.amount;
-    else                   totalRetre += t.amount;
+    if (isDepo)  totalDepo  += t.amount;
+    else         totalRetre += t.amount;
     y += 7;
   });
 
-  /* ─── Totaux ───────────────────────────────── */
+  /* ─── Totaux (avec saut de page si nécessaire) ─── */
   y += 2;
+  if (y > ph - 55) {
+    doc.setFontSize(6.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(150, 150, 150);
+    doc.text('La Sûreté Micro Crédit · Champlois, Camp-Perrin · (509) 4737-9586', pw / 2, ph - 6, { align: 'center' });
+    doc.addPage();
+    y = 20;
+  }
   doc.setFillColor(220, 240, 226);
   doc.rect(10, y - 4, pw - 20, 8, 'F');
   doc.setFontSize(8.5);
@@ -559,18 +618,28 @@ function generateMCReceiptPDF(sliceArg) {
 /* Période active (en mois) — modifiée par le sélecteur */
 let mcChartPeriodMonths = 1;
 
-function _mcLineColor(daysSinceDepo) {
-  if (daysSinceDepo < 4)        return '#16a34a'; // 🟢 Vert — très récent
-  if (daysSinceDepo <= 7)       return '#ca8a04'; // 🟡 Jaune — attention
-  return '#dc2626';                               // 🔴 Rouge — danger
+/* Couleur d'un segment selon la nature de la transaction :
+   🟢 Vert   = croissance (dépôt)
+   🔴 Rouge  = baisse (retrait classique)
+   🟡 Jaune  = prêt en cours ou transaction après prêt non régularisé */
+function _mcSegmentColor(type, loanActive) {
+  if (loanActive) return '#ca8a04'; // 🟡 Jaune tant que prêt actif
+  if (type === 'depo')  return '#16a34a'; // 🟢 Vert
+  return '#dc2626';                        // 🔴 Rouge
 }
 
-function _mcStatusText(daysSinceDepo) {
-  if (daysSinceDepo < 4)   return { text: '● Aktivite resan — depo < 4 jou',       color: '#16a34a' };
-  if (daysSinceDepo <= 7)  return { text: '⚠ Atansyon — 4 a 7 jou san depo',        color: '#ca8a04' };
-  if (daysSinceDepo <= 14) return { text: '⚠ Enaktivite 8–14 jou — fè yon depo',   color: '#d97706' };
-  if (daysSinceDepo <= 17) return { text: '⚠ Alèt modere — 15–17 jou san depo',    color: '#ea580c' };
-  return                          { text: '🔴 Alèt kritik — plis pase 17 jou san depo', color: '#dc2626' };
+function _mcStatusText(txns) {
+  if (!txns || txns.length === 0) return { text: '— Okenn done', color: '#888' };
+  const hasLoan = _mcHasActiveLoan(txns);
+  if (hasLoan) return { text: '⚑ Prè aktif — règleman an atant', color: '#ca8a04' };
+  // Statut basé sur le solde courant vs. sommet maximal
+  const maxBal  = Math.max(...txns.map(t => t.balance));
+  const lastBal = txns[txns.length - 1].balance;
+  const pct     = maxBal > 0 ? ((lastBal - maxBal) / maxBal * 100).toFixed(1) : 0;
+  if (lastBal >= maxBal) return { text: '● Nou nan somè a — nouvo rekò balans', color: '#16a34a' };
+  if (parseFloat(pct) >= -10) return { text: `⚠ Prè somè: ${pct}% — balans bon`, color: '#16a34a' };
+  if (parseFloat(pct) >= -30) return { text: `⚠ Balans bès ${pct}% depi somè a`, color: '#d97706' };
+  return { text: `🔴 Balans bès ${pct}% depi somè a — aksyon rekiz`, color: '#dc2626' };
 }
 
 /* ── Sélecteur de période ──────────────────────
@@ -653,14 +722,9 @@ function renderMCGrowthChart() {
     return;
   }
 
-  /* ── Calculer jours depuis dernier dépôt ─── */
-  const now = Date.now();
-  const lastDepoTxn   = [...txns].reverse().find(t => t.type === 'depo');
-  const lastDepoTs    = lastDepoTxn ? (lastDepoTxn.txDate || lastDepoTxn.date) : 0;
-  const daysSinceDepo = lastDepoTs ? Math.floor((now - lastDepoTs) / 86400000) : 999;
-
-  const lineColor  = _mcLineColor(daysSinceDepo);
-  const statusInfo = _mcStatusText(daysSinceDepo);
+  /* ── Statut global ─── */
+  const now        = Date.now();
+  const statusInfo = _mcStatusText(txns);
 
   /* ── Fenêtre temporelle selon période choisie ─ */
   const windowStart = new Date(now);
@@ -690,15 +754,8 @@ function renderMCGrowthChart() {
 
   let points = Object.entries(byDay).sort(([a],[b]) => a.localeCompare(b));
 
-  /* Si inactivité > 7 jours : ajouter un point aujourd'hui avec solde décroissant (-3%/j) */
-  if (daysSinceDepo > 7 && points.length > 0) {
-    const lastBal  = points[points.length - 1][1];
-    const decay    = Math.max(0, lastBal - lastBal * 0.03 * (daysSinceDepo - 7));
-    const todayKey = new Date(now).toISOString().slice(0, 10);
-    if (points[points.length - 1][0] !== todayKey) {
-      points.push([todayKey, Math.round(decay)]);
-    }
-  }
+  /* Simulation de descente supprimée — le graphique reflète uniquement
+     les vraies transactions enregistrées. */
 
   if (points.length === 0) {
     /* Aucune donnée dans la fenêtre */
@@ -733,11 +790,44 @@ function renderMCGrowthChart() {
     canvas._mcChart = null;
   }
 
-  /* ── Dégradé sous la courbe ──────────────── */
+  /* ── Couleurs par segment (vert/rouge/jaune) ───────────────────────
+     On construit un tableau de couleurs de points en suivant l'état
+     du prêt : dès qu'un 'pret' apparaît, on passe en jaune ; on reste
+     jaune jusqu'à ce que le solde repasse ≥ 0 après remboursement.
+     Hors prêt : vert si le solde monte vs point précédent, rouge sinon. */
+  const pointColors = values.map((v, i) => {
+    /* Vérifier si un prêt est actif jusqu'à ce point */
+    const txnsUpTo = txns.slice(0, txns.length); // all txns already filtered by window
+    // On parcourt les points du graphe : trouver la txn correspondante au dk
+    const dk = points[i][0];
+    // Sous-ensemble des txns jusqu'à ce jour
+    const txnsUntilDk = txns.filter(t => {
+      const ts = t.txDate || t.date;
+      const d  = new Date(ts);
+      const k  = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+      return k <= dk;
+    });
+    const loanActive = _mcHasActiveLoan(txnsUntilDk);
+    if (loanActive) return '#ca8a04'; // jaune
+    if (i === 0) return '#16a34a';   // premier point = vert par défaut
+    return v >= values[i - 1] ? '#16a34a' : '#dc2626';
+  });
+
+  /* Couleur dominante pour le dégradé de fond = couleur du dernier point */
+  const dominantColor = pointColors[pointColors.length - 1] || '#16a34a';
+
   const ctx      = canvas.getContext('2d');
   const gradient = ctx.createLinearGradient(0, 0, 0, canvas.offsetHeight || 180);
-  gradient.addColorStop(0, lineColor + '33');
-  gradient.addColorStop(1, lineColor + '05');
+  gradient.addColorStop(0, dominantColor + '33');
+  gradient.addColorStop(1, dominantColor + '05');
+
+  /* Plugin inline pour colorer chaque segment */
+  const segmentColorPlugin = {
+    id: 'mcSegmentColor',
+    beforeDraw(chart) {
+      // Pas nécessaire ici — on gère via segment option
+    }
+  };
 
   canvas._mcChart = new Chart(ctx, {
     type: 'line',
@@ -746,11 +836,18 @@ function renderMCGrowthChart() {
       datasets: [{
         label: 'Solde HTG',
         data: values,
-        borderColor: lineColor,
+        borderColor: (ctx2) => {
+          // ctx2.p0DataIndex = index du point de départ du segment
+          if (!ctx2.p0DataIndex && ctx2.p0DataIndex !== 0) return dominantColor;
+          return pointColors[ctx2.p0DataIndex] || dominantColor;
+        },
+        segment: {
+          borderColor: (ctx2) => pointColors[ctx2.p0DataIndex] || dominantColor,
+        },
         backgroundColor: gradient,
         borderWidth: 2.5,
         pointRadius: points.length <= 15 ? 4 : 2,
-        pointBackgroundColor: lineColor,
+        pointBackgroundColor: pointColors,
         pointBorderColor: '#ffffff',
         pointBorderWidth: 1.5,
         tension: 0.38,
@@ -807,103 +904,9 @@ function renderMCGrowthChart() {
   }
 }
 
-/* ══════════════════════════════════════════════
-   BILAN MENSUEL AUTOMATIQUE (le 5 du mois)
-   ══════════════════════════════════════════════ */
-
-const MC_MONTHLY_KEY = 'tbs_mc_monthly_bilan';
-
-function checkMCMonthlyBilan() {
-  const now   = new Date();
-  if (now.getDate() !== 5) return; // uniquement le 5 du mois
-
-  const stored = JSON.parse(localStorage.getItem(MC_MONTHLY_KEY) || '{}');
-  const thisMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
-  if (stored.lastGenerated === thisMonth) return; // déjà généré ce mois-ci
-
-  _generateMCMonthlyBilan(now, stored);
-}
-
-function _generateMCMonthlyBilan(now, stored) {
-  const data  = getMCData();
-  const txns  = recalcBalances(data.transactions);
-  if (txns.length === 0) return;
-
-  /* Période : 1er du mois précédent → dernier jour du mois précédent */
-  const prevMonth    = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
-
-  const filtered = txns.filter(t => {
-    const d = new Date(t.txDate || t.date);
-    return d >= prevMonth && d <= prevMonthEnd;
-  });
-
-  if (filtered.length === 0) return;
-
-  const firstBal = filtered[0].balance - (filtered[0].type === 'depo' ? filtered[0].amount : -filtered[0].amount);
-  const lastBal  = filtered[filtered.length - 1].balance;
-  const diff     = lastBal - firstBal;
-  const pct      = firstBal !== 0 ? ((diff / Math.abs(firstBal)) * 100).toFixed(1) : '0.0';
-
-  let label, labelColor;
-  if (diff > 0 && parseFloat(pct) >= 5) {
-    label = 'Kapital friktifye ✅'; labelColor = '#4caf50';
-  } else if (diff >= 0) {
-    label = 'Nivo mwayen ⚠️';      labelColor = '#ffb300';
-  } else {
-    label = 'Kapital an bès 🔻';   labelColor = '#e53935';
-  }
-
-  /* Sauvegarder le bilan */
-  const thisMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
-  const bilan = { lastGenerated: thisMonth, pct, diff, label };
-  localStorage.setItem(MC_MONTHLY_KEY, JSON.stringify(bilan));
-
-  /* Afficher dans le widget si présent */
-  renderMCMonthlyBilan();
-}
-
-function renderMCMonthlyBilan() {
-  const el = document.getElementById('mcMonthlyBilan');
-  if (!el) return;
-
-  const stored = JSON.parse(localStorage.getItem(MC_MONTHLY_KEY) || '{}');
-  if (!stored.lastGenerated) {
-    el.innerHTML = '<span style="color:#888;font-size:0.78rem;">Bilan disponib chak 5 du mwa.</span>';
-    return;
-  }
-
-  const sign      = stored.diff >= 0 ? '+' : '';
-  let bgColor, txtColor, borderColor;
-  if (stored.label.includes('✅')) {
-    bgColor = '#f0fdf4'; txtColor = '#15803d'; borderColor = '#86efac';
-  } else if (stored.label.includes('⚠')) {
-    bgColor = '#fefce8'; txtColor = '#854d0e'; borderColor = '#fde68a';
-  } else {
-    bgColor = '#fef2f2'; txtColor = '#991b1b'; borderColor = '#fca5a5';
-  }
-
-  el.innerHTML = `
-    <div style="
-      background:${bgColor}; border:1px solid ${borderColor};
-      border-radius:10px; padding:10px 14px; margin:0 2px;
-    ">
-      <div style="font-size:0.72rem;color:#555;margin-bottom:3px;">
-        Bilan ${stored.lastGenerated}
-      </div>
-      <div style="font-size:1rem;font-weight:700;color:${txtColor};">${stored.label}</div>
-      <div style="font-size:0.82rem;color:#444;margin-top:2px;font-family:'Space Mono',monospace;">
-        ${sign}${stored.pct}%&nbsp;&nbsp;·&nbsp;&nbsp;${sign}${fmtHTG(stored.diff)} HTG
-      </div>
-    </div>
-  `;
-}
-
-/* ── Init graphique + bilan au chargement de la section ─── */
+/* ── Init graphique au chargement de la section ─── */
 function initMCDashboard() {
   renderMCGrowthChart();
-  checkMCMonthlyBilan();
-  renderMCMonthlyBilan();
 }
 
 function escHtml(s) {
