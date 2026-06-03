@@ -512,13 +512,18 @@ doc.saveGraphicsState();
     /* ══════════════════════════════════════════
        9. ZON NOT
        ══════════════════════════════════════════ */
-    /* Not manyèl sèlman */
-    const fullNote = e.note || '';
+    /* Not rabè otomatik : sèlman si customPrice < pri nòmal (realWeight×4.90×2) */
+    const normalPrice  = Math.max((e.realWeight || 0) * 4.90 * 2, 25);
+    const hasDiscount  = (e.customPrice > 0) && (e.customPrice < normalPrice);
+    const autoNote     = hasDiscount
+      ? 'Yon rabè espesyal aplike sou fakti sa a.'
+      : '';
+    const fullNote = [autoNote, e.note].filter(Boolean).join(' ');
 
     if (fullNote) {
       doc.setFontSize(8.5);
       doc.setFont('helvetica', 'italic');
-      doc.setTextColor(70, 70, 70);
+      doc.setTextColor(hasDiscount ? 30 : 70, hasDiscount ? 100 : 70, hasDiscount ? 30 : 70);
       const noteLines = doc.splitTextToSize('Not: ' + fullNote, tableW);
       doc.text(noteLines, 14, y);
       y += noteLines.length * 5.5 + 6;
@@ -589,7 +594,8 @@ doc.saveGraphicsState();
     );
 
     /* Sove PDF */
-    const fname = 'lcd' + String(e.invoiceNo || '0').padStart(4, '0') + '.pdf';
+    const clientSlug = (e.clientName || 'Kliyan').trim().replace(/\s+/g, '_');
+    const fname = 'Fakti_' + clientSlug + '_lcd' + String(e.invoiceNo || '0').padStart(4, '0') + '.pdf';
     doc.save(fname);
   });
 }
