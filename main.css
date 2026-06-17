@@ -832,9 +832,47 @@ img { display: block; }
 /* ══════════════════════════════════════════════
    POS — KALKIMATRIS
    ══════════════════════════════════════════════ */
-.pos-field-group {
-  margin-bottom: 12px;
+/* ── POS Tab Switcher ── */
+.pos-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid rgba(255,255,255,0.08);
+  background: rgba(0,0,0,0.25);
+  flex-shrink: 0;
 }
+
+.pos-tab-btn {
+  flex: 1;
+  padding: 12px 8px;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  color: var(--text-dim);
+  font-family: var(--font-main);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.pos-tab-btn.active {
+  color: #d4af37;
+  border-bottom-color: #d4af37;
+}
+
+.pos-tab-btn:not(.active):hover {
+  color: rgba(212,175,55,0.6);
+}
+
+/* ── Textarea dans POS ── */
+#posScreen .form-textarea {
+  resize: vertical;
+  min-height: 72px;
+}
+
+
 
 .pos-label {
   font-size: 0.75rem;

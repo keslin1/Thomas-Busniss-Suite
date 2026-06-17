@@ -244,10 +244,15 @@
           <button onclick="closeTxnOverlay()">✕</button>
         </div>
         <div class="form-body">
+          <label>Tip tranzaksyon *</label>
+          <select id="txnType" class="form-input">
+            <option value="depans">🛍 Depans kliyan</option>
+            <option value="peman">💳 Peman resevwa</option>
+          </select>
           <label>Montan (USD) *</label>
           <input type="number" id="txnAmount" placeholder="0.00" class="form-input" step="0.01" />
           <label>Deskripsyon</label>
-          <input type="text" id="txnDesc" placeholder="Eks: Frè livrezon..." class="form-input" />
+          <input type="text" id="txnDesc" placeholder="Eks: Frè livrezon, Alibaba..." class="form-input" />
           <button class="btn-primary" onclick="saveTxn()">✔ Konfime</button>
         </div>
       </div>
@@ -264,7 +269,19 @@
       <h2>Jeneratè Fich</h2>
       <button class="icon-btn" onclick="togglePosHistory()">📋</button>
     </div>
-    <div class="module-body scrollable">
+
+    <!-- ── Tab switcher ── -->
+    <div class="pos-tabs">
+      <button class="pos-tab-btn active" id="tabBtnShipping" onclick="switchPosTab('shipping')">
+        📦 Fich Shipping
+      </button>
+      <button class="pos-tab-btn" id="tabBtnAcha" onclick="switchPosTab('acha')">
+        🛒 Fich Acha
+      </button>
+    </div>
+
+    <!-- ══════════ FICH SHIPPING ══════════ -->
+    <div id="posTabShipping" class="module-body scrollable">
       <!-- Client Name (autocomplete) -->
       <div class="pos-field-group">
         <label class="pos-label">Non kliyan</label>
@@ -347,13 +364,115 @@
         </div>
       </div>
 
-      <button class="btn-primary full-btn" onclick="generatePOSInvoice()">🖨️ Jenere fakti PDF</button>
+      <button class="btn-primary full-btn" onclick="generatePOSInvoice()">🖨️ Jenere Fich Shipping PDF</button>
+    </div>
+
+    <!-- ══════════ FICH ACHA ══════════ -->
+    <div id="posTabAcha" class="module-body scrollable" style="display:none;">
+
+      <!-- Section titre -->
+      <div style="padding:10px 14px 4px;border-bottom:1px solid rgba(212,175,55,0.2);margin-bottom:4px;">
+        <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.12em;color:rgba(212,175,55,0.7);font-family:'Rajdhani',sans-serif;">FICH ACHA · ALIBABA/TEMU/AMAZON/ALIEXPRESS</div>
+      </div>
+
+      <!-- ── BLOC A: Infos Kliyan ── -->
+      <div style="padding:6px 14px 0;font-size:0.68rem;font-weight:800;color:rgba(212,175,55,0.6);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;">A. INFOS KLIYAN</div>
+
+      <!-- Client Name avec autocomplete -->
+      <div class="pos-field-group" style="position:relative;">
+        <label class="pos-label">Non kliyan</label>
+        <input type="text" id="achaClientName" placeholder="Eks: Jean Marc" class="form-input" autocomplete="off" oninput="initAchaAutocomplete()" />
+      </div>
+
+      <!-- Client Address -->
+      <div class="pos-field-group">
+        <label class="pos-label">Adrès kliyan</label>
+        <input type="text" id="achaClientAddress" placeholder="Eks: Camp-Perrin, Okay..." class="form-input" />
+      </div>
+
+      <!-- Client Phone -->
+      <div class="pos-field-group">
+        <label class="pos-label">Telefòn kliyan</label>
+        <input type="tel" id="achaClientPhone" placeholder="+509 xx xx xx xx" class="form-input" />
+      </div>
+
+      <!-- Description marchandise -->
+      <div class="pos-field-group">
+        <label class="pos-label">Deskripsyon machandiz la</label>
+        <textarea id="achaDescription" placeholder="Eks: Machin koud, akseswa pou boutik, materyèl..." class="form-input form-textarea" rows="3"></textarea>
+      </div>
+
+      <!-- ── BLOC B: Suivi & Dates ── -->
+      <div style="padding:12px 14px 0;font-size:0.68rem;font-weight:800;color:rgba(0,150,166,0.8);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;">B. SUIVI KOMAND</div>
+
+      <div class="two-col" style="padding:0 14px;">
+        <div>
+          <label class="pos-label">Dat kòmand usine</label>
+          <input type="date" id="achaDateCommande" class="form-input" />
+        </div>
+        <div>
+          <label class="pos-label">Dat ekspedisyon usine</label>
+          <input type="date" id="achaDateExped" class="form-input" />
+        </div>
+      </div>
+
+      <div class="pos-field-group">
+        <label class="pos-label">Delè estimé pou ariv nan USA</label>
+        <input type="text" id="achaDelaiUSA" placeholder="Eks: 15-20 jou, 3 semèn..." class="form-input" />
+      </div>
+
+      <!-- ── BLOC C: Finansye ── -->
+      <div style="padding:12px 14px 0;font-size:0.68rem;font-weight:800;color:rgba(101,51,19,0.9);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;">C. FINANSYE</div>
+
+      <!-- Achat usine -->
+      <div class="pos-field-group">
+        <label class="pos-label">💰 Montan acha usine (USD)</label>
+        <input type="number" id="achaPrixUsine" placeholder="0.00" class="form-input" step="0.01" oninput="calcAchaLive()" />
+      </div>
+
+      <!-- Expédition USA -->
+      <div class="pos-field-group">
+        <label class="pos-label">✈️ Frè ekspedisyon usine → USA (USD)</label>
+        <input type="number" id="achaExpedUSA" placeholder="0.00" class="form-input" step="0.01" oninput="calcAchaLive()" />
+      </div>
+
+      <!-- Résultat intermédiaire : sous-total -->
+      <div style="margin:6px 14px;padding:8px 12px;background:rgba(0,150,166,0.1);border-radius:8px;border-left:3px solid rgba(0,150,166,0.5);display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:0.8rem;color:rgba(0,150,166,0.9);font-family:'Rajdhani',sans-serif;font-weight:700;">SOUS-TOTAL ACHA</span>
+        <span id="resSousTotal" style="font-family:'Space Mono',monospace;font-size:0.95rem;color:#00a0aa;font-weight:700;">$0.00</span>
+      </div>
+
+      <!-- Shipping Haïti (optionnel) -->
+      <div class="pos-field-group">
+        <label class="pos-label">🚢 Frè shipping USA → Ayiti (USD) <span style="opacity:0.55;font-weight:400;">(opsyonèl)</span></label>
+        <input type="number" id="achaShippingHaiti" placeholder="Opsyonèl — 0.00" class="form-input" step="0.01" oninput="calcAchaLive()" />
+      </div>
+
+      <!-- Résultat grand total -->
+      <div id="achaResultPanel" class="result-panel">
+        <div class="result-row highlight">
+          <span>GRAND TOTAL</span>
+          <span id="resGrandTotal" class="mono gold big">$0.00</span>
+        </div>
+      </div>
+
+      <!-- Note / Explication -->
+      <div class="pos-field-group">
+        <label class="pos-label">Nòt / Eksplikasyon</label>
+        <textarea id="achaNoteExplication" placeholder="Eks: Balans pou machandiz ki poko livre, kondisyon espesyal..." class="form-input form-textarea" rows="2"></textarea>
+      </div>
+
+      <!-- Actions -->
+      <div style="display:flex;gap:10px;padding:0 14px 4px;">
+        <button class="btn-primary full-btn" style="flex:3;" onclick="generateAchaInvoice()">🖨️ Jenere Fich Acha PDF</button>
+        <button style="flex:1;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:10px;color:rgba(200,190,175,0.6);font-size:0.8rem;padding:12px 6px;cursor:pointer;" onclick="clearAchaForm()">🗑</button>
+      </div>
     </div>
 
     <!-- Historique POS -->
     <div id="posHistoryPanel" class="side-panel hidden">
       <div class="panel-header">
-        <h3>Istorik kalkil</h3>
+        <h3>Istorik fich</h3>
         <button onclick="togglePosHistory()">✕</button>
       </div>
       <div id="posHistoryList" class="list-container"></div>

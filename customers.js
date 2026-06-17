@@ -46,14 +46,104 @@ function getTotalSpent(c) {
   return (c.transactions || []).reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
 }
 
-/* ── Badge nivo kliyan ──────────────────────── */
+/* ── Badge nivo kliyan (5 nivo + statut standard) ── */
 function getClientBadge(c) {
   const total = getTotalDepenses(c);
-  const count = (c.transactions || []).filter(t => t.txType === 'depans' || !t.txType).length;
-  if (total >= 500 || count >= 20) return { label: 'Platinum', color: '#b5d1e8', text: '#1a3a52' };
-  if (total >= 200 || count >= 10) return { label: 'Gold',     color: '#d4af37', text: '#3a2a00' };
-  if (total >= 75  || count >= 5)  return { label: 'Silver',   color: '#b0b0b0', text: '#2a2a2a' };
-  return { label: 'Bronze', color: '#c07a3a', text: '#3a1a00' };
+  if (total >= 1000) return { label: 'Super Client', color: '#1a0533', text: '#e0b8ff', emoji: '👑' };
+  if (total >= 500)  return { label: 'Or',           color: '#d4af37', text: '#1a0e00', emoji: '🥇' };
+  if (total >= 300)  return { label: 'Platine',      color: '#b5d1e8', text: '#1a3a52', emoji: '💎' };
+  if (total >= 200)  return { label: 'Argent',       color: '#c0c0c0', text: '#1a1a1a', emoji: '🥈' };
+  if (total >= 100)  return { label: 'Bronze',       color: '#c07a3a', text: '#2a0e00', emoji: '🥉' };
+  return { label: 'Standard', color: '#3a3a3a', text: '#aaaaaa', emoji: '·' };
+}
+
+function getTierRank(total) {
+  if (total >= 1000) return 5;
+  if (total >= 500)  return 4;
+  if (total >= 300)  return 3;
+  if (total >= 200)  return 2;
+  if (total >= 100)  return 1;
+  return 0;
+}
+
+/* ── Modal Selebrasyon ──────────────────────── */
+function showCelebrationModal(clientName, badge) {
+  // Retire l'ancien si existe
+  const old = document.getElementById('celebrationModal');
+  if (old) old.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'celebrationModal';
+  modal.style.cssText = `
+    position:fixed;inset:0;z-index:9999;
+    display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,0.75);backdrop-filter:blur(4px);
+    animation:fadeInCeleb 0.35s ease;
+  `;
+
+  modal.innerHTML = `
+    <style>
+      @keyframes fadeInCeleb { from{opacity:0;transform:scale(0.85)} to{opacity:1;transform:scale(1)} }
+      @keyframes confettiFall {
+        0%  { transform: translateY(-20px) rotate(0deg);   opacity:1; }
+        100%{ transform: translateY(120vh) rotate(720deg); opacity:0; }
+      }
+      .celeb-confetti { position:absolute;width:10px;height:10px;border-radius:2px;animation:confettiFall linear infinite; }
+    </style>
+    <div style="
+      position:relative;overflow:hidden;
+      background:linear-gradient(145deg,#1a0533,#0d1f3c);
+      border:2px solid ${badge.color};border-radius:20px;
+      padding:36px 28px 28px;text-align:center;
+      max-width:320px;width:88%;box-shadow:0 0 60px ${badge.color}55;
+    " id="celebInner">
+
+      <!-- Confettis générés par JS -->
+      <div id="confettiContainer" style="position:absolute;inset:0;pointer-events:none;overflow:hidden;"></div>
+
+      <div style="font-size:3.2rem;margin-bottom:8px;">${badge.emoji}</div>
+      <div style="font-size:1.05rem;font-weight:800;color:#fff;font-family:'Rajdhani',sans-serif;letter-spacing:0.05em;margin-bottom:6px;">
+        BRAVO !
+      </div>
+      <div style="font-size:0.95rem;color:${badge.color};font-weight:700;font-family:'Rajdhani',sans-serif;margin-bottom:14px;">
+        ${clientName} pase nan nivo
+      </div>
+      <div style="
+        display:inline-block;padding:10px 24px;border-radius:30px;
+        background:${badge.color};color:${badge.text};
+        font-family:'Cinzel',serif;font-size:1.2rem;font-weight:700;
+        letter-spacing:0.1em;margin-bottom:18px;
+        box-shadow:0 0 20px ${badge.color}88;
+      ">${badge.label.toUpperCase()}</div>
+      <div style="font-size:0.78rem;color:rgba(255,255,255,0.45);margin-bottom:20px;font-family:'Rajdhani',sans-serif;">
+        Kont kliyan an mete ajou otomatikman.
+      </div>
+      <button onclick="document.getElementById('celebrationModal').remove()" style="
+        background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);
+        color:#fff;padding:10px 32px;border-radius:30px;cursor:pointer;
+        font-family:'Rajdhani',sans-serif;font-size:0.95rem;font-weight:600;
+        transition:background 0.2s;
+      ">✔ Kontinye</button>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  // Génère confettis
+  const colors = [badge.color, '#fff', '#d4af37', '#a78bfa', '#f472b6'];
+  const container = modal.querySelector('#confettiContainer');
+  for (let i = 0; i < 40; i++) {
+    const c = document.createElement('div');
+    c.className = 'celeb-confetti';
+    c.style.left = Math.random() * 100 + '%';
+    c.style.top  = -(Math.random() * 100) + 'px';
+    c.style.background = colors[Math.floor(Math.random() * colors.length)];
+    c.style.animationDuration  = (2 + Math.random() * 3) + 's';
+    c.style.animationDelay     = (Math.random() * 2) + 's';
+    c.style.width  = (6 + Math.random() * 10) + 'px';
+    c.style.height = (6 + Math.random() * 10) + 'px';
+    container.appendChild(c);
+  }
 }
 
 /* ── Render List ────────────────────────────── */
@@ -98,7 +188,7 @@ function renderCustomers() {
             display:inline-block;margin-top:3px;padding:2px 7px;border-radius:10px;
             font-size:0.65rem;font-weight:700;
             background:${badge.color};color:${badge.text};
-          ">${badge.label}</span>
+          ">${badge.emoji} ${badge.label}</span>
         </div>
       </div>
     `;
@@ -225,15 +315,20 @@ function openCustomerDetail(id) {
           display:inline-block;margin-top:6px;padding:3px 10px;border-radius:12px;
           font-size:0.72rem;font-weight:700;
           background:${badge.color};color:${badge.text};
-        ">${badge.label}</span>
+        ">${badge.emoji} ${badge.label}</span>
       </div>
     </div>
 
-    <div style="display:flex;gap:10px;margin:10px 0;">
+    <div style="display:flex;gap:10px;margin:10px 0;align-items:stretch;">
       <div class="cust-detail-total" style="flex:1;">
         💰 ${fmtCurrency(total)}<br>
         <span style="font-size:0.7rem;opacity:0.65;">${txCount} sèvis</span>
       </div>
+      <button onclick="openManualSpendEdit('${c.id}')" style="
+        background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.3);
+        border-radius:10px;color:#d4af37;font-size:0.75rem;padding:8px 12px;
+        cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:600;flex-shrink:0;
+      ">✏️ Modifye<br>depans</button>
     </div>
 
     <div class="cust-detail-actions">
@@ -318,14 +413,25 @@ function saveTxn() {
   if (idx === -1) return;
   if (!list[idx].transactions) list[idx].transactions = [];
 
+  const prevTotal = getTotalDepenses(list[idx]);
+  const prevRank  = getTierRank(prevTotal);
+
   list[idx].transactions.push({ id: uid(), amount, desc, txType, date: Date.now() });
   list[idx].updatedAt = Date.now();
+
+  const newTotal = getTotalDepenses(list[idx]);
+  const newRank  = getTierRank(newTotal);
 
   saveCustomers(list);
   closeTxnOverlay();
   openCustomerDetail(currentCustomerId);
   renderCustomers();
   showToast(txType === 'peman' ? '✅ Peman anrejistre' : '✅ Depans anrejistre');
+
+  if (txType === 'depans' && newRank > prevRank) {
+    const badge = getClientBadge(list[idx]);
+    showCelebrationModal(list[idx].name, badge);
+  }
 }
 
 /* ── Actions ────────────────────────────────── */
@@ -525,6 +631,45 @@ function exportCustomersPDF() {
 
   doc.save('LCD-Kliyan.pdf');
   showToast('📄 PDF liste jenere');
+}
+
+/* ── Modifikasyon Depans Manyèl ──────────────── */
+function openManualSpendEdit(id) {
+  const c = getCustomers().find(x => x.id === id);
+  if (!c) return;
+  const current = getTotalDepenses(c).toFixed(2);
+  const newVal  = prompt(`Modifye total depans pou ${c.name}\n(valè kouran: $${current})\n\nAntre nouvo total ($USD):`, current);
+  if (newVal === null) return;
+  const parsed = parseFloat(newVal);
+  if (isNaN(parsed) || parsed < 0) { showToast('⚠️ Montan enkòrèk'); return; }
+
+  const list    = getCustomers();
+  const idx     = list.findIndex(x => x.id === id);
+  if (idx === -1) return;
+
+  const prevRank = getTierRank(getTotalDepenses(list[idx]));
+
+  /* Ajuste via une transaction d'ajustement */
+  const diff = parsed - getTotalDepenses(list[idx]);
+  if (Math.abs(diff) < 0.01) { showToast('Okenn chanjman'); return; }
+  if (!list[idx].transactions) list[idx].transactions = [];
+  list[idx].transactions.push({
+    id: uid(), amount: diff, desc: 'Ajisteman manyèl',
+    txType: diff > 0 ? 'depans' : 'peman', date: Date.now()
+  });
+  list[idx].updatedAt = Date.now();
+
+  const newRank = getTierRank(getTotalDepenses(list[idx]));
+  saveCustomers(list);
+  closeCustomerDetail();
+  openCustomerDetail(id);
+  renderCustomers();
+  showToast('✅ Depans mete ajou');
+
+  if (newRank > prevRank) {
+    const badge = getClientBadge(list[idx]);
+    showCelebrationModal(list[idx].name, badge);
+  }
 }
 
 /* ── Helpers locaux ─────────────────────────── */
