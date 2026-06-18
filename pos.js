@@ -360,41 +360,50 @@ function buildAchaPdf(e) {
     }
     y += 16;
 
-    /* Grand Total */
-    checkPage(28);
-    doc.setFillColor(255, 243, 196); doc.rect(14, y, tableW, 16, 'F');
-    doc.setTextColor(101, 51, 19); doc.setFontSize(14); doc.setFont('helvetica', 'bold');
-    doc.text('GRAND TOTAL', 18, y + 10.5);
-    doc.text('$' + (e.grandTotal || 0).toFixed(2), colMontX, y + 10.5, { align: 'right' });
-    y += 16;
-    doc.setFillColor(245, 238, 210); doc.rect(14, y, tableW, 10, 'F');
-    doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(120, 90, 40);
-    doc.text('Ekivalan HTG (' + HTG_RATE + ' HTG / $1)', 18, y + 7);
+    /* "Pou total ou achte..." — discret, fond crème léger */
+    checkPage(26);
+    doc.setFillColor(250, 248, 242); doc.rect(14, y, tableW, 13, 'F');
+    doc.setDrawColor(212, 175, 55); doc.setLineWidth(0.3); doc.rect(14, y, tableW, 13);
+    doc.setFontSize(8.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(101, 51, 19);
+    doc.text('Pou total ou achte...', 18, y + 8.5);
     doc.setFont('helvetica', 'bold');
-    doc.text('≈ ' + Math.round((e.grandTotal || 0) * HTG_RATE).toLocaleString('fr-HT') + ' HTG', colMontX, y + 7, { align: 'right' });
-    y += 16;
+    doc.text('$' + (e.grandTotal || 0).toFixed(2), colMontX, y + 8.5, { align: 'right' });
+    y += 13;
+    doc.setFillColor(245, 238, 210); doc.rect(14, y, tableW, 9, 'F');
+    doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(120, 90, 40);
+    doc.text('Ekivalan HTG (' + HTG_RATE + ' HTG / $1)', 18, y + 6.5);
+    doc.setFont('helvetica', 'bold');
+    doc.text('≈ ' + Math.round((e.grandTotal || 0) * HTG_RATE).toLocaleString('fr-HT') + ' HTG', colMontX, y + 6.5, { align: 'right' });
+    y += 14;
 
-    /* ══ 4C. BALANS RETE (SHIPPING) ══ */
-    checkPage(16);
+    /* ══ 4C. BALANS RETE (SHIPPING) — bannè prensipal ══ */
+    checkPage(28);
     const br = e.balansRete;
     const brIsNum = typeof br === 'number';
-    doc.setFillColor(230, 240, 255); doc.rect(14, y, tableW, 14, 'F');
-    doc.setDrawColor(tqR, tqG, tqB); doc.setLineWidth(0.3); doc.rect(14, y, tableW, 14);
-    doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(tqR, tqG, tqB);
-    doc.text('Balans rete (shipping)', 18, y + 9);
+    /* Grande bannière colorée */
+    doc.setFillColor(255, 243, 196); doc.rect(14, y, tableW, 18, 'F');
+    doc.setDrawColor(bruR, bruG, bruB); doc.setLineWidth(0.6); doc.rect(14, y, tableW, 18);
+    doc.setFontSize(13); doc.setFont('helvetica', 'bold'); doc.setTextColor(101, 51, 19);
+    doc.text('Balans rete (shipping)', 18, y + 11.5);
     doc.setTextColor(bruR, bruG, bruB);
     if (brIsNum && br > 0) {
-      doc.text('$' + br.toFixed(2), colMontX, y + 9, { align: 'right' });
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(120, 100, 70);
-      doc.text('≈ ' + Math.round(br * HTG_RATE).toLocaleString('fr-HT') + ' HTG', colMontX, y + 13, { align: 'right' });
+      doc.text('$' + br.toFixed(2), colMontX, y + 11.5, { align: 'right' });
+      y += 18;
+      doc.setFillColor(245, 232, 180); doc.rect(14, y, tableW, 9, 'F');
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(120, 90, 40);
+      doc.text('Ekivalan HTG (' + HTG_RATE + ' HTG / $1)', 18, y + 6.5);
+      doc.setFont('helvetica', 'bold');
+      doc.text('≈ ' + Math.round(br * HTG_RATE).toLocaleString('fr-HT') + ' HTG', colMontX, y + 6.5, { align: 'right' });
+      y += 14;
     } else if (br && String(br).trim() !== '' && String(br).trim() !== '0') {
-      doc.setFont('helvetica', 'italic'); doc.setFontSize(9);
-      doc.text(String(br), colMontX, y + 9, { align: 'right' });
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(12); doc.setTextColor(bruR, bruG, bruB);
+      doc.text(String(br), colMontX, y + 11.5, { align: 'right' });
+      y += 22;
     } else {
-      doc.setFont('helvetica', 'italic'); doc.setFontSize(9); doc.setTextColor(150, 150, 150);
-      doc.text('—', colMontX, y + 9, { align: 'right' });
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(12); doc.setTextColor(160, 140, 100);
+      doc.text('—', colMontX, y + 11.5, { align: 'right' });
+      y += 22;
     }
-    y += 20;
 
     /* ══ 5. NÒT ══ */
     checkPage(24);
@@ -412,18 +421,34 @@ function buildAchaPdf(e) {
     }
 
     /* ══ 6. MARKETING ══ */
-    const msg1 = 'Siw gen machandiz ki entèresew sou entènèt, ou ka pataje link li avèk nou pou edew evalye pri l oswa achte li pou ou.';
-    const msg2 = 'Les Cayes Dropshipping — nou se patnè fyab ou pou pwojè komès ak livrezon USA → Ayiti. Achte avèk nou ak konfyans.';
-    const msg1Lines = doc.splitTextToSize(msg1, tableW - 10);
-    const msg2Lines = doc.splitTextToSize(msg2, tableW - 10);
-    const boxH = msg1Lines.length * 5.5 + msg2Lines.length * 5 + 22;
+    const msg1 = 'Siw gen machandiz ki entèresew sou sit chinwa yo, ou ka pataje link yo avèk nou pou edew evalye pri l oswa achte li pou ou.';
+    const msg2 = 'Les Cayes Dropshipping, nou se patnè fyab ou pou pwojè komès ak livrezon USA-Ayiti.';
+    const msg3 = 'Mòd pèman: Cash · Natcash · Sogebank · Zelle';
+    const msg1Lines = doc.splitTextToSize(msg1, tableW - 16);
+    const msg2Lines = doc.splitTextToSize(msg2, tableW - 16);
+    const msg3Lines = doc.splitTextToSize(msg3, tableW - 16);
+    const lineH1 = 5.5, lineH2 = 5.2, lineH3 = 5.2;
+    const boxH = 10 + msg1Lines.length * lineH1 + 5 + msg2Lines.length * lineH2 + 4 + msg3Lines.length * lineH3 + 8;
     checkPage(boxH + 40);
     doc.setFillColor(246, 242, 236); doc.rect(14, y, tableW, boxH, 'F');
     doc.setDrawColor(orR, orG, orB); doc.setLineWidth(0.5); doc.rect(14, y, tableW, boxH);
-    doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(bruR, bruG, bruB);
-    doc.text(msg1Lines, 19, y + 8);
-    doc.setFont('helvetica', 'italic'); doc.setTextColor(50, 50, 50); doc.setFontSize(8);
-    doc.text(msg2Lines, 19, y + 8 + msg1Lines.length * 5.5 + 5);
+
+    let ty = y + 9;
+    /* Phrase 1 — italique marron */
+    doc.setFontSize(8.5); doc.setFont('helvetica', 'italic'); doc.setTextColor(bruR, bruG, bruB);
+    doc.text(msg1Lines, 22, ty); ty += msg1Lines.length * lineH1 + 5;
+
+    /* Ligne de séparation fine */
+    doc.setDrawColor(212, 175, 55); doc.setLineWidth(0.3);
+    doc.line(22, ty, pw - 22, ty); ty += 4;
+
+    /* Phrase 2 — gras marron */
+    doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(bruR, bruG, bruB);
+    doc.text(msg2Lines, 22, ty); ty += msg2Lines.length * lineH2 + 4;
+
+    /* Phrase 3 — normal gris */
+    doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(70, 70, 70);
+    doc.text(msg3Lines, 22, ty);
     y += boxH + 8;
 
     /* ══ 7. SIYATI ══ */
