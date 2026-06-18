@@ -1862,14 +1862,32 @@ function clearPosForm() {
 document.addEventListener('DOMContentLoaded', () => {
   initPosAutocomplete();
 
+  /* Champs Shipping — kalkil an dirèk */
   const liveFields = ['posL','posW','posH','posWeight','posCustomPrice','posDebt','posChange'];
   liveFields.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('input', calcLive);
   });
+
+  /* Champs Fich Acha — kalkil an dirèk */
+  const achaLiveFields = ['achaPrixUsine','achaExpedUSA','achaShippingHaiti'];
+  achaLiveFields.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', calcAchaLive);
+  });
+
+  /* Otokomplè Acha — ataché kòm listener */
+  const achaNameInput = document.getElementById('achaClientName');
+  if (achaNameInput) {
+    achaNameInput.addEventListener('input', initAchaAutocomplete);
+    achaNameInput.addEventListener('blur', () => setTimeout(removeAchaDropdown, 200));
+  }
 });
 
-/* ── Otokomplete Acha ──────────────── */
+/* ── Otokomplete Acha ──────────────────────────
+   Fonksyon sa a rele chak fwa yo tape nan champ
+   'achaClientName' (ataché nan DOMContentLoaded)
+   ──────────────────────────────────────────── */
 function initAchaAutocomplete() {
   const nameInput = document.getElementById('achaClientName');
   const addrInput = document.getElementById('achaClientAddress');
@@ -1894,7 +1912,7 @@ function initAchaAutocomplete() {
   if (matches.length === 0) return;
 
   const wrapper = nameInput.parentElement;
-  wrapper.style.position = 'relative';
+  if (wrapper) wrapper.style.position = 'relative';
 
   const dd = document.createElement('div');
   dd.id = 'achaClientDropdown';
@@ -1916,7 +1934,7 @@ function initAchaAutocomplete() {
     });
     dd.appendChild(item);
   });
-  wrapper.appendChild(dd);
+  if (wrapper) wrapper.appendChild(dd);
 }
 
 function removeAchaDropdown() {

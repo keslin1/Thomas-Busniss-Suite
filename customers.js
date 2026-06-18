@@ -324,11 +324,6 @@ function openCustomerDetail(id) {
         💰 ${fmtCurrency(total)}<br>
         <span style="font-size:0.7rem;opacity:0.65;">${txCount} sèvis</span>
       </div>
-      <button onclick="openManualSpendEdit('${c.id}')" style="
-        background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.3);
-        border-radius:10px;color:#d4af37;font-size:0.75rem;padding:8px 12px;
-        cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:600;flex-shrink:0;
-      ">✏️ Modifye<br>depans</button>
     </div>
 
     <div class="cust-detail-actions">
@@ -351,12 +346,18 @@ function openCustomerDetail(id) {
             const typeLabel = t.txType === 'peman' ? '💳 Peman' : '🛍 Depans';
             const amtColor  = t.txType === 'peman' ? '#4caf97' : '#d4af37';
             return `
-              <div class="txn-item">
-                <div>
+              <div class="txn-item" style="display:flex;align-items:center;gap:6px;">
+                <div style="flex:1;">
                   <div class="txn-desc">${custEsc(t.desc || 'Tranzaksyon')}</div>
                   <div class="txn-date">${fmtDate(t.date)} · <span style="font-size:0.68rem;opacity:0.7;">${typeLabel}</span></div>
                 </div>
-                <div class="txn-amount" style="color:${amtColor};">${fmtCurrency(t.amount)}</div>
+                <div class="txn-amount" style="color:${amtColor};flex-shrink:0;">${fmtCurrency(t.amount)}</div>
+                <button onclick="editTxn('${c.id}','${t.id}')" title="Modifye" style="
+                  background:none;border:1px solid rgba(212,175,55,0.3);border-radius:6px;
+                  color:#d4af37;font-size:0.75rem;padding:3px 7px;cursor:pointer;flex-shrink:0;">✏️</button>
+                <button onclick="deleteTxn('${c.id}','${t.id}')" title="Efase" style="
+                  background:none;border:1px solid rgba(220,80,80,0.3);border-radius:6px;
+                  color:#e07070;font-size:0.75rem;padding:3px 7px;cursor:pointer;flex-shrink:0;">🗑</button>
               </div>
             `;
           }).join('')
@@ -633,44 +634,112 @@ function exportCustomersPDF() {
   showToast('📄 PDF liste jenere');
 }
 
-/* ── Modifikasyon Depans Manyèl ──────────────── */
-function openManualSpendEdit(id) {
-  const c = getCustomers().find(x => x.id === id);
-  if (!c) return;
-  const current = getTotalDepenses(c).toFixed(2);
-  const newVal  = prompt(`Modifye total depans pou ${c.name}\n(valè kouran: $${current})\n\nAntre nouvo total ($USD):`, current);
-  if (newVal === null) return;
-  const parsed = parseFloat(newVal);
-  if (isNaN(parsed) || parsed < 0) { showToast('⚠️ Montan enkòrèk'); return; }
+/* ── Modifye yon tranzaksyon pa occasion ────────
+   Klike sou ✏️ devan yon depans ouvri yon fenèt
+   pou korije montan oswa deskripsyon an.
+   ──────────────────────────────────────────── */
+function editTxn(clientId, txnId) {
+  const list = getCustomers();
+  const cIdx = list.findIndex(x => x.id === clientId);
+  if (cIdx === -1) return;
+  const tIdx = (list[cIdx].transactions || []).findIndex(t => t.id === txnId);
+  if (tIdx === -1) return;
 
-  const list    = getCustomers();
-  const idx     = list.findIndex(x => x.id === id);
-  if (idx === -1) return;
+  const t = list[cIdx].transactions[tIdx];
 
-  const prevRank = getTierRank(getTotalDepenses(list[idx]));
+  // Retire ancien modal si existe
+  const old = document.getElementById('editTxnModal');
+  if (old) old.remove();
 
-  /* Ajuste via une transaction d'ajustement */
-  const diff = parsed - getTotalDepenses(list[idx]);
-  if (Math.abs(diff) < 0.01) { showToast('Okenn chanjman'); return; }
-  if (!list[idx].transactions) list[idx].transactions = [];
-  list[idx].transactions.push({
-    id: uid(), amount: diff, desc: 'Ajisteman manyèl',
-    txType: diff > 0 ? 'depans' : 'peman', date: Date.now()
-  });
-  list[idx].updatedAt = Date.now();
+  const modal = document.createElement('div');
+  modal.id = 'editTxnModal';
+  modal.style.cssText = `
+    position:fixed;inset:0;z-index:8888;
+    display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,0.7);backdrop-filter:blur(3px);
+  `;
+  modal.innerHTML = `
+    <div style="
+      background:#1a1520;border:1px solid rgba(212,175,55,0.35);
+      border-radius:16px;padding:24px 22px;max-width:320px;width:90%;
+      box-shadow:0 0 40px rgba(0,0,0,0.6);
+    ">
+      <div style="font-family:'Rajdhani',sans-serif;font-size:1rem;font-weight:700;color:#ddd8cc;margin-bottom:14px;">
+        ✏️ Modifye depans
+      </div>
+      <label style="font-size:0.78rem;color:rgba(200,190,175,0.6);display:block;margin-bottom:4px;">Montan ($)</label>
+      <input id="editTxnAmount" type="number" min="0.01" step="0.01" value="${parseFloat(t.amount).toFixed(2)}" style="
+        width:100%;box-sizing:border-box;background:#111;border:1px solid rgba(255,255,255,0.12);
+        border-radius:8px;color:#ddd8cc;padding:9px 11px;font-size:0.95rem;margin-bottom:12px;
+      "/>
+      <label style="font-size:0.78rem;color:rgba(200,190,175,0.6);display:block;margin-bottom:4px;">Deskripsyon</label>
+      <input id="editTxnDesc" type="text" value="${custEsc(t.desc || '')}" style="
+        width:100%;box-sizing:border-box;background:#111;border:1px solid rgba(255,255,255,0.12);
+        border-radius:8px;color:#ddd8cc;padding:9px 11px;font-size:0.9rem;margin-bottom:18px;
+      "/>
+      <div style="display:flex;gap:10px;">
+        <button onclick="saveEditTxn('${clientId}','${txnId}')" style="
+          flex:1;background:rgba(212,175,55,0.15);border:1px solid rgba(212,175,55,0.4);
+          border-radius:10px;color:#d4af37;padding:10px;font-size:0.9rem;cursor:pointer;
+          font-family:'Rajdhani',sans-serif;font-weight:600;">✔ Anrejistre</button>
+        <button onclick="document.getElementById('editTxnModal').remove()" style="
+          background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);
+          border-radius:10px;color:#aaa;padding:10px 16px;font-size:0.9rem;cursor:pointer;">Anile</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  document.getElementById('editTxnAmount').focus();
+}
 
-  const newRank = getTierRank(getTotalDepenses(list[idx]));
+function saveEditTxn(clientId, txnId) {
+  const newAmount = parseFloat(document.getElementById('editTxnAmount')?.value);
+  if (isNaN(newAmount) || newAmount <= 0) { showToast('⚠️ Montan enkòrèk'); return; }
+  const newDesc = (document.getElementById('editTxnDesc')?.value || '').trim() || 'Tranzaksyon';
+
+  const list = getCustomers();
+  const cIdx = list.findIndex(x => x.id === clientId);
+  if (cIdx === -1) return;
+  const tIdx = (list[cIdx].transactions || []).findIndex(t => t.id === txnId);
+  if (tIdx === -1) return;
+
+  const prevRank = getTierRank(getTotalDepenses(list[cIdx]));
+
+  list[cIdx].transactions[tIdx].amount = newAmount;
+  list[cIdx].transactions[tIdx].desc   = newDesc;
+  list[cIdx].updatedAt = Date.now();
+
+  const newRank = getTierRank(getTotalDepenses(list[cIdx]));
   saveCustomers(list);
-  closeCustomerDetail();
-  openCustomerDetail(id);
+
+  document.getElementById('editTxnModal')?.remove();
+  openCustomerDetail(clientId);
   renderCustomers();
-  showToast('✅ Depans mete ajou');
+  showToast('✅ Tranzaksyon mete ajou');
 
   if (newRank > prevRank) {
-    const badge = getClientBadge(list[idx]);
-    showCelebrationModal(list[idx].name, badge);
+    const badge = getClientBadge(list[cIdx]);
+    showCelebrationModal(list[cIdx].name, badge);
   }
 }
+
+/* ── Efase yon tranzaksyon pa occasion ────────── */
+function deleteTxn(clientId, txnId) {
+  if (!confirm('Efase tranzaksyon sa a?')) return;
+
+  const list = getCustomers();
+  const cIdx = list.findIndex(x => x.id === clientId);
+  if (cIdx === -1) return;
+
+  list[cIdx].transactions = (list[cIdx].transactions || []).filter(t => t.id !== txnId);
+  list[cIdx].updatedAt = Date.now();
+
+  saveCustomers(list);
+  openCustomerDetail(clientId);
+  renderCustomers();
+  showToast('🗑️ Tranzaksyon efase');
+}
+
 
 /* ── Helpers locaux ─────────────────────────── */
 function custEsc(s) {
