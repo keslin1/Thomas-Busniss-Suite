@@ -396,6 +396,19 @@
         <input type="tel" id="achaClientPhone" placeholder="+509 xx xx xx xx" class="form-input" />
       </div>
 
+      <!-- Plateforme acha -->
+      <div class="pos-field-group">
+        <label class="pos-label">🛒 Platefòm acha</label>
+        <select id="achaPlateforme" class="form-input" style="cursor:pointer;">
+          <option value="">— Chwazi platefòm —</option>
+          <option value="alibaba">Alibaba</option>
+          <option value="aliexpress">AliExpress</option>
+          <option value="temu">Temu</option>
+          <option value="shein">Shein</option>
+          <option value="amazon">Amazon</option>
+        </select>
+      </div>
+
       <!-- Description marchandise -->
       <div class="pos-field-group">
         <label class="pos-label">Deskripsyon machandiz la</label>
@@ -437,9 +450,14 @@
       </div>
 
       <!-- Résultat intermédiaire : sous-total -->
-      <div style="margin:6px 14px;padding:8px 12px;background:rgba(0,150,166,0.1);border-radius:8px;border-left:3px solid rgba(0,150,166,0.5);display:flex;justify-content:space-between;align-items:center;">
-        <span style="font-size:0.8rem;color:rgba(0,150,166,0.9);font-family:'Rajdhani',sans-serif;font-weight:700;">SOUS-TOTAL ACHA</span>
-        <span id="resSousTotal" style="font-family:'Space Mono',monospace;font-size:0.95rem;color:#00a0aa;font-weight:700;">$0.00</span>
+      <div style="margin:6px 14px;padding:8px 12px;background:rgba(0,150,166,0.1);border-radius:8px;border-left:3px solid rgba(0,150,166,0.5);display:flex;flex-direction:column;gap:2px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:0.8rem;color:rgba(0,150,166,0.9);font-family:'Rajdhani',sans-serif;font-weight:700;">SOUS-TOTAL ACHA</span>
+          <span id="resSousTotal" style="font-family:'Space Mono',monospace;font-size:0.95rem;color:#00a0aa;font-weight:700;">$0.00</span>
+        </div>
+        <div style="display:flex;justify-content:flex-end;">
+          <span id="resSousTotalHTG" style="font-family:'Space Mono',monospace;font-size:0.72rem;color:rgba(0,150,166,0.55);">≈ 0 HTG</span>
+        </div>
       </div>
 
       <!-- Shipping Haïti (optionnel) -->
@@ -454,6 +472,16 @@
           <span>GRAND TOTAL</span>
           <span id="resGrandTotal" class="mono gold big">$0.00</span>
         </div>
+        <div style="display:flex;justify-content:flex-end;padding:0 4px 4px;">
+          <span id="resGrandTotalHTG" style="font-family:'Space Mono',monospace;font-size:0.72rem;color:rgba(212,175,55,0.55);">≈ 0 HTG</span>
+        </div>
+      </div>
+
+      <!-- Balans rete (shipping) -->
+      <div class="pos-field-group">
+        <label class="pos-label">💳 Balans rete (shipping)</label>
+        <input type="text" id="achaBalansRete" placeholder="Eks: 45.00  oswa  à calculer" class="form-input" oninput="calcAchaLive()" />
+        <div style="font-size:0.68rem;color:rgba(212,175,55,0.55);margin-top:3px;padding-left:2px;">Ou ka antre yon chif USD oswa yon mo tankou "à calculer"</div>
       </div>
 
       <!-- Note / Explication -->

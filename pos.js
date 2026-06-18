@@ -66,16 +66,18 @@ function saveAchaHistory(list) {
 
 /* ── Kalkil Fich Acha an dirèk ───────────── */
 function calcAchaLive() {
-  const achatUsine   = parseFloat(document.getElementById('achaPrixUsine')?.value)    || 0;
-  const expedUSA     = parseFloat(document.getElementById('achaExpedUSA')?.value)     || 0;
+  const achatUsine   = parseFloat(document.getElementById('achaPrixUsine')?.value)     || 0;
+  const expedUSA     = parseFloat(document.getElementById('achaExpedUSA')?.value)      || 0;
   const shippingHT   = parseFloat(document.getElementById('achaShippingHaiti')?.value) || 0;
 
   const sousTotal  = achatUsine + expedUSA;
   const grandTotal = sousTotal + shippingHT;
 
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-  set('resSousTotal',  '$' + sousTotal.toFixed(2));
-  set('resGrandTotal', '$' + grandTotal.toFixed(2));
+  set('resSousTotal',        '$' + sousTotal.toFixed(2));
+  set('resSousTotalHTG',     '≈ ' + Math.round(sousTotal * HTG_RATE).toLocaleString('fr-HT') + ' HTG');
+  set('resGrandTotal',       '$' + grandTotal.toFixed(2));
+  set('resGrandTotalHTG',    '≈ ' + Math.round(grandTotal * HTG_RATE).toLocaleString('fr-HT') + ' HTG');
 }
 
 /* ── Jenere Fich Acha ───────────────── */
@@ -83,14 +85,18 @@ function generateAchaInvoice() {
   const clientName   = (document.getElementById('achaClientName')?.value     || '').trim();
   const clientAddr   = (document.getElementById('achaClientAddress')?.value  || '').trim();
   const clientPhone  = (document.getElementById('achaClientPhone')?.value    || '').trim();
+  const plateforme   = (document.getElementById('achaPlateforme')?.value     || '');
   const desc         = (document.getElementById('achaDescription')?.value    || '').trim();
   const note         = (document.getElementById('achaNoteExplication')?.value|| '').trim();
   const dateCommande = (document.getElementById('achaDateCommande')?.value   || '');
-  const dateExped    = (document.getElementById('achaDateExped')?.value      || '');
+  const dateExped    = (document.getElementById('achaDateExped')?.value      || '')  ;
   const delaiUSA     = (document.getElementById('achaDelaiUSA')?.value       || '').trim();
   const achatUsine   = parseFloat(document.getElementById('achaPrixUsine')?.value)     || 0;
   const expedUSA     = parseFloat(document.getElementById('achaExpedUSA')?.value)      || 0;
   const shippingHT   = parseFloat(document.getElementById('achaShippingHaiti')?.value) || 0;
+  const balansReteRaw = (document.getElementById('achaBalansRete')?.value    || '').trim();
+  const balansReteNum  = parseFloat(balansReteRaw);
+  const balansRete     = !isNaN(balansReteNum) && balansReteRaw !== '' ? balansReteNum : balansReteRaw;
   const sousTotal    = achatUsine + expedUSA;
   const grandTotal   = sousTotal + shippingHT;
 
@@ -104,9 +110,9 @@ function generateAchaInvoice() {
 
   const entry = {
     id: uid(), type: 'acha', invoiceNo,
-    clientName, clientAddr, clientPhone, desc, note,
+    clientName, clientAddr, clientPhone, plateforme, desc, note,
     dateCommande, dateExped, delaiUSA,
-    achatUsine, expedUSA, shippingHT, sousTotal, grandTotal,
+    achatUsine, expedUSA, shippingHT, sousTotal, grandTotal, balansRete,
     date: Date.now()
   };
 
@@ -121,9 +127,9 @@ function generateAchaInvoice() {
 
 /* ── Efase fomilè Acha ───────────────────── */
 function clearAchaForm() {
-  ['achaClientName','achaClientAddress','achaClientPhone',
+  ['achaClientName','achaClientAddress','achaClientPhone','achaPlateforme',
    'achaDescription','achaDateCommande','achaDateExped','achaDelaiUSA',
-   'achaPrixUsine','achaExpedUSA','achaShippingHaiti','achaNoteExplication']
+   'achaPrixUsine','achaExpedUSA','achaShippingHaiti','achaBalansRete','achaNoteExplication']
   .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   calcAchaLive();
   showToast('Fomilè efase');
@@ -143,7 +149,17 @@ function buildAchaPdf(e) {
   const orR  = 212, orG  = 175, orB  = 55;
   const tqR  = 0,   tqG  = 150, tqB  = 166;
 
-  const loadLogo = () => new Promise(resolve => {
+  /* Nom afichaj + fichye logo platefòm */
+  const PLAT_MAP = {
+    alibaba:    { label: 'Alibaba',    file: 'alibaba.png'    },
+    aliexpress: { label: 'AliExpress', file: 'aliexpress.png' },
+    temu:       { label: 'Temu',       file: 'temu.png'       },
+    shein:      { label: 'Shein',      file: 'shein.png'      },
+    amazon:     { label: 'Amazon',     file: 'amazon.png'     },
+  };
+  const platInfo = PLAT_MAP[e.plateforme] || null;
+
+  const loadImg = (src) => new Promise(resolve => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
@@ -153,10 +169,13 @@ function buildAchaPdf(e) {
       resolve(canvas.toDataURL('image/png'));
     };
     img.onerror = () => resolve(null);
-    img.src = 'lescayesdropshipping.png';
+    img.src = src;
   });
 
-  loadLogo().then(imgData => {
+  Promise.all([
+    loadImg('lescayesdropshipping.png'),
+    platInfo ? loadImg(platInfo.file) : Promise.resolve(null)
+  ]).then(([imgData, platData]) => {
 
     /* ── Watermark ── */
     if (imgData) {
@@ -190,10 +209,19 @@ function buildAchaPdf(e) {
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(220, 242, 248);
     doc.text('Dat: ' + dateTxt, pw - 10, 27, { align: 'right' });
 
+    /* Badge platefòm : logo si disponib, sinon texte */
+    const badgeX = pw - 52, badgeY = 32, badgeW = 40, badgeH = 12;
     doc.setFillColor(orR, orG, orB);
-    doc.roundedRect(pw - 62, 32, 50, 10, 3, 3, 'F');
-    doc.setFontSize(7.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(80, 40, 10);
-    doc.text('FICH ACHA', pw - 37, 38.5, { align: 'center' });
+    doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 3, 3, 'F');
+    if (platData) {
+      /* Logo centré dans le badge */
+      const logoH = 9, logoW = 9;
+      doc.addImage(platData, 'PNG', badgeX + (badgeW - logoH * 2) / 2, badgeY + 1.5, logoH * 2, logoH);
+    } else {
+      doc.setFontSize(7.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(80, 40, 10);
+      const badgeLabel = platInfo ? platInfo.label : 'FICH ACHA';
+      doc.text(badgeLabel, badgeX + badgeW / 2, badgeY + 8, { align: 'center' });
+    }
 
     /* ══ 2. BLOK KLIYAN ══ */
     let y = 60;
@@ -243,46 +271,108 @@ function buildAchaPdf(e) {
       y += 6;
     }
 
+    /* Utilitè: dessine une ligne montant USD + équivalence HTG */
+    const drawMontant = (label, usdVal, bgR, bgG, bgB, txtColorFn, h) => {
+      const rowH = h || 14;
+      doc.setFillColor(bgR, bgG, bgB);
+      doc.rect(14, y, tableW, rowH, 'F');
+      /* Label */
+      doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(30, 30, 30);
+      doc.text(label, 18, y + 7);
+      /* Montant USD */
+      doc.setFont('helvetica', 'bold');
+      if (txtColorFn) txtColorFn();
+      doc.text('$' + (usdVal || 0).toFixed(2), colMontX, y + 7, { align: 'right' });
+      /* Équivalence HTG petite */
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7);
+      doc.setTextColor(120, 100, 70);
+      doc.text('≈ ' + Math.round((usdVal || 0) * HTG_RATE).toLocaleString('fr-HT') + ' HTG', colMontX, y + 12, { align: 'right' });
+      y += rowH;
+    };
+
     /* ══ 4A. BLOK ACHA ORIJEN ══ */
     doc.setFillColor(tqR, tqG, tqB); doc.rect(14, y, tableW, 12, 'F');
     doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255);
-    doc.text('Acha Orijen  (Alibaba / Usine)', 18, y + 8); y += 12;
+    const platLabel = platInfo ? ('Acha Orijen  (' + platInfo.label + ' / Usine)') : 'Acha Orijen  (Usine)';
+    doc.text(platLabel, 18, y + 8); y += 12;
 
-    doc.setFillColor(252, 250, 245); doc.rect(14, y, tableW, 11, 'F');
-    doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(30, 30, 30);
-    doc.text('Pri acha nan usine', 18, y + 7.5);
-    doc.setFont('helvetica', 'bold'); doc.setTextColor(bruR, bruG, bruB);
-    doc.text('$' + (e.achatUsine || 0).toFixed(2), colMontX, y + 7.5, { align: 'right' }); y += 11;
+    drawMontant(
+      'Montan acha usine (USD)',
+      e.achatUsine,
+      252, 250, 245,
+      () => doc.setTextColor(bruR, bruG, bruB)
+    );
 
-    doc.setFillColor(248, 252, 252); doc.rect(14, y, tableW, 11, 'F');
-    doc.setFont('helvetica', 'normal'); doc.setTextColor(30, 30, 30);
-    doc.text('Frè ekspedisyon  usine → USA', 18, y + 7.5);
-    doc.setFont('helvetica', 'bold'); doc.setTextColor(tqR, tqG, tqB);
-    doc.text('$' + (e.expedUSA || 0).toFixed(2), colMontX, y + 7.5, { align: 'right' }); y += 11;
+    drawMontant(
+      'Frè ekspedisyon usine → USA (USD)',
+      e.expedUSA,
+      248, 252, 252,
+      () => doc.setTextColor(tqR, tqG, tqB)
+    );
 
+    /* Sous-total */
     doc.setFillColor(235, 245, 250); doc.rect(14, y, tableW, 13, 'F');
     doc.setDrawColor(tqR, tqG, tqB); doc.setLineWidth(0.3); doc.rect(14, y, tableW, 13);
     doc.setFontSize(9.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(tqR, tqG, tqB);
     doc.text('SOUS-TOTAL ACHA', 18, y + 9);
-    doc.text('$' + (e.sousTotal || 0).toFixed(2), colMontX, y + 9, { align: 'right' }); y += 19;
+    doc.text('$' + (e.sousTotal || 0).toFixed(2), colMontX, y + 9, { align: 'right' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(120, 100, 70);
+    doc.text('≈ ' + Math.round((e.sousTotal || 0) * HTG_RATE).toLocaleString('fr-HT') + ' HTG', colMontX, y + 13.5, { align: 'right' });
+    y += 19;
 
     /* ══ 4B. BLOK LIVREZON LOKAL ══ */
     doc.setFillColor(bruR, bruG, bruB); doc.rect(14, y, tableW, 12, 'F');
     doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255);
-    doc.text('Livrezon Lokal  (USA → Ayiti)', 18, y + 8); y += 12;
+    doc.text('Frè shipping USA → Ayiti (USD)', 18, y + 8); y += 12;
 
-    doc.setFillColor(252, 248, 242); doc.rect(14, y, tableW, 11, 'F');
-    doc.setFont('helvetica', 'normal'); doc.setTextColor(30, 30, 30);
-    const htLabel = (e.shippingHT || 0) > 0 ? 'Frè shipping USA → Ayiti' : 'Frè shipping USA → Ayiti (poko kofime)';
-    doc.text(htLabel, 18, y + 7.5);
+    const hasShipping = (e.shippingHT || 0) > 0;
+    const htLabel = hasShipping ? 'Frè shipping USA → Ayiti (USD)' : 'Frè shipping USA → Ayiti (USD)  (poko kofime)';
+    doc.setFillColor(252, 248, 242); doc.rect(14, y, tableW, 14, 'F');
+    doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(30, 30, 30);
+    doc.text(htLabel, 18, y + 7);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor((e.shippingHT || 0) > 0 ? bruR : 160, (e.shippingHT || 0) > 0 ? bruG : 130, (e.shippingHT || 0) > 0 ? bruB : 80);
-    doc.text((e.shippingHT || 0) > 0 ? '$' + e.shippingHT.toFixed(2) : '—', colMontX, y + 7.5, { align: 'right' }); y += 11;
+    doc.setTextColor(hasShipping ? bruR : 160, hasShipping ? bruG : 130, hasShipping ? bruB : 80);
+    doc.text(hasShipping ? '$' + e.shippingHT.toFixed(2) : '—', colMontX, y + 7, { align: 'right' });
+    if (hasShipping) {
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(120, 100, 70);
+      doc.text('≈ ' + Math.round(e.shippingHT * HTG_RATE).toLocaleString('fr-HT') + ' HTG', colMontX, y + 12, { align: 'right' });
+    }
+    y += 16;
 
+    /* Grand Total */
     doc.setFillColor(255, 243, 196); doc.rect(14, y, tableW, 16, 'F');
     doc.setTextColor(101, 51, 19); doc.setFontSize(14); doc.setFont('helvetica', 'bold');
     doc.text('GRAND TOTAL', 18, y + 10.5);
-    doc.text('$' + (e.grandTotal || 0).toFixed(2), colMontX, y + 10.5, { align: 'right' }); y += 22;
+    doc.text('$' + (e.grandTotal || 0).toFixed(2), colMontX, y + 10.5, { align: 'right' });
+    y += 16;
+    /* HTG grand total */
+    doc.setFillColor(245, 238, 210); doc.rect(14, y, tableW, 10, 'F');
+    doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(120, 90, 40);
+    doc.text('Ekivalan HTG (' + HTG_RATE + ' HTG / $1)', 18, y + 7);
+    doc.setFont('helvetica', 'bold');
+    doc.text('≈ ' + Math.round((e.grandTotal || 0) * HTG_RATE).toLocaleString('fr-HT') + ' HTG', colMontX, y + 7, { align: 'right' });
+    y += 16;
+
+    /* ══ 4C. BALANS RETE (SHIPPING) ══ */
+    const br = e.balansRete;
+    const brIsNum = typeof br === 'number';
+    doc.setFillColor(230, 240, 255); doc.rect(14, y, tableW, 14, 'F');
+    doc.setDrawColor(tqR, tqG, tqB); doc.setLineWidth(0.3); doc.rect(14, y, tableW, 14);
+    doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(tqR, tqG, tqB);
+    doc.text('Balans rete (shipping)', 18, y + 9);
+    doc.setTextColor(bruR, bruG, bruB);
+    if (brIsNum && br > 0) {
+      doc.text('$' + br.toFixed(2), colMontX, y + 9, { align: 'right' });
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(120, 100, 70);
+      doc.text('≈ ' + Math.round(br * HTG_RATE).toLocaleString('fr-HT') + ' HTG', colMontX, y + 13, { align: 'right' });
+    } else if (br && String(br).trim() !== '' && String(br).trim() !== '0') {
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(9);
+      doc.text(String(br), colMontX, y + 9, { align: 'right' });
+    } else {
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(9); doc.setTextColor(150, 150, 150);
+      doc.text('—', colMontX, y + 9, { align: 'right' });
+    }
+    y += 20;
 
     /* ══ 5. NÒT ══ */
     if (e.note) {
@@ -297,8 +387,8 @@ function buildAchaPdf(e) {
       doc.line(14, y, pw - 14, y); y += 9;
     }
 
-    /* ══ 6. MARKETING / ALIBABA ══ */
-    const msg1 = 'Siw gen machandiz ki entèresew sou Alibaba, ou ka pataje link li avèk nou pou edew evalye pri l oswa achte li pou ou.';
+    /* ══ 6. MARKETING ══ */
+    const msg1 = 'Siw gen machandiz ki entèresew sou entènèt, ou ka pataje link li avèk nou pou edew evalye pri l oswa achte li pou ou.';
     const msg2 = 'Les Cayes Dropshipping, nou se patnè fyab ou pou pwojè komès ak livrezon USA vers Haïti.';
     const msg1Lines = doc.splitTextToSize(msg1, tableW - 10);
     const boxH = msg1Lines.length * 5.5 + 20;
@@ -974,263 +1064,6 @@ function clearPosForm() {
   }
 }
 
-/* ══════════════════════════════════════════════
-   BUILD PDF FICH ACHA — menm branding LCD
-   ══════════════════════════════════════════════ */
-function buildAchaPdf(e) {
-  if (!window.jspdf) { showToast('jsPDF pa chaje'); return; }
-  const { jsPDF } = window.jspdf;
-
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const pw = 210, ph = 297;
-
-  /* Palèt koulè LCD */
-  const bruR = 101, bruG = 51,  bruB = 19;
-  const orR  = 212, orG  = 175, orB  = 55;
-  const tqR  = 0,   tqG  = 150, tqB  = 166;
-
-  const loadLogo = () => new Promise(resolve => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = 200; canvas.height = 200;
-      canvas.getContext('2d').drawImage(img, 0, 0, 200, 200);
-      resolve(canvas.toDataURL('image/png'));
-    };
-    img.onerror = () => resolve(null);
-    img.src = 'lescayesdropshipping.png';
-  });
-
-  loadLogo().then(imgData => {
-
-    /* ── Watermark ── */
-    if (imgData) {
-      doc.saveGraphicsState();
-      doc.setGState(new doc.GState({ opacity: 0.07 }));
-      const wmSize = 110;
-      doc.addImage(imgData, 'PNG', (pw - wmSize) / 2, (ph - wmSize) / 2 - 10, wmSize, wmSize);
-      doc.restoreGraphicsState();
-    }
-
-    /* ══ 1. ANTET (banye touez, 0–46 mm) ══ */
-    doc.setFillColor(tqR, tqG, tqB);
-    doc.rect(0, 0, pw, 46, 'F');
-    doc.setFillColor(orR, orG, orB);
-    doc.rect(0, 46, pw, 2, 'F');
-
-    if (imgData) doc.addImage(imgData, 'PNG', 8, 7, 30, 30);
-
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(15);
-    doc.setFont('helvetica', 'bold');
-    doc.text('LES CAYES DROPSHIPPING', 44, 17);
-    doc.setFontSize(7.5);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(220, 242, 248);
-    doc.text('USA: 14030 NW 5th Pl, North Miami, FL', 44, 25);
-    doc.text('Haiti: Pòtoprens · Okap · Miragwàn · Okay · Kan-Peren · Leyogàn · Jeremi', 44, 31);
-    doc.text('+509 31 01 39 68  ·  lescayesdropshipping@gmail.com', 44, 37);
-
-    /* Nimewo & date */
-    const dateTxt = new Date(e.date).toLocaleDateString('fr-HT', { day:'2-digit', month:'2-digit', year:'numeric' });
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(255, 255, 255);
-    doc.text('FICH ACHA  lcd' + String(e.invoiceNo || '0').padStart(4, '0'), pw - 10, 18, { align: 'right' });
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(220, 242, 248);
-    doc.text('Dat: ' + dateTxt, pw - 10, 27, { align: 'right' });
-
-    /* Badj "FICH ACHA" */
-    doc.setFillColor(orR, orG, orB);
-    doc.roundedRect(pw - 50, 32, 38, 10, 3, 3, 'F');
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(80, 40, 10);
-    doc.text('FICH ACHA', pw - 31, 38.5, { align: 'center' });
-
-    /* ══ 2. BLOK KLIYAN (60–88 mm) ══ */
-    let y = 60;
-
-    if (e.clientName) {
-      doc.setFontSize(13);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(15, 15, 15);
-      doc.text(e.clientName.toUpperCase(), 14, y);
-      y += 8;
-    }
-    if (e.clientAddr) {
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(60, 60, 60);
-      doc.text('Adrès: ' + e.clientAddr, 14, y);
-      y += 6;
-    }
-    if (e.clientPhone) {
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(60, 60, 60);
-      doc.text('Tél: ' + e.clientPhone, 14, y);
-      y += 6;
-    }
-
-    y += 2;
-    doc.setDrawColor(orR, orG, orB);
-    doc.setLineWidth(0.7);
-    doc.line(14, y, pw - 14, y);
-    y += 10;
-
-    const tableW   = pw - 28;
-    const colMontX = pw - 12;
-
-    /* ══ 3. DESKRIPSYON ACHA ══ */
-    if (e.desc) {
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(bruR, bruG, bruB);
-      doc.text('Deskripsyon acha:', 14, y);
-      y += 6;
-
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(30, 30, 30);
-      doc.setFontSize(9);
-      const descLines = doc.splitTextToSize(e.desc, tableW);
-      doc.text(descLines, 14, y);
-      y += descLines.length * 5.5 + 6;
-    }
-
-    /* ══ 4. TABLEAU MONTANTS ══ */
-
-    /* Antet tablo */
-    doc.setFillColor(tqR, tqG, tqB);
-    doc.rect(14, y, tableW, 12, 'F');
-    doc.setFontSize(8.5);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(255, 255, 255);
-    doc.text('Detay pèman', 18, y + 8);
-    doc.text('Montan (USD)', colMontX, y + 8, { align: 'right' });
-    y += 12;
-
-    /* Ranje: Total acha */
-    doc.setFillColor(252, 250, 245);
-    doc.rect(14, y, tableW, 12, 'F');
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(30, 30, 30);
-    doc.text('Total acha', 18, y + 8);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(bruR, bruG, bruB);
-    doc.text('$' + (e.totalAcha || 0).toFixed(2), colMontX, y + 8, { align: 'right' });
-    y += 12;
-
-    /* Ranje: Montan peye */
-    doc.setFillColor(242, 248, 242);
-    doc.rect(14, y, tableW, 12, 'F');
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(30, 30, 30);
-    doc.text('Montan kliyan peye', 18, y + 8);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(30, 100, 30);
-    doc.text('- $' + (e.montPaye || 0).toFixed(2), colMontX, y + 8, { align: 'right' });
-    y += 12;
-
-    /* Bannè Balance dwe */
-    doc.setFillColor(255, 243, 196);
-    doc.rect(14, y, tableW, 16, 'F');
-    doc.setTextColor(101, 51, 19);
-    doc.setFontSize(13);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Balance dwe', 18, y + 10.5);
-    doc.text('$' + (e.balance || 0).toFixed(2), colMontX, y + 10.5, { align: 'right' });
-    y += 16;
-
-    /* HTG */
-    doc.saveGraphicsState();
-    doc.setGState(new doc.GState({ opacity: 0.55 }));
-    doc.setFillColor(230, 225, 215);
-    doc.rect(14, y, tableW, 11, 'F');
-    doc.setTextColor(120, 100, 70);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Ekivalan HTG (' + HTG_RATE + ' HTG / $1)', 18, y + 7.5);
-    doc.setFontSize(9);
-    doc.text('≈ ' + (e.balHTG || 0).toLocaleString('en-US') + ' HTG', colMontX, y + 7.5, { align: 'right' });
-    doc.restoreGraphicsState();
-    y += 17;
-
-    /* ══ 5. NÒT / EKSPLIKASYON ══ */
-    if (e.note) {
-      doc.setFontSize(8.5);
-      doc.setFont('helvetica', 'italic');
-      doc.setTextColor(70, 70, 70);
-      const noteLines = doc.splitTextToSize('Nòt: ' + e.note, tableW);
-      doc.text(noteLines, 14, y);
-      y += noteLines.length * 5.5 + 8;
-    } else {
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'italic');
-      doc.setTextColor(160, 150, 135);
-      doc.text('Nòt:', 14, y);
-      doc.setDrawColor(200, 190, 175);
-      doc.setLineWidth(0.3);
-      doc.line(28, y, pw - 14, y);
-      y += 7;
-      doc.line(14, y, pw - 14, y);
-      y += 9;
-    }
-
-    /* ══ 6. KONDISYON PEMAN ══ */
-    doc.setFillColor(246, 242, 236);
-    doc.rect(14, y, tableW, 26, 'F');
-    doc.setDrawColor(orR, orG, orB);
-    doc.setLineWidth(0.5);
-    doc.rect(14, y, tableW, 26);
-    doc.setFontSize(8.5);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(bruR, bruG, bruB);
-    doc.text('Patnè fyab ou pou pwojè komès ak livrezon USA-Ayiti', 19, y + 9);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(50, 50, 50);
-    doc.setFontSize(8);
-    doc.text('Achte sou entènèt avè n ak konfyans.', 19, y + 16);
-    doc.text('Mòd pèman: Cash · Natcash · Sogebank · Zelle', 19, y + 22);
-    y += 31;
-
-    /* ══ 7. SIYATI ══ */
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(100, 100, 100);
-    doc.text('Siyati kliyan:', 14, y + 6);
-    doc.setDrawColor(160, 150, 135);
-    doc.setLineWidth(0.3);
-    doc.line(14, y + 15, 82, y + 15);
-
-    doc.setFontSize(13);
-    doc.setFont('times', 'bolditalic');
-    doc.setTextColor(40, 20, 5);
-    doc.text('Responsab Sid (Thomas Kabé)', pw - 14, y + 6, { align: 'right' });
-    doc.setDrawColor(orR, orG, orB);
-    doc.setLineWidth(0.5);
-    doc.line(pw - 14, y + 10, pw - 14 - 82, y + 10);
-
-    /* ══ 8. PYE PAJ ══ */
-    doc.setFillColor(tqR, tqG, tqB);
-    doc.rect(0, ph - 14, pw, 14, 'F');
-    doc.setFontSize(7.5);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(255, 255, 255);
-    doc.text(
-      'Les Cayes Dropshipping  ·  lescayesdropshipping@gmail.com  ·  +509 31 01 39 68  ·  Kan-Peren, Okay, Ayiti',
-      pw / 2, ph - 5.5, { align: 'center' }
-    );
-
-    const clientSlug = (e.clientName || 'Kliyan').trim().replace(/\s+/g, '_');
-    const fname = 'FichAcha_' + clientSlug + '_lcd' + String(e.invoiceNo || '0').padStart(4, '0') + '.pdf';
-    doc.save(fname);
-  });
-}
 
 /* ── Estokaj kliyan pou otokomplè ─────────────── */
 function getPosClients() {
