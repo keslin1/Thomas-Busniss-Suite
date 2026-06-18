@@ -113,40 +113,10 @@ function generateAchaInvoice() {
   hist.unshift(entry);
   if (hist.length > POS_MAX) hist.length = POS_MAX;
   saveAchaHistory(hist);
-  savePosClient(clientName, clientAddr);
-
-  /* Mise à jour dépenses kliyan si nom reconnu */
-  if (clientName && grandTotal > 0) {
-    updateCustomerSpendingFromAcha(clientName, grandTotal, 'Fich Acha #' + invoiceNo);
-  }
 
   buildAchaPdf(entry);
   showToast('Fich Acha #' + invoiceNo + ' jenere');
   renderPosHistory();
-}
-
-/* ── Mete ajou depans kliyan depuis Acha ─── */
-function updateCustomerSpendingFromAcha(name, amount, desc) {
-  if (typeof getCustomers !== 'function') return;
-  const list = getCustomers();
-  const idx  = list.findIndex(c => c.name.toLowerCase() === name.toLowerCase());
-  if (idx === -1) return;
-
-  const prevTotal = (typeof getTotalDepenses === 'function') ? getTotalDepenses(list[idx]) : 0;
-  const prevRank  = (typeof getTierRank === 'function')      ? getTierRank(prevTotal) : 0;
-
-  if (!list[idx].transactions) list[idx].transactions = [];
-  list[idx].transactions.push({ id: uid(), amount, desc, txType: 'depans', date: Date.now() });
-  list[idx].updatedAt = Date.now();
-
-  if (typeof saveCustomers === 'function') saveCustomers(list);
-
-  const newTotal = (typeof getTotalDepenses === 'function') ? getTotalDepenses(list[idx]) : 0;
-  const newRank  = (typeof getTierRank === 'function')      ? getTierRank(newTotal) : 0;
-  if (newRank > prevRank && typeof showCelebrationModal === 'function') {
-    const badge = getClientBadge(list[idx]);
-    showCelebrationModal(list[idx].name, badge);
-  }
 }
 
 /* ── Efase fomilè Acha ───────────────────── */
