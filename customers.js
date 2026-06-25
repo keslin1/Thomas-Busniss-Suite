@@ -10,7 +10,7 @@
    ══════════════════════════════════════════════ */
 
 const CUST_KEY = 'tbs_customers';
-let customerSortMode = 'activity'; // tri par défaut = activité
+let customerSortMode = 'name'; // tri par défaut = alphabétique
 let currentCustomerId = null;
 
 const AVATAR_PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%23222'/%3E%3Ccircle cx='32' cy='26' r='12' fill='%23555'/%3E%3Cellipse cx='32' cy='52' rx='18' ry='12' fill='%23555'/%3E%3C/svg%3E";
@@ -158,6 +158,7 @@ function renderCustomers() {
 
   if (customerSortMode === 'name')     list.sort((a, b) => a.name.localeCompare(b.name));
   else if (customerSortMode === 'amount') list.sort((a, b) => getTotalDepenses(b) - getTotalDepenses(a));
+  else if (customerSortMode === 'bilan15') list.sort((a, b) => a.name.localeCompare(b.name));
   else if (customerSortMode === 'activity') list.sort((a, b) => getActivityScore(b) - getActivityScore(a));
   else list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
 
@@ -201,7 +202,168 @@ function sortCustomers(mode, btn) {
   customerSortMode = mode;
   document.querySelectorAll('#customersScreen .sort-tab').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
-  renderCustomers();
+  if (mode === 'bilan15') {
+    showBilan15Modal();
+  } else {
+    renderCustomers();
+  }
+}
+
+/* ══════════════════════════════════════════════
+   TOTAL — Bilan 15 jours + Historique mensuel
+   ══════════════════════════════════════════════ */
+const BILAN_KEY = 'tbs_bilan_history';
+
+function getBilanHistory() {
+  try { return JSON.parse(localStorage.getItem(BILAN_KEY)) || []; }
+  catch { return []; }
+}
+
+function saveBilanHistory(list) {
+  localStorage.setItem(BILAN_KEY, JSON.stringify(list));
+}
+
+function getDepenses15Jours(c) {
+  const now   = Date.now();
+  const limit = now - (15 * 24 * 60 * 60 * 1000); // 15 jours en ms
+  return (c.transactions || [])
+    .filter(t => (t.txType === 'depans' || !t.txType) && t.date >= limit)
+    .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+}
+
+function showBilan15Modal() {
+  const old = document.getElementById('bilan15Modal');
+  if (old) old.remove();
+
+  const list       = getCustomers();
+  const now        = Date.now();
+  const limit15    = now - (15 * 24 * 60 * 60 * 1000);
+  const mois       = new Date().toLocaleDateString('fr-HT', { month: 'long', year: 'numeric' });
+
+  /* Calcul total 15 jours */
+  let total15 = 0;
+  const rows  = list.map(c => {
+    const dep = getDepenses15Jours(c);
+    total15  += dep;
+    return { name: c.name, dep };
+  }).filter(r => r.dep > 0).sort((a, b) => b.dep - a.dep);
+
+  /* Historique mensuel */
+  const history = getBilanHistory();
+
+  /* Vérifier si un bilan ce mois existe déjà */
+  const moisKey = new Date().toISOString().slice(0, 7); // "2026-06"
+  const alreadySaved = history.find(h => h.moisKey === moisKey);
+
+  const rowsHtml = rows.length === 0
+    ? `<div style="color:rgba(200,190,175,0.5);font-size:0.85rem;padding:12px 0;text-align:center;">Okenn depans nan 15 dènye jou yo.</div>`
+    : rows.map(r => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
+          <span style="font-family:'Rajdhani',sans-serif;font-size:0.9rem;color:#ddd8cc;">${custEsc(r.name)}</span>
+          <span style="font-family:'Space Mono',monospace;font-size:0.85rem;color:#d4af37;font-weight:700;">${fmtCurrency(r.dep)}</span>
+        </div>`).join('');
+
+  const historyHtml = history.length === 0
+    ? `<div style="color:rgba(200,190,175,0.4);font-size:0.8rem;text-align:center;padding:8px 0;">Okenn istorik sove ankò.</div>`
+    : [...history].reverse().map(h => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
+          <span style="font-size:0.8rem;color:rgba(200,190,175,0.65);font-family:'Rajdhani',sans-serif;">${custEsc(h.mois)}</span>
+          <span style="font-family:'Space Mono',monospace;font-size:0.82rem;color:#4caf97;font-weight:700;">${fmtCurrency(h.total)}</span>
+        </div>`).join('');
+
+  const modal = document.createElement('div');
+  modal.id = 'bilan15Modal';
+  modal.style.cssText = `
+    position:fixed;inset:0;z-index:8888;
+    display:flex;align-items:flex-end;justify-content:center;
+    background:rgba(0,0,0,0.75);backdrop-filter:blur(4px);
+  `;
+
+  modal.innerHTML = `
+    <div style="
+      background:#13111a;border-radius:18px 18px 0 0;
+      border-top:2px solid #0e7490;
+      width:100%;max-width:520px;
+      padding:20px 18px 36px;
+      max-height:88vh;overflow-y:auto;
+      display:flex;flex-direction:column;gap:16px;
+    ">
+      <!-- En-tête -->
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <div style="font-family:'Rajdhani',sans-serif;font-size:1rem;font-weight:700;color:#fff;letter-spacing:0.05em;">
+            💰 TOTAL — 15 Dènye Jou
+          </div>
+          <div style="font-size:0.72rem;color:rgba(200,190,175,0.5);margin-top:2px;">${custEsc(mois)}</div>
+        </div>
+        <button onclick="document.getElementById('bilan15Modal').remove()" style="
+          background:rgba(255,255,255,0.1);border:none;border-radius:8px;
+          color:#fff;width:32px;height:32px;cursor:pointer;font-size:0.9rem;">✕</button>
+      </div>
+
+      <!-- Total 15j highlight -->
+      <div style="
+        background:rgba(14,116,144,0.15);border:1px solid rgba(14,116,144,0.4);
+        border-radius:14px;padding:16px 18px;text-align:center;
+      ">
+        <div style="font-size:0.72rem;color:rgba(200,190,175,0.55);letter-spacing:0.08em;font-family:'Rajdhani',sans-serif;text-transform:uppercase;margin-bottom:6px;">
+          Total antré (15 jou)
+        </div>
+        <div style="font-family:'Space Mono',monospace;font-size:1.8rem;font-weight:700;color:#d4af37;">
+          ${fmtCurrency(total15)}
+        </div>
+      </div>
+
+      <!-- Détail kliyan yo -->
+      <div>
+        <div style="font-size:0.7rem;font-weight:700;color:rgba(200,190,175,0.5);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;margin-bottom:6px;text-transform:uppercase;">Detay pa kliyan</div>
+        ${rowsHtml}
+      </div>
+
+      <!-- Bouton sauvegarder bilan mensuel -->
+      <button onclick="saveBilanMensuel(${total15})" style="
+        width:100%;padding:11px;border-radius:12px;
+        background:${alreadySaved ? 'rgba(255,255,255,0.06)' : 'linear-gradient(135deg,#0e7490,#0a5568)'};
+        border:1px solid ${alreadySaved ? 'rgba(255,255,255,0.12)' : '#0e7490'};
+        color:${alreadySaved ? 'rgba(200,190,175,0.4)' : '#fff'};
+        font-family:'Rajdhani',sans-serif;font-size:0.9rem;font-weight:600;
+        letter-spacing:0.05em;cursor:${alreadySaved ? 'default' : 'pointer'};
+      " ${alreadySaved ? 'disabled' : ''}>
+        ${alreadySaved ? '✔ Bilan mwa sa a deja sove' : '💾 Sove bilan mwa ' + custEsc(mois)}
+      </button>
+
+      <!-- Historique mensuel -->
+      <div>
+        <div style="font-size:0.7rem;font-weight:700;color:rgba(200,190,175,0.5);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;margin-bottom:6px;text-transform:uppercase;">📁 Istorik Mansyèl</div>
+        ${historyHtml}
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+}
+
+function saveBilanMensuel(total) {
+  const moisKey = new Date().toISOString().slice(0, 7);
+  const mois    = new Date().toLocaleDateString('fr-HT', { month: 'long', year: 'numeric' });
+  const history = getBilanHistory();
+
+  if (history.find(h => h.moisKey === moisKey)) {
+    showToast('⚠️ Bilan mwa sa a deja sove');
+    return;
+  }
+
+  history.push({
+    moisKey,
+    mois,
+    total,
+    savedAt: Date.now(),
+  });
+  saveBilanHistory(history);
+  showToast('✅ Bilan ' + mois + ' sove');
+  /* Recharger le modal pour refléter le nouveau statut */
+  showBilan15Modal();
 }
 
 /* ── Customer Form ──────────────────────────── */

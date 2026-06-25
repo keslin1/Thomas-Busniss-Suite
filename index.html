@@ -185,9 +185,9 @@
     <div class="module-toolbar">
       <input type="search" id="customerSearch" placeholder="🔍  Chèche kliyan..." class="search-input" oninput="filterCustomers()" />
       <div class="sort-tabs">
-        <button class="sort-tab active" onclick="sortCustomers('recent',this)">Resan</button>
+        <button class="sort-tab active" onclick="sortCustomers('name',this)">Non kliyan</button>
         <button class="sort-tab" onclick="sortCustomers('amount',this)">Total $</button>
-        <button class="sort-tab" onclick="sortCustomers('name',this)">Non</button>
+        <button class="sort-tab" onclick="sortCustomers('bilan15',this)">Total</button>
       </div>
       <div class="action-bar">
         <button class="action-sm" onclick="emailAllCustomers()">📧 Email tout</button>

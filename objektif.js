@@ -179,18 +179,9 @@ function renderObjCard(obj) {
     </div>`;
 }
 
-/*
-  renderPlanItem v3 :
-  - Suppression de la case à cocher
-  - Poignée drag handle à gauche
-  - Clic sur le texte → édition inline
-  - Boutons ✔ / ✕ / ↺ maintenus
-  - Boutons ✏️ et 🗑️ maintenus
-*/
 function renderPlanItem(objId, p) {
   let statusClass = '';
   if (p.status === 'check') statusClass = 'plan-success';
-  if (p.status === 'fail')  statusClass = 'plan-fail';
 
   const hasProof  = !!p.proof;
   const proofHtml = p.proof
@@ -198,12 +189,11 @@ function renderPlanItem(objId, p) {
     : '';
   const dueTxt = p.dueDate ? `<span>Limit: ${objFmtDate(p.dueDate)}</span>` : '';
 
-  /* Boutons de statut (sans case à cocher) */
+  /* Boutons de statut : uniquement ✔ (accompli) ou ↺ (remettre en attente) */
   let actionBtns = '';
   if (p.status === 'pending') {
     actionBtns = `
-      <button class="plan-btn check" onclick="setPlanStatus('${objId}','${p.id}','check')" title="Accompli">✔</button>
-      <button class="plan-btn fail"  onclick="setPlanStatus('${objId}','${p.id}','fail')"  title="Non accompli">✕</button>`;
+      <button class="plan-btn check" onclick="setPlanStatus('${objId}','${p.id}','check')" title="Accompli">✔</button>`;
   } else {
     actionBtns = `
       <button class="plan-btn cancel" onclick="setPlanStatus('${objId}','${p.id}','pending')" title="Remete an atant">↺</button>`;
@@ -517,15 +507,15 @@ function savePlan() {
     obj.updatedAt = Date.now();
     objShowToast('✅ Plan modifye');
   } else {
-    /* Ordre : placer le nouveau plan à la fin */
-    const maxOrder = obj.plans.reduce((mx, p) => Math.max(mx, p.order ?? 0), -1);
+    /* Ordre : placer le nouveau plan EN TÊTE (order le plus bas) */
+    const minOrder = obj.plans.reduce((mn, p) => Math.min(mn, p.order ?? 0), 0);
     obj.plans.push({
       id:        objUid(),
       text,
       dueDate,
       status:    'pending',
       proof:     null,
-      order:     maxOrder + 1,
+      order:     minOrder - 1,
       createdAt: Date.now(),
     });
     obj.updatedAt = Date.now();
@@ -567,10 +557,154 @@ function setPlanStatus(objId, planId, status) {
 
   const msgs = {
     check:   '✔️ Plan akompli!',
-    fail:    '✕ Plan non akompli',
     pending: '↺ Plan remete an atant',
   };
   objShowToast(msgs[status] || '');
+
+  /* ── Félicitations si 100% accompli ── */
+  if (status === 'check') {
+    const pct = calcProgress(obj.plans);
+    if (pct === 100 && obj.plans.length > 0) {
+      showObjCelebration(obj.title);
+    }
+  }
+}
+
+/* ══════════════════════════════════════════════
+   FENÊTRE FÉLICITATIONS — 100% ACCOMPLI
+   ══════════════════════════════════════════════ */
+function showObjCelebration(objTitle) {
+  const old = document.getElementById('objCelebModal');
+  if (old) old.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'objCelebModal';
+  modal.style.cssText = `
+    position:fixed;inset:0;z-index:9999;
+    display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,0.82);backdrop-filter:blur(6px);
+    animation:objCelebFadeIn 0.4s cubic-bezier(0.34,1.56,0.64,1);
+  `;
+
+  modal.innerHTML = `
+    <style>
+      @keyframes objCelebFadeIn {
+        from { opacity:0; transform:scale(0.7); }
+        to   { opacity:1; transform:scale(1);   }
+      }
+      @keyframes objStarPulse {
+        0%,100% { transform:scale(1) rotate(0deg);   opacity:1;   }
+        50%      { transform:scale(1.3) rotate(15deg); opacity:0.8; }
+      }
+      @keyframes objConfettiFall {
+        0%   { transform:translateY(-30px) rotate(0deg);   opacity:1; }
+        100% { transform:translateY(130vh) rotate(900deg); opacity:0; }
+      }
+      @keyframes objShine {
+        0%,100% { box-shadow:0 0 30px #a855f7aa, 0 0 60px #6366f1aa; }
+        50%      { box-shadow:0 0 60px #a855f7, 0 0 120px #6366f1; }
+      }
+      @keyframes objTextGlow {
+        0%,100% { text-shadow:0 0 10px #fff8; }
+        50%      { text-shadow:0 0 30px #fff, 0 0 60px #a855f7; }
+      }
+      .obj-celeb-star {
+        display:inline-block;
+        animation:objStarPulse 1.2s ease-in-out infinite;
+      }
+      .obj-celeb-confetti {
+        position:absolute;
+        border-radius:3px;
+        animation:objConfettiFall linear infinite;
+      }
+    </style>
+
+    <div style="
+      position:relative;overflow:hidden;
+      background:linear-gradient(145deg,#1a0533,#0d1a3c,#0a2a1a);
+      border:2px solid #8b3dbc;border-radius:24px;
+      padding:40px 30px 32px;text-align:center;
+      max-width:330px;width:90%;
+      animation:objShine 2s ease-in-out infinite;
+    " id="objCelebInner">
+
+      <!-- Confettis -->
+      <div id="objConfettiBox" style="position:absolute;inset:0;pointer-events:none;overflow:hidden;"></div>
+
+      <!-- Étoiles animées -->
+      <div style="font-size:2.6rem;margin-bottom:10px;letter-spacing:6px;">
+        <span class="obj-celeb-star" style="animation-delay:0s;">⭐</span>
+        <span class="obj-celeb-star" style="animation-delay:0.2s;">🏆</span>
+        <span class="obj-celeb-star" style="animation-delay:0.4s;">⭐</span>
+      </div>
+
+      <!-- BRAVO -->
+      <div style="
+        font-family:'Cinzel',serif;font-size:2rem;font-weight:700;
+        color:#fff;letter-spacing:0.12em;margin-bottom:6px;
+        animation:objTextGlow 1.8s ease-in-out infinite;
+      ">BRAVO !</div>
+
+      <!-- Message -->
+      <div style="
+        font-family:'Rajdhani',sans-serif;font-size:1rem;
+        color:rgba(200,190,255,0.85);margin-bottom:10px;line-height:1.5;
+      ">Ou fin akonpli<br>tout plan yo nan :</div>
+
+      <!-- Titre objectif -->
+      <div style="
+        font-family:'Rajdhani',sans-serif;font-size:1.15rem;font-weight:700;
+        color:#c084fc;letter-spacing:0.05em;
+        background:rgba(139,61,188,0.2);border:1px solid rgba(139,61,188,0.4);
+        border-radius:12px;padding:10px 18px;margin-bottom:18px;
+      ">${objEsc(objTitle)}</div>
+
+      <!-- Badge 100% -->
+      <div style="
+        display:inline-block;
+        background:linear-gradient(135deg,#4ade80,#22c55e);
+        color:#052e16;font-family:'Space Mono',monospace;
+        font-size:1.4rem;font-weight:700;
+        padding:8px 24px;border-radius:30px;
+        margin-bottom:22px;
+        box-shadow:0 0 24px #4ade8088;
+      ">100% ✔</div>
+
+      <!-- Bouton fermer -->
+      <button onclick="document.getElementById('objCelebModal').remove()" style="
+        display:block;width:100%;
+        background:linear-gradient(135deg,#8b3dbc,#5a1d8a);
+        border:none;border-radius:14px;color:#fff;
+        font-family:'Rajdhani',sans-serif;font-size:1rem;font-weight:700;
+        letter-spacing:0.06em;padding:13px;cursor:pointer;
+        transition:opacity 0.2s;
+      ">🎉 Kontinye</button>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  /* Génère confettis */
+  const colors = ['#a855f7','#6366f1','#4ade80','#fbbf24','#f472b6','#fff','#c084fc'];
+  const box    = modal.querySelector('#objConfettiBox');
+  for (let i = 0; i < 55; i++) {
+    const c = document.createElement('div');
+    c.className = 'obj-celeb-confetti';
+    c.style.left              = Math.random() * 100 + '%';
+    c.style.top               = -(Math.random() * 80) + 'px';
+    c.style.width             = (5 + Math.random() * 10) + 'px';
+    c.style.height            = (5 + Math.random() * 10) + 'px';
+    c.style.background        = colors[Math.floor(Math.random() * colors.length)];
+    c.style.animationDuration = (2.5 + Math.random() * 3.5) + 's';
+    c.style.animationDelay    = (Math.random() * 2.5) + 's';
+    c.style.borderRadius      = Math.random() > 0.5 ? '50%' : '2px';
+    box.appendChild(c);
+  }
+
+  /* Fermeture au clic sur le fond */
+  modal.addEventListener('click', e => {
+    if (e.target === modal) modal.remove();
+  });
 }
 
 /* ── Proof (Photo preuve) ────────────────────── */
