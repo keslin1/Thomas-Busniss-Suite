@@ -300,7 +300,7 @@ function buildAchaPdf(e) {
       }
       if (e.delaiUSA) {
         doc.setFontSize(8); doc.setFont('helvetica', 'italic'); doc.setTextColor(80, 80, 80);
-        doc.text('Delè estimé pou ariv nan USA: ' + e.delaiUSA, 14, y); y += 6;
+        doc.text('Delè estime pou arivaj USA: ' + e.delaiUSA, 14, y); y += 6;
       }
       y += 4;
     }
@@ -347,7 +347,7 @@ function buildAchaPdf(e) {
     doc.text('Frè shipping USA → Ayiti (USD)', 18, y + 8); y += 12;
 
     const hasShipping = (e.shippingHT || 0) > 0;
-    const htLabel = hasShipping ? 'Frè shipping USA → Ayiti (USD)' : 'Frè shipping USA → Ayiti (USD)  (poko kofime)';
+    const htLabel = hasShipping ? 'Frè shipping USA → Ayiti (USD)' : 'Frè shipping USA → Ayiti (USD)  (poko konfime)';
     doc.setFillColor(252, 248, 242); doc.rect(14, y, tableW, 14, 'F');
     doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(30, 30, 30);
     doc.text(htLabel, 18, y + 7);
@@ -384,7 +384,7 @@ function buildAchaPdf(e) {
     doc.setFillColor(255, 243, 196); doc.rect(14, y, tableW, 18, 'F');
     doc.setDrawColor(bruR, bruG, bruB); doc.setLineWidth(0.6); doc.rect(14, y, tableW, 18);
     doc.setFontSize(13); doc.setFont('helvetica', 'bold'); doc.setTextColor(101, 51, 19);
-    doc.text('Balans rete (shipping)', 18, y + 11.5);
+    doc.text('Balans ou rete (shipping)', 18, y + 11.5);
     doc.setTextColor(bruR, bruG, bruB);
     if (brIsNum && br > 0) {
       doc.text('$' + br.toFixed(2), colMontX, y + 11.5, { align: 'right' });
