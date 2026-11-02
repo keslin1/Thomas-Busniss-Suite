@@ -294,6 +294,20 @@ function loadImg(src) {
   });
 }
 
+/* Tit antet : "LES CAYES DROPSHIPPING CO., LTD." — rapetise otomatikman si li twò laj */
+function drawCompanyTitle(doc, x, y) {
+  const txt = 'LES CAYES DROPSHIPPING CO., LTD.';
+  let size = 15;
+  doc.setFont('helvetica', 'bold');
+  if (typeof doc.getTextWidth === 'function') {
+    doc.setFontSize(size);
+    while (size > 10 && doc.getTextWidth(txt) > 102) { size -= 0.5; doc.setFontSize(size); }
+  }
+  doc.setFontSize(size);
+  doc.setTextColor(255, 255, 255);
+  doc.text(txt, x, y);
+}
+
 /* Siyati manuscrit : kenbe pwopòsyon, retire fon blan an (transparan) */
 function loadImgRaw(src) {
   return new Promise(resolve => {
@@ -432,8 +446,7 @@ function drawAchaFiche(doc, e, imgs, ph) {
   if (imgData) doc.addImage(imgData, 'PNG', 8, 7, 30, 30);
 
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(15); doc.setFont('helvetica', 'bold');
-  doc.text('LES CAYES DROPSHIPPING', 44, 17);
+  drawCompanyTitle(doc, 44, 17);
   doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(220, 242, 248);
   doc.text('USA: 14030 NW 5th Pl, North Miami, FL', 44, 25);
   doc.text('Haiti: Miragoane, Les Cayes', 44, 31);
@@ -534,7 +547,9 @@ function drawAchaFiche(doc, e, imgs, ph) {
   doc.line(14, y - 12, 14 + tableW, y - 12);
   doc.line(14, y - 24, 14 + tableW, y - 24);
   doc.setDrawColor(orR, orG, orB); doc.setLineWidth(0.3);
-  doc.rect(14, tTop, tableW, y - tTop);
+  doc.line(14, tTop, 14, y);                    // gòch
+  doc.line(14, y, 14 + tableW, y);              // anba
+  /* pa gen liy sou bò dwat : montan yo pa dwe travèse l */
   y += 4;
 
   /* TOTAL (USD) — jòn pal, tèks mawon */
@@ -819,10 +834,7 @@ function drawShippingFiche(doc, e, imgs, ph) {
     }
 
     /* Non konpayi */
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(15);
-    doc.setFont('helvetica', 'bold');
-    doc.text('LES CAYES DROPSHIPPING', 44, 17);
+    drawCompanyTitle(doc, 44, 17);
 
     /* Adres sou 3 liy */
     doc.setFontSize(7.5);
