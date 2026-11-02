@@ -282,6 +282,13 @@
 
     <!-- ══════════ FICH SHIPPING ══════════ -->
     <div id="posTabShipping" class="module-body scrollable">
+      <!-- ── Kliyan A / Kliyan B (2 fich pa paj PDF paysaj) ── -->
+      <div style="display:flex;gap:8px;padding:10px 14px 0;">
+        <button id="shipSlotBtn0" onclick="slotSwitch('ship',0)" style="flex:1;border:1px solid rgba(0,150,166,0.7);border-radius:8px;padding:9px 6px;font-size:0.8rem;cursor:pointer;background:rgba(0,150,166,0.25);color:#00acc1;">👤 Kliyan A</button>
+        <button id="shipSlotBtn1" onclick="slotSwitch('ship',1)" style="flex:1;border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:9px 6px;font-size:0.8rem;cursor:pointer;background:rgba(255,255,255,0.05);color:rgba(200,190,175,0.65);">👤 Kliyan B (opsyonèl)</button>
+      </div>
+      <div id="shipSlotInfo" style="padding:4px 16px 0;font-size:0.68rem;color:rgba(200,190,175,0.5);">Yon sèl fich — lòt mwatye paj la rete blan.</div>
+
       <!-- Client Name (autocomplete) -->
       <div class="pos-field-group">
         <label class="pos-label">Non kliyan</label>
@@ -369,6 +376,13 @@
 
     <!-- ══════════ FICH ACHA ══════════ -->
     <div id="posTabAcha" class="module-body scrollable" style="display:none;">
+      <!-- ── Kliyan A / Kliyan B (2 fich pa paj PDF paysaj) ── -->
+      <div style="display:flex;gap:8px;padding:10px 14px 0;">
+        <button id="achaSlotBtn0" onclick="slotSwitch('acha',0)" style="flex:1;border:1px solid rgba(0,150,166,0.7);border-radius:8px;padding:9px 6px;font-size:0.8rem;cursor:pointer;background:rgba(0,150,166,0.25);color:#00acc1;">👤 Kliyan A</button>
+        <button id="achaSlotBtn1" onclick="slotSwitch('acha',1)" style="flex:1;border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:9px 6px;font-size:0.8rem;cursor:pointer;background:rgba(255,255,255,0.05);color:rgba(200,190,175,0.65);">👤 Kliyan B (opsyonèl)</button>
+      </div>
+      <div id="achaSlotInfo" style="padding:4px 16px 0;font-size:0.68rem;color:rgba(200,190,175,0.5);">Yon sèl fich — lòt mwatye paj la rete blan.</div>
+
 
       <!-- Section titre -->
       <div style="padding:10px 14px 4px;border-bottom:1px solid rgba(212,175,55,0.2);margin-bottom:4px;">

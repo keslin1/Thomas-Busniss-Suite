@@ -112,10 +112,77 @@ const ACHA_FIELDS = {
   achatUsine: 'achaPrixUsine', shippingHT: 'achaShippingHaiti', note: 'achaNoteExplication'
 };
 
-function readAchaForm() {
-  const v = id => (document.getElementById(id)?.value || '').trim();
+/* ══════════════════════════════════════════════
+   2 KLIYAN PA PAJ — Kliyan A / Kliyan B nan menm fòmilè a
+   Yon sèl seri chan; bouton A/B chanje kliyan an (done yo sove).
+   B opsyonèl : si li vid → PDF pou yon sèl kliyan.
+   ══════════════════════════════════════════════ */
+const SLOT = {
+  ship: {
+    ids: ['posL','posW','posH','posWeight','posCustomPrice','posDebt','posChange',
+          'posClientName','posClientAddress','posDescription','posNote'],
+    slots: [{}, {}], active: 0, btn: 'shipSlotBtn', info: 'shipSlotInfo',
+    filled: o => !!(((o.posClientName || '').trim()) || parseFloat(o.posWeight) > 0 ||
+                    parseFloat(o.posCustomPrice) > 0 || parseFloat(o.posL) > 0),
+    calc: () => calcLive()
+  },
+  acha: {
+    ids: Object.values(ACHA_FIELDS),
+    slots: [{}, {}], active: 0, btn: 'achaSlotBtn', info: 'achaSlotInfo',
+    filled: o => !!(((o.achaClientName || '').trim()) || parseFloat(o.achaPrixUsine) > 0),
+    calc: () => calcAchaLive()
+  }
+};
+
+function slotSnap(t) {
+  const o = {};
+  SLOT[t].ids.forEach(id => { const el = document.getElementById(id); o[id] = el ? el.value : ''; });
+  return o;
+}
+function slotFill(t, o) {
+  SLOT[t].ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = (o && o[id] !== undefined) ? o[id] : ''; });
+}
+function slotCurrent(t) {          // [A, B] avèk kliyan aktif la ajou
+  const S = SLOT[t], arr = [S.slots[0], S.slots[1]];
+  arr[S.active] = slotSnap(t);
+  return arr;
+}
+function slotSwitch(t, i) {
+  const S = SLOT[t];
+  if (i === S.active) return;
+  S.slots[S.active] = slotSnap(t);
+  S.active = i;
+  slotFill(t, S.slots[i]);
+  S.calc();
+  slotUI(t);
+}
+function slotReset(t) {
+  const S = SLOT[t];
+  S.slots = [{}, {}]; S.active = 0;
+  slotFill(t, {});
+  S.calc();
+  slotUI(t);
+}
+function slotUI(t) {
+  const S = SLOT[t], cur = slotCurrent(t);
+  [0, 1].forEach(i => {
+    const b = document.getElementById(S.btn + i);
+    if (!b) return;
+    const on = S.active === i, ok = S.filled(cur[i]);
+    b.textContent = '👤 Kliyan ' + (i === 0 ? 'A' : 'B') + (i === 1 ? ' (opsyonèl)' : '') + (ok ? ' ✓' : '');
+    b.style.background  = on ? 'rgba(0,150,166,0.25)' : 'rgba(255,255,255,0.05)';
+    b.style.borderColor = on ? 'rgba(0,150,166,0.7)'  : 'rgba(255,255,255,0.12)';
+    b.style.color       = on ? '#00acc1' : 'rgba(200,190,175,0.65)';
+  });
+  const n = cur.filter(S.filled).length;
+  const info = document.getElementById(S.info);
+  if (info) info.textContent = n >= 2 ? '2 fich sou menm paj PDF paysaj.' : 'Yon sèl fich — lòt mwatye paj la rete blan.';
+}
+
+function readAchaForm(snap) {
+  snap = snap || slotSnap('acha');
   const f = {};
-  Object.keys(ACHA_FIELDS).forEach(k => { f[k] = v(ACHA_FIELDS[k]); });
+  Object.keys(ACHA_FIELDS).forEach(k => { f[k] = (snap[ACHA_FIELDS[k]] || '').trim(); });
   f.achatUsine = parseFloat(f.achatUsine) || 0;
   f.shippingHT = parseFloat(f.shippingHT) || 0;
   return f;
@@ -131,40 +198,44 @@ function setAchaEditUI(entry) {
 }
 
 function generateAchaInvoice() {
-  const f = readAchaForm();
-  const sousTotal  = f.achatUsine;
-  const grandTotal = sousTotal + f.shippingHT;
-
-  if (!f.clientName && grandTotal <= 0) {
-    showToast('Antre omwen non kliyan oswa montan yo');
-    return;
-  }
-
+  const cur = slotCurrent('acha');
   const hist = getAchaHistory();
-  const idx  = achaEditingId ? hist.findIndex(h => h.id === achaEditingId) : -1;
-  let entry;
-  if (idx >= 0) {
-    entry = { ...hist[idx], ...f, sousTotal, grandTotal, updatedAt: Date.now() };
-    hist[idx] = entry;
-  } else {
-    entry = { id: uid(), type: 'acha', invoiceNo: nextInvoiceNo('acha'), ...f, sousTotal, grandTotal, date: Date.now() };
-    hist.unshift(entry);
-  }
-  if (hist.length > POS_MAX) hist.length = POS_MAX;
-  saveAchaHistory(hist);
-  savePosClient(f.clientName, f.clientAddr);
+  const entries = [];
 
-  buildFichesPdf('acha', [entry]);
-  showToast('Fich Acha #' + entry.invoiceNo + (idx >= 0 ? ' mete ajou' : ' jenere'));
+  cur.forEach((snap, i) => {
+    if (!SLOT.acha.filled(snap)) return;
+    const f = readAchaForm(snap);
+    const sousTotal  = f.achatUsine;
+    const grandTotal = sousTotal + f.shippingHT;
+    const idx = (i === 0 && achaEditingId) ? hist.findIndex(h => h.id === achaEditingId) : -1;
+    let entry;
+    if (idx >= 0) {
+      entry = { ...hist[idx], ...f, sousTotal, grandTotal, updatedAt: Date.now() };
+      hist[idx] = entry;
+    } else {
+      entry = { id: uid(), type: 'acha', invoiceNo: nextInvoiceNo('acha'), ...f, sousTotal, grandTotal, date: Date.now() };
+      hist.unshift(entry);
+    }
+    entry._updated = idx >= 0;
+    entries.push(entry);
+    savePosClient(f.clientName, f.clientAddr);
+  });
+
+  if (!entries.length) { showToast('Antre omwen non kliyan oswa montan yo'); return; }
+
+  if (hist.length > POS_MAX) hist.length = POS_MAX;
+  saveAchaHistory(hist.map(h => { const c = { ...h }; delete c._updated; return c; }));
+
+  buildFichesPdf('acha', entries);
+  showToast('Fich Acha ' + entries.map(e => '#' + e.invoiceNo).join(' + ') + (entries[0]._updated ? ' mete ajou' : ' jenere'));
   clearAchaForm(true);
   refreshHistoryIfOpen();
 }
 
 function clearAchaForm(silent) {
-  Object.values(ACHA_FIELDS).forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   achaEditingId = null;
   setAchaEditUI(null);
-  calcAchaLive();
+  slotReset('acha');
   if (silent !== true) showToast('Fomilè efase');
 }
 
@@ -173,6 +244,7 @@ function editAchaFiche(id) {
   const entry = getAchaHistory().find(h => h.id === id);
   if (!entry) return;
   if (currentPosTab !== 'acha') switchPosTab('acha');
+  slotReset('acha');
   Object.keys(ACHA_FIELDS).forEach(k => {
     const el = document.getElementById(ACHA_FIELDS[k]);
     if (!el) return;
@@ -182,6 +254,7 @@ function editAchaFiche(id) {
   achaEditingId = id;
   setAchaEditUI(entry);
   calcAchaLive();
+  slotUI('acha');
   document.getElementById('posHistoryPanel')?.classList.add('hidden');
   document.getElementById('posTabAcha')?.scrollTo?.({ top: 0, behavior: 'smooth' });
   showToast('Fich #' + entry.invoiceNo + ' chaje — ajoute shipping la');
@@ -193,6 +266,19 @@ function editAchaFiche(id) {
    a echèl nan yon mwatye paj (148.5 × 210 mm = A5 pòtrè).
    Yon sèl fich → lòt mwatye a rete blan.
    ══════════════════════════════════════════════ */
+/* Eseye plizyè non fichye (png/jpg, majiskil/minisk) — premye ki chaje a genyen */
+function platCandidates(key) {
+  const base = PLAT_MAP[key].file.replace(/\.\w+$/, '');
+  const names = [...new Set([base, base.charAt(0).toUpperCase() + base.slice(1), PLAT_MAP[key].label])];
+  const out = [];
+  names.forEach(n => ['png', 'jpg', 'jpeg'].forEach(x => out.push(n + '.' + x)));
+  return out;
+}
+async function loadImgAny(list) {
+  for (const src of list) { const d = await loadImg(src); if (d) return d; }
+  return null;
+}
+
 function loadImg(src) {
   return new Promise(resolve => {
     const img = new Image();
@@ -215,15 +301,17 @@ function buildFichesPdf(type, entries) {
   const { jsPDF } = window.jspdf;
   const drawFn = type === 'acha' ? drawAchaFiche : drawShippingFiche;
 
-  const srcs = ['lescayesdropshipping.png'];
+  const platKeys = [];
   if (type === 'acha') {
-    entries.forEach(e => [e.plateforme, e.plateforme2].forEach(p => { if (PLAT_MAP[p]) srcs.push(PLAT_MAP[p].file); }));
+    entries.forEach(e => [e.plateforme, e.plateforme2].forEach(p => { if (PLAT_MAP[p] && !platKeys.includes(p)) platKeys.push(p); }));
   }
-  const uniq = [...new Set(srcs)];
 
-  Promise.all(uniq.map(loadImg)).then(res => {
-    const imgs = {};
-    uniq.forEach((s, i) => { imgs[s] = res[i]; });
+  Promise.all([
+    loadImg('lescayesdropshipping.png'),
+    ...platKeys.map(k => loadImgAny(platCandidates(k)))
+  ]).then(res => {
+    const imgs = { 'lescayesdropshipping.png': res[0] };
+    platKeys.forEach((k, i) => { imgs['plat:' + k] = res[i + 1]; });
 
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
     const k = doc.internal.scaleFactor;
@@ -308,7 +396,7 @@ function drawAchaFiche(doc, e, imgs, ph) {
   if (plats.length) {
     const n = plats.length, totalW = n === 1 ? 40 : 52, bx = pw - 12 - totalW, slotW = totalW / n;
     plats.forEach((p, i) => {
-      const d = imgs[PLAT_MAP[p].file], x = bx + i * slotW;
+      const d = imgs['plat:' + p], x = bx + i * slotW;
       if (d) doc.addImage(d, 'PNG', x + 2, 33, slotW - 4, 10);
       else {
         doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255);
@@ -435,31 +523,21 @@ function drawAchaFiche(doc, e, imgs, ph) {
     doc.line(14, y, pw - 14, y); y += 9;
   }
 
-  /* 6. MARKETING */
+  /* 6. MARKETING — san fon ni fòm, an italik (pou fich la respire) */
   const msg1 = 'Siw gen machandiz ki entèresew sou sit chinwa yo, ou ka pataje link yo avèk nou pou edew evalye pri l oswa achte li pou ou.';
   const msg2 = 'Les Cayes Dropshipping, nou se patnè fyab ou pou pwojè komès ak livrezon USA-Ayiti.';
   const msg3 = 'Mòd pèman: Cash · Natcash · Sogebank · Zelle';
-  doc.setFontSize(8.5); doc.setFont('helvetica', 'italic');
-  const msg1Lines = doc.splitTextToSize(msg1, tableW - 16);
-  doc.setFontSize(8); doc.setFont('helvetica', 'bold');
-  const msg2Lines = doc.splitTextToSize(msg2, tableW - 16);
-  doc.setFont('helvetica', 'normal');
-  const msg3Lines = doc.splitTextToSize(msg3, tableW - 16);
-  const lineH1 = 5.5, lineH2 = 5.2, lineH3 = 5.2;
-  const boxH = 10 + msg1Lines.length * lineH1 + 5 + msg2Lines.length * lineH2 + 4 + msg3Lines.length * lineH3 + 8;
-  doc.setFillColor(246, 242, 236); doc.rect(14, y, tableW, boxH, 'F');
-  doc.setDrawColor(orR, orG, orB); doc.setLineWidth(0.5); doc.rect(14, y, tableW, boxH);
-
-  let ty = y + 9;
+  doc.setDrawColor(orR, orG, orB); doc.setLineWidth(0.5);
+  doc.line(14, y, pw - 14, y); y += 8;
   doc.setFontSize(8.5); doc.setFont('helvetica', 'italic'); doc.setTextColor(bruR, bruG, bruB);
-  doc.text(msg1Lines, 22, ty); ty += msg1Lines.length * lineH1 + 5;
-  doc.setDrawColor(212, 175, 55); doc.setLineWidth(0.3);
-  doc.line(22, ty, pw - 22, ty); ty += 4;
-  doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(bruR, bruG, bruB);
-  doc.text(msg2Lines, 22, ty); ty += msg2Lines.length * lineH2 + 4;
-  doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(70, 70, 70);
-  doc.text(msg3Lines, 22, ty);
-  y += boxH + 8;
+  const msg1Lines = doc.splitTextToSize(msg1, tableW);
+  doc.text(msg1Lines, 14, y); y += msg1Lines.length * 5.5 + 3;
+  doc.setFontSize(8); doc.setFont('helvetica', 'bolditalic'); doc.setTextColor(bruR, bruG, bruB);
+  const msg2Lines = doc.splitTextToSize(msg2, tableW);
+  doc.text(msg2Lines, 14, y); y += msg2Lines.length * 5.2 + 2;
+  doc.setFont('helvetica', 'italic'); doc.setTextColor(70, 70, 70);
+  const msg3Lines = doc.splitTextToSize(msg3, tableW);
+  doc.text(msg3Lines, 14, y); y += msg3Lines.length * 5.2 + 8;
 
   /* 7. SIYATI */
   doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 100, 100);
@@ -614,40 +692,38 @@ function removePosDropdown() {
 
 /* ── Jenere Fakti PDF ─────────────────────────── */
 function generatePOSInvoice() {
-  const clientName = (document.getElementById('posClientName')?.value   || '').trim();
-  const clientAddr = (document.getElementById('posClientAddress')?.value || '').trim();
-  const desc       = (document.getElementById('posDescription')?.value   || '').trim();
-  const noteField  = (document.getElementById('posNote')?.value          || '').trim();
+  const cur    = slotCurrent('ship');
+  const backup = SLOT.ship.active;
+  const hist   = getPosHistory();
+  const entries = [];
 
-  const vals = calcLive();
+  cur.forEach(snap => {
+    if (!SLOT.ship.filled(snap)) return;
+    slotFill('ship', snap);              // calcLive() li chan yo
+    const vals = calcLive();
+    const clientName = (snap.posClientName || '').trim();
+    const clientAddr = (snap.posClientAddress || '').trim();
+    const entry = {
+      id: uid(), invoiceNo: nextInvoiceNo('pos'),
+      clientName, clientAddr,
+      desc: (snap.posDescription || '').trim(), note: (snap.posNote || '').trim(),
+      ...vals,
+      dimL: parseFloat(snap.posL) || 0, dimW: parseFloat(snap.posW) || 0, dimH: parseFloat(snap.posH) || 0,
+      date: Date.now(),
+    };
+    hist.unshift(entry);
+    entries.push(entry);
+    savePosClient(clientName, clientAddr);
+  });
+  slotFill('ship', cur[backup]);         // remèt kliyan aktif la
+  calcLive();
 
-  if (vals.finalWeight <= 0 && vals.customPrice <= 0 && !clientName) {
-    showToast('Antre omwen pwa oswa non kliyan');
-    return;
-  }
+  if (!entries.length) { showToast('Antre omwen pwa oswa non kliyan'); return; }
 
-  /* Nimewo fakti otomatik */
-  const hist      = getPosHistory();
-  const invoiceNo = nextInvoiceNo('pos');
-
-  const entry = {
-    id: uid(),
-    invoiceNo,
-    clientName, clientAddr, desc, note: noteField,
-    ...vals,
-    dimL: parseFloat(document.getElementById('posL')?.value) || 0,
-    dimW: parseFloat(document.getElementById('posW')?.value) || 0,
-    dimH: parseFloat(document.getElementById('posH')?.value) || 0,
-    date: Date.now(),
-  };
-
-  hist.unshift(entry);
   if (hist.length > POS_MAX) hist.length = POS_MAX;
   savePosHistory(hist);
-  savePosClient(clientName, clientAddr);
-
-  buildFichesPdf('shipping', [entry]);
-  showToast('Fakti #' + invoiceNo + ' jenere');
+  buildFichesPdf('shipping', entries);
+  showToast('Fakti ' + entries.map(e => '#' + e.invoiceNo).join(' + ') + ' jenere');
   renderPosHistory();
 }
 
@@ -1098,12 +1174,7 @@ function renderPosHistory() {
 /* ── Efase fomilè (tab-aware) ────────────────── */
 function clearPosForm() {
   if (currentPosTab === 'acha') { clearAchaForm(); return; }
-  ['posL','posW','posH','posWeight','posCustomPrice','posDebt','posChange',
-   'posClientName','posClientAddress','posDescription','posNote'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = '';
-  });
-  calcLive();
+  slotReset('ship');
   showToast('Fomilè efase');
 }
 
@@ -1126,6 +1197,12 @@ document.addEventListener('DOMContentLoaded', () => {
     achaNameInput.addEventListener('blur', () => setTimeout(removeAchaDropdown, 200));
   }
   setAchaEditUI(null);
+
+  /* Bouton Kliyan A / B + endikatè ✓ */
+  document.getElementById('posTabShipping')?.addEventListener('input', () => slotUI('ship'));
+  document.getElementById('posTabAcha')?.addEventListener('input', () => slotUI('acha'));
+  slotUI('ship');
+  slotUI('acha');
 });
 
 /* ── Otokomplete Acha ──────────────────────────
