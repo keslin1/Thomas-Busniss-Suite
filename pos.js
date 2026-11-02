@@ -189,7 +189,7 @@ function buildAchaPdf(e) {
       doc.rect(0, ph - 14, pw, 14, 'F');
       doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(255, 255, 255);
       doc.text(
-        'Les Cayes Dropshipping  ·  lescayesdropshipping@gmail.com  ·  +509 31 01 39 68  ·  Kan-Peren, Okay, Ayiti',
+        'Les Cayes Dropshipping  _  +509 35 60 88 69  _  Aux Cayes, rue du Vivier #67',
         pw / 2, ph - 8, { align: 'center' }
       );
       if (total > 1) {
@@ -234,8 +234,8 @@ function buildAchaPdf(e) {
     doc.setFontSize(7.5); doc.setFont('helvetica', 'normal');
     doc.setTextColor(220, 242, 248);
     doc.text('USA: 14030 NW 5th Pl, North Miami, FL', 44, 25);
-    doc.text('Haiti: Pòtoprens · Okap · Miragwàn · Okay · Kan-Peren · Leyogàn · Jeremi', 44, 31);
-    doc.text('+509 31 01 39 68  ·  lescayesdropshipping@gmail.com', 44, 37);
+    doc.text('Haiti: Miragoane, Les Cayes', 44, 31);
+    doc.text('+509 35 60 88 69  -  lescayesdropshipping@gmail.com', 44, 37);
 
     const dateTxt = new Date(e.date).toLocaleDateString('fr-HT', { day:'2-digit', month:'2-digit', year:'numeric' });
     doc.setFontSize(10); doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255);
@@ -726,8 +726,8 @@ function buildPOSPdf(e) {
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(220, 242, 248);
     doc.text('USA: 14030 NW 5th Pl, North Miami, FL', 44, 25);
-    doc.text('Haiti: Pòtoprens · Okap · Miragwàn · Okay · Kan-Peren · Leyogàn · Jeremi', 44, 31);
-    doc.text('+509 31 01 39 68  ·  lescayesdropshipping@gmail.com', 44, 37);
+    doc.text('Haiti: Miragoane, Les Cayes', 44, 31);
+    doc.text('+509 35 60 88 69  ·  lescayesdropshipping@gmail.com', 44, 37);
 
     /* Nimewo fakti + dat — kwen dwat antet */
     const dateTxt = new Date(e.date).toLocaleDateString('fr-HT', {
@@ -1037,7 +1037,7 @@ doc.saveGraphicsState();
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(255, 255, 255);
     doc.text(
-      'Les Cayes Dropshipping  ·  lescayesdropshipping@gmail.com  ·  +509 31 01 39 68  ·  Kan-Peren, Okay, Ayiti',
+      'Les Cayes Dropshipping  _  lescayesdropshipping@gmail.com  _  +509 35 60 88 69 ·  Aux Cayes, rue du Vivier #67',
       pw / 2, ph - 5.5, { align: 'center' }
     );
 
@@ -1365,8 +1365,8 @@ function buildPOSPdf(e) {
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(220, 242, 248);
     doc.text('USA: 14030 NW 5th Pl, North Miami, FL', 44, 25);
-    doc.text('Haiti: Pòtoprens · Okap · Miragwàn · Okay · Kan-Peren · Leyogàn · Jeremi', 44, 31);
-    doc.text('+509 31 01 39 68  ·  lescayesdropshipping@gmail.com', 44, 37);
+    doc.text('Haiti: Miragoane, Les Cayes', 44, 31);
+    doc.text('+509 35 60 88 69  ·  lescayesdropshipping@gmail.com', 44, 37);
 
     /* Nimewo fakti + dat — kwen dwat antet */
     const dateTxt = new Date(e.date).toLocaleDateString('fr-HT', {
@@ -1676,7 +1676,7 @@ doc.saveGraphicsState();
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(255, 255, 255);
     doc.text(
-      'Les Cayes Dropshipping  ·  lescayesdropshipping@gmail.com  ·  +509 31 01 39 68  ·  Kan-Peren, Okay, Ayiti',
+      'Les Cayes Dropshipping  ·  lescayesdropshipping@gmail.com  ·  +509 35 60 88 69  ·  Aux Cayes, rue du Vivier #67',
       pw / 2, ph - 5.5, { align: 'center' }
     );
 
