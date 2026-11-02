@@ -294,6 +294,58 @@ function loadImg(src) {
   });
 }
 
+/* Siyati manuscrit : kenbe pwopòsyon, retire fon blan an (transparan) */
+function loadImgRaw(src) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const r = Math.min(1, 700 / img.width);
+        const w = Math.max(1, Math.round(img.width * r)), h = Math.max(1, Math.round(img.height * r));
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        const id = ctx.getImageData(0, 0, w, h), d = id.data;
+        for (let i = 0; i < d.length; i += 4) {
+          const lum = (d[i] + d[i + 1] + d[i + 2]) / 3;
+          d[i + 3] = lum >= 235 ? 0 : (lum <= 150 ? 255 : Math.round((235 - lum) / 85 * 255));
+        }
+        ctx.putImageData(id, 0, 0);
+        resolve({ data: c.toDataURL('image/png'), w, h });
+      } catch (err) { resolve(null); }
+    };
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+async function loadSignature() {
+  for (const n of ['manuscrit.jpg', 'Manuscrit.jpg', 'manuscrit.jpeg', 'manuscrit.png', 'Manuscrit.png', 'Manuscrit.jpeg']) {
+    const r = await loadImgRaw(n); if (r) return r;
+  }
+  return null;
+}
+
+/* Siyati : imaj manuscrit sou liy la, "Thomas Kabé (Responsab Sid)" anba — retounen y final */
+function drawSignature(doc, y, pw, sig) {
+  const LS = 15;
+  doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 100, 100);
+  doc.text('Siyati kliyan:', 14, y + 6);
+  doc.setDrawColor(160, 150, 135); doc.setLineWidth(0.3);
+  doc.line(14, y + LS, 82, y + LS);
+  const x2 = pw - 14, x1 = x2 - 82, cx = (x1 + x2) / 2;
+  if (sig && sig.data) {
+    const k = Math.min(46 / sig.w, 13 / sig.h), w = sig.w * k, h = sig.h * k;
+    doc.addImage(sig.data, 'PNG', cx - w / 2, y + LS - h + 0.8, w, h);
+  }
+  doc.setDrawColor(212, 175, 55); doc.setLineWidth(0.5);
+  doc.line(x1, y + LS, x2, y + LS);
+  doc.setFontSize(11); doc.setFont('times', 'bolditalic'); doc.setTextColor(40, 20, 5);
+  doc.text('Thomas Kabé (Responsab Sid)', cx, y + LS + 6, { align: 'center' });
+  return y + LS + 10;
+}
+
 function buildFichesPdf(type, entries) {
   if (!window.jspdf) { showToast('jsPDF pa chaje'); return; }
   entries = (entries || []).filter(Boolean).slice(0, 2);
@@ -308,10 +360,11 @@ function buildFichesPdf(type, entries) {
 
   Promise.all([
     loadImg('lescayesdropshipping.png'),
+    loadSignature(),
     ...platKeys.map(k => loadImgAny(platCandidates(k)))
   ]).then(res => {
-    const imgs = { 'lescayesdropshipping.png': res[0] };
-    platKeys.forEach((k, i) => { imgs['plat:' + k] = res[i + 1]; });
+    const imgs = { 'lescayesdropshipping.png': res[0], 'manuscrit': res[1] };
+    platKeys.forEach((k, i) => { imgs['plat:' + k] = res[i + 2]; });
 
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
     const k = doc.internal.scaleFactor;
@@ -368,7 +421,7 @@ function drawAchaFiche(doc, e, imgs, ph) {
   /* Watermark */
   if (imgData) {
     doc.saveGraphicsState();
-    doc.setGState(new doc.GState({ opacity: 0.07 }));
+    doc.setGState(new doc.GState({ opacity: 0.10 }));
     doc.addImage(imgData, 'PNG', (pw - 110) / 2, (ph - 110) / 2 - 10, 110, 110);
     doc.restoreGraphicsState();
   }
@@ -441,86 +494,78 @@ function drawAchaFiche(doc, e, imgs, ph) {
     ['Dat machandiz lan livre USA:',        e.dateLivreUSA],
     ['Dat machandiz lan disponib Ayiti:',   e.dateDispoAyiti],
   ].forEach(([lab, v]) => {
-    doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(tqR, tqG, tqB);
+    doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(bruR, bruG, bruB);
     doc.text(lab, 14, y);
     doc.setFont('helvetica', 'normal'); doc.setTextColor(30, 30, 30);
-    doc.text(fmtD(v), colMontX, y, { align: 'right' }); y += 6;
+    doc.text(fmtD(v), colMontX, y, { align: 'right' }); y += 5.2;
   });
   y += 4;
 
-  const drawMontant = (label, usdVal, bgR, bgG, bgB) => {
-    doc.setFillColor(bgR, bgG, bgB); doc.rect(14, y, tableW, 14, 'F');
-    doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(30, 30, 30);
-    doc.text(label, 18, y + 7);
-    doc.setFont('helvetica', 'bold'); doc.setTextColor(bruR, bruG, bruB);
-    doc.text('$' + (usdVal || 0).toFixed(2), colMontX, y + 7, { align: 'right' });
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(120, 100, 70);
-    doc.text('≈ ' + Math.round((usdVal || 0) * HTG_RATE).toLocaleString('fr-HT') + ' HTG', colMontX, y + 12, { align: 'right' });
-    y += 14;
-  };
-
-  /* 4A. ORIJIN ACHA A */
+  /* 4. TABLO — yon sèl bar ble, ranje beige, kadriyaj lò fen (menm stil ak Shipping) */
+  const tTop = y;
   doc.setFillColor(tqR, tqG, tqB); doc.rect(14, y, tableW, 12, 'F');
   doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255);
   const platNames = plats.map(p => PLAT_MAP[p].label).join(' + ');
-  doc.text('Orijin acha a  (' + (platNames ? platNames + ' / ' : '') + 'Izín)', 18, y + 8); y += 12;
+  doc.text('Orijin acha a  (' + (platNames ? platNames + ' / ' : '') + 'Izín)', 18, y + 8);
+  doc.text('Amount', colMontX, y + 8, { align: 'right' });
+  y += 12;
 
-  drawMontant('Montan acha izín (USD)', e.achatUsine, 252, 250, 245);
-
-  /* Sous-total */
-  doc.setFillColor(235, 245, 250); doc.rect(14, y, tableW, 13, 'F');
-  doc.setDrawColor(tqR, tqG, tqB); doc.setLineWidth(0.3); doc.rect(14, y, tableW, 13);
-  doc.setFontSize(9.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(tqR, tqG, tqB);
-  doc.text('SOUS-TOTAL ACHA', 18, y + 9);
-  doc.text('$' + (e.sousTotal || 0).toFixed(2), colMontX, y + 9, { align: 'right' });
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(120, 100, 70);
-  doc.text('≈ ' + Math.round((e.sousTotal || 0) * HTG_RATE).toLocaleString('fr-HT') + ' HTG', colMontX, y + 13.5, { align: 'right' });
-  y += 19;
-
-  /* 4B. FRÈ SHIPPING USA → AYITI */
-  doc.setFillColor(bruR, bruG, bruB); doc.rect(14, y, tableW, 12, 'F');
-  doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255);
-  doc.text('Frè shipping USA → Ayiti (USD)', 18, y + 8); y += 12;
-
+  const htg = v => '≈ ' + Math.round((v || 0) * HTG_RATE).toLocaleString('fr-HT') + ' HTG';
+  const row = (label, usd, bg, bold, dash) => {
+    doc.setFillColor(bg[0], bg[1], bg[2]); doc.rect(14, y, tableW, 12, 'F');
+    doc.setFontSize(9); doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setTextColor(30, 30, 30);
+    doc.text(label, 18, y + 7.5);
+    doc.setFont('helvetica', 'bold'); doc.setTextColor(bruR, bruG, bruB);
+    doc.text(dash ? '—' : '$' + (usd || 0).toFixed(2), colMontX, y + 6.5, { align: 'right' });
+    if (!dash) {
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(120, 100, 70);
+      doc.text(htg(usd), colMontX, y + 10.3, { align: 'right' });
+    }
+    y += 12;
+  };
   const hasShipping = (e.shippingHT || 0) > 0;
-  doc.setFillColor(252, 248, 242); doc.rect(14, y, tableW, 14, 'F');
-  doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(30, 30, 30);
-  doc.text(hasShipping ? 'Frè shipping USA → Ayiti (USD)' : 'Frè shipping USA → Ayiti (USD)  (poko konfime)', 18, y + 7);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(hasShipping ? bruR : 160, hasShipping ? bruG : 130, hasShipping ? bruB : 80);
-  doc.text(hasShipping ? '$' + e.shippingHT.toFixed(2) : '—', colMontX, y + 7, { align: 'right' });
-  if (hasShipping) {
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(120, 100, 70);
-    doc.text('≈ ' + Math.round(e.shippingHT * HTG_RATE).toLocaleString('fr-HT') + ' HTG', colMontX, y + 12, { align: 'right' });
-  }
+  row('Montan acha izín (USD)', e.achatUsine, [252, 250, 245], false, false);
+  row('SOUS-TOTAL ACHA', e.sousTotal, [246, 242, 236], true, false);
+  row(hasShipping ? 'Frè shipping USA → Ayiti (USD)' : 'Frè shipping USA → Ayiti (USD)  (poko konfime)',
+      e.shippingHT, [252, 250, 245], false, !hasShipping);
+
+  /* Liy separasyon fen + kadriyaj lò */
+  doc.setDrawColor(210, 200, 185); doc.setLineWidth(0.25);
+  doc.line(14, y - 12, 14 + tableW, y - 12);
+  doc.line(14, y - 24, 14 + tableW, y - 24);
+  doc.setDrawColor(orR, orG, orB); doc.setLineWidth(0.3);
+  doc.rect(14, tTop, tableW, y - tTop);
+  y += 4;
+
+  /* TOTAL (USD) — jòn pal, tèks mawon */
+  doc.setFillColor(255, 243, 196); doc.rect(14, y, tableW, 16, 'F');
+  doc.setTextColor(101, 51, 19); doc.setFontSize(14); doc.setFont('helvetica', 'bold');
+  doc.text('Total (USD)', 18, y + 10.5);
+  doc.text('$' + (e.grandTotal || 0).toFixed(2), colMontX, y + 10.5, { align: 'right' });
   y += 16;
 
-  /* TOTAL */
-  doc.setFillColor(250, 248, 242); doc.rect(14, y, tableW, 13, 'F');
-  doc.setDrawColor(212, 175, 55); doc.setLineWidth(0.3); doc.rect(14, y, tableW, 13);
-  doc.setFontSize(8.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(101, 51, 19);
-  doc.text('Pou total ou achte...', 18, y + 8.5);
-  doc.setFont('helvetica', 'bold');
-  doc.text('$' + (e.grandTotal || 0).toFixed(2), colMontX, y + 8.5, { align: 'right' });
+  /* Ekivalan HTG — diskrè */
+  doc.saveGraphicsState();
+  doc.setGState(new doc.GState({ opacity: 0.55 }));
+  doc.setFillColor(230, 225, 215); doc.rect(14, y, tableW, 11, 'F');
+  doc.setTextColor(120, 100, 70); doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+  doc.text('Ekivalan HTG (' + HTG_RATE + ' HTG / $1)', 18, y + 7.5);
+  doc.setFontSize(9);
+  doc.text(htg(e.grandTotal), colMontX, y + 7.5, { align: 'right' });
+  doc.restoreGraphicsState();
   y += 13;
-  doc.setFillColor(245, 238, 210); doc.rect(14, y, tableW, 9, 'F');
-  doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(120, 90, 40);
-  doc.text('Ekivalan HTG (' + HTG_RATE + ' HTG / $1)', 18, y + 6.5);
-  doc.setFont('helvetica', 'bold');
-  doc.text('≈ ' + Math.round((e.grandTotal || 0) * HTG_RATE).toLocaleString('fr-HT') + ' HTG', colMontX, y + 6.5, { align: 'right' });
-  y += 14;
 
   /* 5. NÒT */
   if (e.note) {
     doc.setFontSize(8.5); doc.setFont('helvetica', 'italic'); doc.setTextColor(70, 70, 70);
     const noteLines = doc.splitTextToSize('Nòt: ' + e.note, tableW);
-    doc.text(noteLines, 14, y); y += noteLines.length * 5.5 + 8;
+    doc.text(noteLines, 14, y); y += noteLines.length * 5.5 + 5;
   } else {
     doc.setFontSize(8); doc.setFont('helvetica', 'italic'); doc.setTextColor(160, 150, 135);
     doc.text('Nòt:', 14, y);
     doc.setDrawColor(200, 190, 175); doc.setLineWidth(0.3);
-    doc.line(28, y, pw - 14, y); y += 7;
-    doc.line(14, y, pw - 14, y); y += 9;
+    doc.line(28, y, pw - 14, y); y += 6;
+    doc.line(14, y, pw - 14, y); y += 7;
   }
 
   /* 6. MARKETING — san fon ni fòm, an italik (pou fich la respire) */
@@ -528,7 +573,7 @@ function drawAchaFiche(doc, e, imgs, ph) {
   const msg2 = 'Les Cayes Dropshipping, nou se patnè fyab ou pou pwojè komès ak livrezon USA-Ayiti.';
   const msg3 = 'Mòd pèman: Cash · Natcash · Sogebank · Zelle';
   doc.setDrawColor(orR, orG, orB); doc.setLineWidth(0.5);
-  doc.line(14, y, pw - 14, y); y += 8;
+  doc.line(14, y, pw - 14, y); y += 6;
   doc.setFontSize(8.5); doc.setFont('helvetica', 'italic'); doc.setTextColor(bruR, bruG, bruB);
   const msg1Lines = doc.splitTextToSize(msg1, tableW);
   doc.text(msg1Lines, 14, y); y += msg1Lines.length * 5.5 + 3;
@@ -537,18 +582,10 @@ function drawAchaFiche(doc, e, imgs, ph) {
   doc.text(msg2Lines, 14, y); y += msg2Lines.length * 5.2 + 2;
   doc.setFont('helvetica', 'italic'); doc.setTextColor(70, 70, 70);
   const msg3Lines = doc.splitTextToSize(msg3, tableW);
-  doc.text(msg3Lines, 14, y); y += msg3Lines.length * 5.2 + 8;
+  doc.text(msg3Lines, 14, y); y += msg3Lines.length * 5.2 + 5;
 
   /* 7. SIYATI */
-  doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 100, 100);
-  doc.text('Siyati kliyan:', 14, y + 6);
-  doc.setDrawColor(160, 150, 135); doc.setLineWidth(0.3);
-  doc.line(14, y + 15, 82, y + 15);
-  doc.setFontSize(13); doc.setFont('times', 'bolditalic'); doc.setTextColor(40, 20, 5);
-  doc.text('Thomas Kabé — Responsab Sid', pw - 14, y + 6, { align: 'right' });
-  doc.setDrawColor(orR, orG, orB); doc.setLineWidth(0.5);
-  doc.line(pw - 14, y + 10, pw - 14 - 90, y + 10);
-  const yEnd = y + 20;
+  const yEnd = drawSignature(doc, y, pw, imgs['manuscrit']);
 
   /* 8. PYE PAJ */
   doc.setFillColor(tqR, tqG, tqB);
@@ -756,7 +793,7 @@ function drawShippingFiche(doc, e, imgs, ph) {
        ══════════════════════════════════════════ */
     if (imgData) {
       doc.saveGraphicsState();
-      doc.setGState(new doc.GState({ opacity: 0.07 }));
+      doc.setGState(new doc.GState({ opacity: 0.10 }));
       const wmSize = 110;
       const wmX = (pw - wmSize) / 2;
       const wmY = (ph - wmSize) / 2 - 10;
@@ -1047,22 +1084,7 @@ doc.saveGraphicsState();
     /* ══════════════════════════════════════════
        11. SIYATI
        ══════════════════════════════════════════ */
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(100, 100, 100);
-    doc.text('Siyati kliyan:', 14, y + 6);
-    doc.setDrawColor(160, 150, 135);
-    doc.setLineWidth(0.3);
-    doc.line(14, y + 15, 82, y + 15);
-
-    doc.setFontSize(13);
-    doc.setFont('times', 'bolditalic');
-    doc.setTextColor(40, 20, 5);
-    doc.text('Responsab Sid (Thomas Kabé)', pw - 14, y + 6, { align: 'right' });
-    doc.setDrawColor(orR, orG, orB);
-    doc.setLineWidth(0.5);
-    doc.line(pw - 14, y + 10, pw - 14 - 82, y + 10);
-    y += 22;
+    y = drawSignature(doc, y, pw, imgs['manuscrit']);
     const yEndShip = y;
 
     /* ══════════════════════════════════════════
