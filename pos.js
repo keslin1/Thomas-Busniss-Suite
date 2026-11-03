@@ -606,7 +606,7 @@ function drawAchaFiche(doc, e, imgs, ph) {
   doc.setFillColor(tqR, tqG, tqB);
   doc.rect(0, ph - 14, pw, 14, 'F');
   doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(255, 255, 255);
-  doc.text('Les Cayes Dropshipping  _  +509 35 60 88 69  _  Aux Cayes, rue du Vivier #67', pw / 2, ph - 6, { align: 'center' });
+  doc.text('Les Cayes Dropshipping  /  +509 35 60 88 69  /  Aux Cayes, rue du Vivier #66', pw / 2, ph - 6, { align: 'center' });
 
   return yEnd;
 }
