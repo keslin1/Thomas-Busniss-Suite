@@ -360,6 +360,76 @@ function drawSignature(doc, y, pw, sig) {
   return y + LS + 10;
 }
 
+
+/* Image "paiement.png" : garde ses proportions (pas de carré 200×200, fond conservé) */
+function loadImgFit(src) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const r = Math.min(1, 900 / img.width);
+        const w = Math.max(1, Math.round(img.width * r)), h = Math.max(1, Math.round(img.height * r));
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve({ data: c.toDataURL('image/png'), w, h });
+      } catch (err) { resolve(null); }
+    };
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+async function loadPaiement() {
+  for (const n of ['paiement.png', 'Paiement.png', 'paiement.jpg', 'paiement.jpeg', 'paiement.webp']) {
+    const r = await loadImgFit(n); if (r) return r;
+  }
+  return null;
+}
+/* Dessine l'image dans une boîte (maxW × maxH), alignée à droite (x = bord droit).
+   Si "title" est donné : petit titre (ex. "Mòd pèman") centré au-dessus de l'image. */
+function drawPaiement(doc, img, xRight, yTop, maxW, maxH, title) {
+  if (!img || !img.data) return;
+  const titleH = title ? 4.5 : 0;
+  const boxH = maxH - titleH;
+  const k = Math.min(maxW / img.w, boxH / img.h), w = img.w * k, h = img.h * k;
+  if (title) {
+    const f = doc.getFont(), fs = doc.getFontSize(), tc = doc.getTextColor();
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(101, 51, 19);
+    doc.text(title, xRight - w / 2, yTop + 3, { align: 'center' });
+    doc.setFont(f.fontName, f.fontStyle); doc.setFontSize(fs); doc.setTextColor(tc);
+  }
+  doc.addImage(img.data, 'PNG', xRight - w, yTop + titleH + (boxH - h) / 2, w, h);
+}
+
+/* Flèche USA → Ayiti : jsPDF (Helvetica) ne sait pas écrire ► ni →.
+   On écrit "->" dans le texte (largeur réservée) et on DESSINE la flèche à cet endroit. */
+function drawLineWithArrows(doc, line, x, y, rgb, opts) {
+  const parts = String(line).split('->');
+  if (parts.length === 1) { doc.text(line, x, y, opts); return; }
+  const align = (opts && opts.align) || 'left';
+  const total = doc.getTextWidth(line);
+  let cx = align === 'right' ? x - total : (align === 'center' ? x - total / 2 : x);
+  const aw = doc.getTextWidth('->');
+  const fs = doc.getFontSize() * 0.3528;              // hauteur du texte en mm
+  const midY = y - fs * 0.30;
+  parts.forEach((p, i) => {
+    if (p) { doc.text(p, cx, y); cx += doc.getTextWidth(p); }
+    if (i < parts.length - 1) {
+      const headL = Math.min(1.8, fs * 0.5), headH = headL * 0.95;
+      const x1 = cx + 0.4, tip = cx + aw - 0.3;
+      doc.saveGraphicsState();
+      doc.setDrawColor(rgb[0], rgb[1], rgb[2]); doc.setFillColor(rgb[0], rgb[1], rgb[2]);
+      doc.setLineWidth(0.28);
+      doc.line(x1, midY, tip - headL + 0.3, midY);
+      doc.triangle(tip, midY, tip - headL, midY - headH / 2, tip - headL, midY + headH / 2, 'F');
+      doc.restoreGraphicsState();
+      doc.setTextColor(rgb[0], rgb[1], rgb[2]);
+      cx += aw;
+    }
+  });
+}
+
 function buildFichesPdf(type, entries) {
   if (!window.jspdf) { showToast('jsPDF pa chaje'); return; }
   entries = (entries || []).filter(Boolean).slice(0, 2);
@@ -375,10 +445,11 @@ function buildFichesPdf(type, entries) {
   Promise.all([
     loadImg('lescayesdropshipping.png'),
     loadSignature(),
+    loadPaiement(),
     ...platKeys.map(k => loadImgAny(platCandidates(k)))
   ]).then(res => {
-    const imgs = { 'lescayesdropshipping.png': res[0], 'manuscrit': res[1] };
-    platKeys.forEach((k, i) => { imgs['plat:' + k] = res[i + 2]; });
+    const imgs = { 'lescayesdropshipping.png': res[0], 'manuscrit': res[1], 'paiement': res[2] };
+    platKeys.forEach((k, i) => { imgs['plat:' + k] = res[i + 3]; });
 
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
     const k = doc.internal.scaleFactor;
@@ -448,7 +519,7 @@ function drawAchaFiche(doc, e, imgs, ph) {
   doc.setTextColor(255, 255, 255);
   drawCompanyTitle(doc, 44, 17);
   doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(220, 242, 248);
-  doc.text('USA: 14030 NW 5th Pl, North Miami, FL', 44, 25);
+  doc.text('USA: 14030 NW 5th Pl, North Miami, FL, 33168', 44, 25);
   doc.text('Haiti: Miragoane, Les Cayes', 44, 31);
   doc.text('+509 35 60 88 69  -  lescayesdropshipping@gmail.com', 44, 37);
 
@@ -527,7 +598,7 @@ function drawAchaFiche(doc, e, imgs, ph) {
   const row = (label, usd, bg, bold, dash) => {
     doc.setFillColor(bg[0], bg[1], bg[2]); doc.rect(14, y, tableW, 12, 'F');
     doc.setFontSize(9); doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setTextColor(30, 30, 30);
-    doc.text(label, 18, y + 7.5);
+    drawLineWithArrows(doc, label, 18, y + 7.5, [30, 30, 30]);
     doc.setFont('helvetica', 'bold'); doc.setTextColor(bruR, bruG, bruB);
     doc.text(dash ? '—' : '$' + (usd || 0).toFixed(2), colMontX, y + 6.5, { align: 'right' });
     if (!dash) {
@@ -539,7 +610,7 @@ function drawAchaFiche(doc, e, imgs, ph) {
   const hasShipping = (e.shippingHT || 0) > 0;
   row('Montan acha izín (USD)', e.achatUsine, [252, 250, 245], false, false);
   row('SOUS-TOTAL ACHA', e.sousTotal, [246, 242, 236], true, false);
-  row(hasShipping ? 'Frè shipping USA → Ayiti (USD)' : 'Frè shipping USA → Ayiti (USD)  (poko konfime)',
+  row(hasShipping ? 'Frè shipping USA -> Ayiti (USD)' : 'Frè shipping USA -> Ayiti (USD)  (poko konfime)',
       e.shippingHT, [252, 250, 245], false, !hasShipping);
 
   /* Liy separasyon fen + kadriyaj lò */
@@ -585,19 +656,19 @@ function drawAchaFiche(doc, e, imgs, ph) {
 
   /* 6. MARKETING — san fon ni fòm, an italik (pou fich la respire) */
   const msg1 = 'Siw gen machandiz ki entèresew sou sit chinwa yo, ou ka pataje link yo avèk nou pou edew evalye pri l oswa achte li pou ou.';
-  const msg2 = 'Les Cayes Dropshipping, nou se patnè fyab ou pou pwojè komès ak livrezon USA ► Ayiti.';
-  const msg3 = 'Mòd pèman: Cash · Natcash · Sogebank · Zelle';
+  const msg2 = 'Les Cayes Dropshipping, nou se patnè fyab ou pou pwojè komès ak livrezon USA -> Ayiti.';
+  const PAY_W = 50, PAY_H = 18;               // boîte réservée à paiement.png (hauteur fixe)
   doc.setDrawColor(orR, orG, orB); doc.setLineWidth(0.5);
   doc.line(14, y, pw - 14, y); y += 6;
   doc.setFontSize(8.5); doc.setFont('helvetica', 'italic'); doc.setTextColor(bruR, bruG, bruB);
   const msg1Lines = doc.splitTextToSize(msg1, tableW);
   doc.text(msg1Lines, 14, y); y += msg1Lines.length * 5.5 + 3;
   doc.setFontSize(8); doc.setFont('helvetica', 'bolditalic'); doc.setTextColor(bruR, bruG, bruB);
-  const msg2Lines = doc.splitTextToSize(msg2, tableW);
-  doc.text(msg2Lines, 14, y); y += msg2Lines.length * 5.2 + 2;
-  doc.setFont('helvetica', 'italic'); doc.setTextColor(70, 70, 70);
-  const msg3Lines = doc.splitTextToSize(msg3, tableW);
-  doc.text(msg3Lines, 14, y); y += msg3Lines.length * 5.2 + 5;
+  const msg2Lines = doc.splitTextToSize(msg2, tableW - PAY_W - 8);
+  const lh2 = doc.getFontSize() * 1.15 / doc.internal.scaleFactor;
+  msg2Lines.forEach((ln, i) => drawLineWithArrows(doc, ln, 14, y + i * lh2, [bruR, bruG, bruB]));
+  drawPaiement(doc, imgs['paiement'], pw - 14, y - 4, PAY_W, PAY_H, 'Mòd pèman');
+  y += Math.max(msg2Lines.length * 5.2 + 2, PAY_H - 4) + 5;
 
   /* 7. SIYATI */
   const yEnd = drawSignature(doc, y, pw, imgs['manuscrit']);
@@ -606,7 +677,7 @@ function drawAchaFiche(doc, e, imgs, ph) {
   doc.setFillColor(tqR, tqG, tqB);
   doc.rect(0, ph - 14, pw, 14, 'F');
   doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(255, 255, 255);
-  doc.text('Les Cayes Dropshipping  _  +509 35 60 88 69  _  Les Cayes', pw / 2, ph - 6, { align: 'center' });
+  doc.text('Les Cayes Dropshipping  _  +509 35 60 88 69  _  Aux Cayes', pw / 2, ph - 6, { align: 'center' });
 
   return yEnd;
 }
@@ -904,7 +975,7 @@ function drawShippingFiche(doc, e, imgs, ph) {
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(220, 242, 248);
-    doc.text('USA: 14030 NW 5th Pl, North Miami, FL', 44, 25);
+    doc.text('USA: 14030 NW 5th Pl, North Miami, FL, 33168', 44, 25);
     doc.text('Haiti: Miragoane, Les Cayes', 44, 31);
     doc.text('+509 35 60 88 69  _  lescayesdropshipping@gmail.com', 44, 37);
 
@@ -1157,12 +1228,12 @@ doc.saveGraphicsState();
     doc.setFontSize(8.5);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(bruR, bruG, bruB);
-    doc.text('Patnè fyab ou pou pwojè komès ak livrezon USA ► Ayiti', 19, y + 9);
+    drawLineWithArrows(doc, 'Patnè fyab ou pou pwojè komès ak livrezon USA -> Ayiti', 19, y + 9, [bruR, bruG, bruB]);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(50, 50, 50);
     doc.setFontSize(8);
     doc.text('Achte sou entènèt avè n ak konfyans.', 19, y + 16);
-    doc.text('Mòd pèman: Cash · Natcash · Sogebank · Zelle', 19, y + 22);
+    drawPaiement(doc, imgs['paiement'], pw - 19, y + 2, 52, 22, 'Mòd pèman');
     y += 31;
 
     /* ══════════════════════════════════════════
@@ -1180,7 +1251,7 @@ doc.saveGraphicsState();
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(255, 255, 255);
     doc.text(
-      'Les Cayes Dropshipping  _  lescayesdropshipping@gmail.com  _  +509 35 60 88 69  _  Les Cayes',
+      'Les Cayes Dropshipping  _  lescayesdropshipping@gmail.com  _  +509 35 60 88 69  _  Aux Cayes',
       pw / 2, ph - 5.5, { align: 'center' }
     );
   return yEndShip;
