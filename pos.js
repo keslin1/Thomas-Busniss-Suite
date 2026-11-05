@@ -585,7 +585,7 @@ function drawAchaFiche(doc, e, imgs, ph) {
 
   /* 6. MARKETING — san fon ni fòm, an italik (pou fich la respire) */
   const msg1 = 'Siw gen machandiz ki entèresew sou sit chinwa yo, ou ka pataje link yo avèk nou pou edew evalye pri l oswa achte li pou ou.';
-  const msg2 = 'Les Cayes Dropshipping, nou se patnè fyab ou pou pwojè komès ak livrezon USA-Ayiti.';
+  const msg2 = 'Les Cayes Dropshipping, nou se patnè fyab ou pou pwojè komès ak livrezon USA ► Ayiti.';
   const msg3 = 'Mòd pèman: Cash · Natcash · Sogebank · Zelle';
   doc.setDrawColor(orR, orG, orB); doc.setLineWidth(0.5);
   doc.line(14, y, pw - 14, y); y += 6;
@@ -1085,7 +1085,7 @@ doc.saveGraphicsState();
     doc.setFontSize(8.5);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(bruR, bruG, bruB);
-    doc.text('Patnè fyab ou pou pwojè komès ak livrezon USA-Ayiti', 19, y + 9);
+    doc.text('Patnè fyab ou pou pwojè komès ak livrezon USA ► Ayiti', 19, y + 9);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(50, 50, 50);
     doc.setFontSize(8);
