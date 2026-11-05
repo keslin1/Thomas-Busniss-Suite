@@ -120,7 +120,7 @@ const ACHA_FIELDS = {
 const SLOT = {
   ship: {
     ids: ['posL','posW','posH','posWeight','posCustomPrice','posDebt','posChange',
-          'posClientName','posClientAddress','posDescription','posNote'],
+          'posClientName','posClientAddress','posClientPhone','posDescription','posNote'],
     slots: [{}, {}], active: 0, btn: 'shipSlotBtn', info: 'shipSlotInfo',
     filled: o => !!(((o.posClientName || '').trim()) || parseFloat(o.posWeight) > 0 ||
                     parseFloat(o.posCustomPrice) > 0 || parseFloat(o.posL) > 0),
@@ -218,7 +218,7 @@ function generateAchaInvoice() {
     }
     entry._updated = idx >= 0;
     entries.push(entry);
-    savePosClient(f.clientName, f.clientAddr);
+    savePosClient(f.clientName, f.clientAddr, f.clientPhone);
   });
 
   if (!entries.length) { showToast('Antre omwen non kliyan oswa montan yo'); return; }
@@ -620,16 +620,98 @@ function getPosClients() {
   catch { return []; }
 }
 
-function savePosClient(name, address) {
+function savePosClient(name, address, phone) {
   if (!name) return;
   const list = getPosClients();
   const idx  = list.findIndex(c => c.name.toLowerCase() === name.toLowerCase());
   if (idx !== -1) {
     list[idx].address = address || list[idx].address;
+    list[idx].phone   = phone   || list[idx].phone || '';
   } else {
-    list.push({ name, address: address || '' });
+    list.push({ name, address: address || '', phone: phone || '' });
   }
   localStorage.setItem('tbs_pos_clients', JSON.stringify(list));
+}
+
+/* ══════════════════════════════════════════════
+   SUGGESTIONS KLIYAN — customers.js + liste POS
+   • Sous-tab : tout kliyan anrejistre nan customers.js parèt,
+     menm si li poko janm itilize nan POS la.
+   • Rechèch : pa non OSWA pa prenon (nenpòt mo ki kòmanse ak sa w tape),
+     san sansib pou aksan ni majiskil.
+   ══════════════════════════════════════════════ */
+function normTxt(s) {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+}
+function nameMatches(name, typed) {
+  const n = normTxt(name).replace(/[\-'’.,]+/g, ' ');
+  const v = normTxt(typed).replace(/[\-'’.,]+/g, ' ');
+  if (!v) return false;
+  return n.startsWith(v) || (' ' + n).includes(' ' + v);
+}
+function getClientSources() {
+  const sources = [];
+  const add = c => {
+    if (!c || !c.name) return;
+    const key = normTxt(c.name);
+    const ex  = sources.find(s => normTxt(s.name) === key);
+    if (ex) {
+      if (!ex.address && c.address) ex.address = c.address;
+      if (!ex.phone   && c.phone)   ex.phone   = c.phone;
+    } else {
+      sources.push({ name: c.name, address: c.address || '', phone: c.phone || '' });
+    }
+  };
+  if (typeof getCustomers === 'function') {
+    try { getCustomers().forEach(add); } catch (err) {}
+  }
+  getPosClients().forEach(add);
+  return sources;
+}
+function findClientMatches(typed) {
+  const v = normTxt(typed);
+  return getClientSources()
+    .filter(c => nameMatches(c.name, typed))
+    .sort((a, b) => (normTxt(b.name).startsWith(v) ? 1 : 0) - (normTxt(a.name).startsWith(v) ? 1 : 0)
+                    || a.name.localeCompare(b.name))
+    .slice(0, 8);
+}
+/* Dropdown pataje (Shipping + Acha) */
+function showClientDropdown(nameInput, ddId, onPick) {
+  const old = document.getElementById(ddId);
+  if (old) old.remove();
+  const val = nameInput.value.trim();
+  if (!val) return;
+  const matches = findClientMatches(val);
+  if (matches.length === 0) return;
+
+  const dd = document.createElement('div');
+  dd.id = ddId;
+  dd.style.cssText = `
+    position:absolute;z-index:999;background:#1a1520;
+    border:1px solid rgba(255,255,255,0.15);border-radius:8px;
+    left:0;right:0;top:100%;max-height:200px;overflow-y:auto;
+  `;
+  matches.forEach(c => {
+    const item = document.createElement('div');
+    item.style.cssText = 'padding:10px 12px;cursor:pointer;font-size:0.875rem;border-bottom:1px solid rgba(255,255,255,0.06);';
+    const strong = document.createElement('strong');
+    strong.style.color = '#ddd8cc';
+    strong.textContent = c.name;
+    item.appendChild(strong);
+    const extra = [c.address, c.phone].filter(Boolean).join(' · ');
+    if (extra) {
+      const sp = document.createElement('div');
+      sp.style.cssText = 'color:rgba(200,190,175,0.55);font-size:0.78em;margin-top:2px;';
+      sp.textContent = extra;
+      item.appendChild(sp);
+    }
+    item.addEventListener('mousedown', ev => { ev.preventDefault(); onPick(c); dd.remove(); });
+    item.addEventListener('touchstart', () => { onPick(c); dd.remove(); }, { passive: true });
+    dd.appendChild(item);
+  });
+  const wrap = nameInput.parentElement;
+  if (wrap) { wrap.style.position = 'relative'; wrap.appendChild(dd); }
 }
 
 /* ── Kalkil an dirèk ─────────────────────────── */
@@ -697,41 +779,22 @@ function calcLive() {
   return { volWeight, finalWeight, subtotal, discount, discountPct, servicePrix, total, totalHTG, balRest, balPaye, customPrice, realWeight };
 }
 
-/* ── Otokomplete kliyan ───────────────────────── */
+/* ── Otokomplete kliyan (Shipping) ───────────── */
 function initPosAutocomplete() {
   const nameInput = document.getElementById('posClientName');
   const addrInput = document.getElementById('posClientAddress');
+  const phoneInput = document.getElementById('posClientPhone');
   if (!nameInput) return;
 
   nameInput.addEventListener('input', () => {
-    const val = nameInput.value.trim().toLowerCase();
-    removePosDropdown();
-    if (!val) return;
-    const matches = getPosClients().filter(c => c.name.toLowerCase().startsWith(val));
-    if (matches.length === 0) return;
-
-    const dd = document.createElement('div');
-    dd.id = 'posClientDropdown';
-    dd.style.cssText = `
-      position:absolute;z-index:999;background:#1a1520;
-      border:1px solid rgba(255,255,255,0.15);border-radius:8px;
-      left:0;right:0;top:100%;max-height:160px;overflow-y:auto;
-    `;
-    matches.forEach(c => {
-      const item = document.createElement('div');
-      item.textContent = c.name + (c.address ? ' · ' + c.address : '');
-      item.style.cssText = 'padding:10px 12px;cursor:pointer;font-size:0.875rem;color:#ddd8cc;border-bottom:1px solid rgba(255,255,255,0.06);';
-      item.addEventListener('mousedown', () => {
-        nameInput.value = c.name;
-        if (addrInput) addrInput.value = c.address || '';
-        removePosDropdown();
-        calcLive();
-      });
-      dd.appendChild(item);
+    showClientDropdown(nameInput, 'posClientDropdown', c => {
+      nameInput.value = c.name;
+      if (addrInput)  addrInput.value  = c.address || '';
+      if (phoneInput) phoneInput.value = c.phone   || '';
+      removePosDropdown();
+      calcLive();
+      (addrInput || nameInput).dispatchEvent(new Event('input', { bubbles: true })); // mete ajou endikatè ✓
     });
-
-    const wrap = nameInput.parentElement;
-    if (wrap) { wrap.style.position = 'relative'; wrap.appendChild(dd); }
   });
 
   nameInput.addEventListener('blur', () => setTimeout(removePosDropdown, 200));
@@ -755,9 +818,10 @@ function generatePOSInvoice() {
     const vals = calcLive();
     const clientName = (snap.posClientName || '').trim();
     const clientAddr = (snap.posClientAddress || '').trim();
+    const clientPhone = (snap.posClientPhone || '').trim();
     const entry = {
       id: uid(), invoiceNo: nextInvoiceNo('pos'),
-      clientName, clientAddr,
+      clientName, clientAddr, clientPhone,
       desc: (snap.posDescription || '').trim(), note: (snap.posNote || '').trim(),
       ...vals,
       dimL: parseFloat(snap.posL) || 0, dimW: parseFloat(snap.posW) || 0, dimH: parseFloat(snap.posH) || 0,
@@ -765,7 +829,7 @@ function generatePOSInvoice() {
     };
     hist.unshift(entry);
     entries.push(entry);
-    savePosClient(clientName, clientAddr);
+    savePosClient(clientName, clientAddr, clientPhone);
   });
   slotFill('ship', cur[backup]);         // remèt kliyan aktif la
   calcLive();
@@ -876,7 +940,15 @@ function drawShippingFiche(doc, e, imgs, ph) {
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(60, 60, 60);
       doc.text('Adrès: ' + e.clientAddr, 14, y);
-      y += 7;
+      y += 6;
+    }
+
+    if (e.clientPhone) {
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(60, 60, 60);
+      doc.text('Tél: ' + e.clientPhone, 14, y);
+      y += 6;
     }
 
     /* Liy lò separatè anba blok kliyan */
@@ -1244,52 +1316,18 @@ document.addEventListener('DOMContentLoaded', () => {
    'achaClientName' (ataché nan DOMContentLoaded)
    ──────────────────────────────────────────── */
 function initAchaAutocomplete() {
-  const nameInput = document.getElementById('achaClientName');
-  const addrInput = document.getElementById('achaClientAddress');
+  const nameInput  = document.getElementById('achaClientName');
+  const addrInput  = document.getElementById('achaClientAddress');
+  const phoneInput = document.getElementById('achaClientPhone');
   if (!nameInput) return;
 
-  const val = nameInput.value.trim().toLowerCase();
-  removeAchaDropdown();
-  if (!val) return;
-
-  /* Fusionner sources: customers.js + pos_clients */
-  const sources = [];
-  if (typeof getCustomers === 'function') {
-    getCustomers().forEach(c => sources.push({ name: c.name, address: c.address || '', phone: c.phone || '' }));
-  }
-  getPosClients().forEach(c => {
-    if (!sources.find(s => s.name.toLowerCase() === c.name.toLowerCase())) {
-      sources.push({ name: c.name, address: c.address || '', phone: '' });
-    }
+  showClientDropdown(nameInput, 'achaClientDropdown', c => {
+    nameInput.value = c.name;
+    if (addrInput)  addrInput.value  = c.address || '';
+    if (phoneInput) phoneInput.value = c.phone   || '';
+    removeAchaDropdown();
+    (addrInput || nameInput).dispatchEvent(new Event('input', { bubbles: true })); // mete ajou endikatè ✓
   });
-
-  const matches = sources.filter(c => c.name.toLowerCase().startsWith(val));
-  if (matches.length === 0) return;
-
-  const wrapper = nameInput.parentElement;
-  if (wrapper) wrapper.style.position = 'relative';
-
-  const dd = document.createElement('div');
-  dd.id = 'achaClientDropdown';
-  dd.style.cssText = `
-    position:absolute;z-index:999;background:#1a1520;
-    border:1px solid rgba(255,255,255,0.15);border-radius:8px;
-    left:0;right:0;top:100%;max-height:160px;overflow-y:auto;
-  `;
-  matches.forEach(c => {
-    const item = document.createElement('div');
-    item.innerHTML = `<strong style="color:#ddd8cc;">${c.name}</strong>${c.address ? '<span style="color:rgba(200,190,175,0.5);font-size:0.82em;"> · ' + c.address + '</span>' : ''}`;
-    item.style.cssText = 'padding:10px 12px;cursor:pointer;font-size:0.875rem;border-bottom:1px solid rgba(255,255,255,0.06);';
-    item.addEventListener('mousedown', () => {
-      nameInput.value = c.name;
-      if (addrInput) addrInput.value = c.address || '';
-      const phoneEl = document.getElementById('achaClientPhone');
-      if (phoneEl && c.phone) phoneEl.value = c.phone;
-      removeAchaDropdown();
-    });
-    dd.appendChild(item);
-  });
-  if (wrapper) wrapper.appendChild(dd);
 }
 
 function removeAchaDropdown() {
