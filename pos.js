@@ -568,7 +568,7 @@ function drawAchaFiche(doc, e, imgs, ph) {
   doc.setFontSize(9);
   doc.text(htg(e.grandTotal), colMontX, y + 7.5, { align: 'right' });
   doc.restoreGraphicsState();
-  y += 13;
+  y += 19;   // 11 mm barre + ~6 mm d'espace avant la 1re ligne de la note
 
   /* 5. NÒT */
   if (e.note) {
@@ -606,7 +606,7 @@ function drawAchaFiche(doc, e, imgs, ph) {
   doc.setFillColor(tqR, tqG, tqB);
   doc.rect(0, ph - 14, pw, 14, 'F');
   doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(255, 255, 255);
-  doc.text('Les Cayes Dropshipping  /  +509 35 60 88 69  /  Aux Cayes, rue du Vivier #66', pw / 2, ph - 6, { align: 'center' });
+  doc.text('Les Cayes Dropshipping  _  +509 35 60 88 69  _  Les Cayes', pw / 2, ph - 6, { align: 'center' });
 
   return yEnd;
 }
@@ -1108,7 +1108,7 @@ doc.saveGraphicsState();
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(255, 255, 255);
     doc.text(
-      'Les Cayes Dropshipping  _  lescayesdropshipping@gmail.com  _  +509 35 60 88 69  _  Aux Cayes, rue du Vivier #67',
+      'Les Cayes Dropshipping  _  lescayesdropshipping@gmail.com  _  +509 35 60 88 69  _  Les Cayes',
       pw / 2, ph - 5.5, { align: 'center' }
     );
   return yEndShip;
