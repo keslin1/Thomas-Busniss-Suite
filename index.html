@@ -270,260 +270,180 @@
       <button class="icon-btn" onclick="togglePosHistory()">📋</button>
     </div>
 
-    <!-- ── Tab switcher ── -->
+    <!-- ── Onglets : nouvelle facture / file d'attente ── -->
     <div class="pos-tabs">
-      <button class="pos-tab-btn active" id="tabBtnShipping" onclick="switchPosTab('shipping')">
-        📦 Fich Shipping
+      <button class="pos-tab-btn active" id="fkTabNew" onclick="switchPosTab('new')">
+        ✍️ Nouvelle facture
       </button>
-      <button class="pos-tab-btn" id="tabBtnAcha" onclick="switchPosTab('acha')">
-        🛒 Fich Acha
+      <button class="pos-tab-btn" id="fkTabQueue" onclick="switchPosTab('queue')">
+        🖨️ File d'attente (<span id="fkQueueCount">0</span>)
       </button>
     </div>
 
-    <!-- ══════════ FICH SHIPPING ══════════ -->
-    <div id="posTabShipping" class="module-body scrollable">
-      <!-- ── Kliyan A / Kliyan B (2 fich pa paj PDF paysaj) ── -->
-      <div style="display:flex;gap:8px;padding:10px 14px 0;">
-        <button id="shipSlotBtn0" onclick="slotSwitch('ship',0)" style="flex:1;border:1px solid rgba(0,150,166,0.7);border-radius:8px;padding:9px 6px;font-size:0.8rem;cursor:pointer;background:rgba(0,150,166,0.25);color:#00acc1;">👤 Kliyan A</button>
-        <button id="shipSlotBtn1" onclick="slotSwitch('ship',1)" style="flex:1;border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:9px 6px;font-size:0.8rem;cursor:pointer;background:rgba(255,255,255,0.05);color:rgba(200,190,175,0.65);">👤 Kliyan B (opsyonèl)</button>
-      </div>
-      <div id="shipSlotInfo" style="padding:4px 16px 0;font-size:0.68rem;color:rgba(200,190,175,0.5);">Yon sèl fich — lòt mwatye paj la rete blan.</div>
+    <!-- ══════════ NOUVELLE FACTURE (Acha + Shipping) ══════════ -->
+    <div id="fkPaneNew" class="module-body scrollable">
 
-      <!-- Client Name (autocomplete) -->
-      <div class="pos-field-group">
-        <label class="pos-label">Non kliyan</label>
-        <input type="text" id="posClientName" placeholder="Eks: Marie Pierre" class="form-input" autocomplete="off" />
+      <div id="fkEditBanner" style="display:none;margin:8px 14px 0;padding:8px 12px;background:rgba(255,255,255,0.07);border-left:3px solid rgba(255,255,255,0.4);border-radius:8px;font-size:0.78rem;color:#ddd8cc;">
+        ✏️ Modification de la facture <span id="fkEditNo"></span> — ajoutez le paiement du transport (cochez Shipping), puis « Mettre à jour ». (🗑 pour annuler)
       </div>
 
-      <!-- Client Address -->
-      <div class="pos-field-group">
-        <label class="pos-label">Adrès kliyan</label>
-        <input type="text" id="posClientAddress" placeholder="Eks: Les Cayes, Tiburon..." class="form-input" />
-      </div>
-
-      <!-- Client Phone -->
-      <div class="pos-field-group">
-        <label class="pos-label">Telefòn kliyan</label>
-        <input type="tel" id="posClientPhone" placeholder="+509 xx xx xx xx" class="form-input" />
-      </div>
-
-      <!-- Description -->
-      <div class="pos-field-group">
-        <label class="pos-label">Deskripsyon pakè</label>
-        <input type="text" id="posDescription" placeholder="Eks: Vêtements, électronique..." class="form-input" />
-      </div>
-
-      <!-- Dimensions -->
-      <div class="pos-field-group">
-        <label class="pos-label">Dimansyon koli (cm)</label>
-        <div class="three-col">
-          <input type="number" id="posL" placeholder="L" class="form-input" oninput="calcLive()" />
-          <input type="number" id="posW" placeholder="l" class="form-input" oninput="calcLive()" />
-          <input type="number" id="posH" placeholder="H" class="form-input" oninput="calcLive()" />
-        </div>
-      </div>
-
-      <!-- Poids réel -->
-      <div class="pos-field-group">
-        <label class="pos-label">Pwa reyèl (lb)</label>
-        <input type="number" id="posWeight" placeholder="0.0" class="form-input" step="0.1" oninput="calcLive()" />
-      </div>
-
-      <!-- Prix custom & balance restante -->
-      <div class="two-col">
-        <div>
-          <label class="pos-label">Pri pèsonalize ($/lb)</label>
-          <input type="number" id="posCustomPrice" placeholder="Opsyonèl" class="form-input" step="0.01" oninput="calcLive()" />
-        </div>
-        <div>
-          <label class="pos-label">Balance restante ($)</label>
-          <input type="number" id="posDebt" placeholder="0.00" class="form-input" step="0.01" oninput="calcLive()" />
-        </div>
-      </div>
-
-      <!-- Balance à payer -->
-      <div class="pos-field-group">
-        <label class="pos-label">Balance à payer ($)</label>
-        <input type="number" id="posChange" placeholder="0.00" class="form-input" step="0.01" oninput="calcLive()" />
-      </div>
-
-      <!-- Note -->
-      <div class="pos-field-group">
-        <label class="pos-label">Nòt (opsyonèl)</label>
-        <input type="text" id="posNote" placeholder="Eks: Fragile, priorite..." class="form-input" />
-      </div>
-
-      <!-- Résultat Live -->
-      <div id="posResultPanel" class="result-panel">
-        <div class="result-row">
-          <span>Pwa volimik</span>
-          <span id="resVolWeight" class="mono">— lb</span>
-        </div>
-        <div class="result-row">
-          <span>Pwa final</span>
-          <span id="resFinalWeight" class="mono gold">— lb</span>
-        </div>
-        <div class="result-row">
-          <span>Tarif</span>
-          <span id="resTarif" class="mono">—</span>
-        </div>
-        <div class="result-row">
-          <span>Subtotal</span>
-          <span id="resService" class="mono">—</span>
-        </div>
-        <div class="result-row highlight">
-          <span>TOTAL</span>
-          <span id="resTotal" class="mono gold big">$0.00</span>
-        </div>
-      </div>
-
-      <button class="btn-primary full-btn" onclick="generatePOSInvoice()">🖨️ Jenere Fich Shipping PDF</button>
-    </div>
-
-    <!-- ══════════ FICH ACHA ══════════ -->
-    <div id="posTabAcha" class="module-body scrollable" style="display:none;">
-      <!-- ── Kliyan A / Kliyan B (2 fich pa paj PDF paysaj) ── -->
-      <div style="display:flex;gap:8px;padding:10px 14px 0;">
-        <button id="achaSlotBtn0" onclick="slotSwitch('acha',0)" style="flex:1;border:1px solid rgba(0,150,166,0.7);border-radius:8px;padding:9px 6px;font-size:0.8rem;cursor:pointer;background:rgba(0,150,166,0.25);color:#00acc1;">👤 Kliyan A</button>
-        <button id="achaSlotBtn1" onclick="slotSwitch('acha',1)" style="flex:1;border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:9px 6px;font-size:0.8rem;cursor:pointer;background:rgba(255,255,255,0.05);color:rgba(200,190,175,0.65);">👤 Kliyan B (opsyonèl)</button>
-      </div>
-      <div id="achaSlotInfo" style="padding:4px 16px 0;font-size:0.68rem;color:rgba(200,190,175,0.5);">Yon sèl fich — lòt mwatye paj la rete blan.</div>
-
-
-      <!-- Section titre -->
-      <div style="padding:10px 14px 4px;border-bottom:1px solid rgba(212,175,55,0.2);margin-bottom:4px;">
-        <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.12em;color:rgba(212,175,55,0.7);font-family:'Rajdhani',sans-serif;">FICH ACHA · ALIBABA/TEMU/AMAZON/ALIEXPRESS</div>
-      </div>
-
-      <div id="achaEditBanner" style="display:none;margin:8px 14px 0;padding:8px 12px;background:rgba(0,150,166,0.12);border-left:3px solid rgba(0,150,166,0.6);border-radius:8px;font-size:0.78rem;color:#00acc1;">
-        ✏️ Ou ap modifye Fich Acha #<span id="achaEditNo"></span> — ajoute frè shipping la, answit mete ajou. (🗑 pou anile)
-      </div>
-
-      <!-- ── BLOC A: Infos Kliyan ── -->
-      <div style="padding:6px 14px 0;font-size:0.68rem;font-weight:800;color:rgba(212,175,55,0.6);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;">A. INFOS KLIYAN</div>
-
-      <!-- Client Name avec autocomplete -->
+      <!-- A. Client -->
+      <div style="padding:10px 14px 0;font-size:0.68rem;font-weight:800;color:rgba(212,175,55,0.7);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;">A. KLIYAN</div>
       <div class="pos-field-group" style="position:relative;">
         <label class="pos-label">Non kliyan</label>
-        <input type="text" id="achaClientName" placeholder="Eks: Jean Marc" class="form-input" autocomplete="off" oninput="initAchaAutocomplete()" />
+        <input type="text" id="fkName" placeholder="Eks: Marie Pierre" class="form-input" autocomplete="off" />
       </div>
-
-      <!-- Client Address -->
       <div class="pos-field-group">
         <label class="pos-label">Adrès kliyan</label>
-        <input type="text" id="achaClientAddress" placeholder="Eks: Camp-Perrin, Okay..." class="form-input" />
+        <input type="text" id="fkAddr" placeholder="Eks: Les Cayes, Tiburon..." class="form-input" />
       </div>
-
-      <!-- Client Phone -->
-      <div class="pos-field-group">
-        <label class="pos-label">Telefòn kliyan</label>
-        <input type="tel" id="achaClientPhone" placeholder="+509 xx xx xx xx" class="form-input" />
-      </div>
-
-      <!-- Plateforme acha -->
-      <div class="pos-field-group">
-        <label class="pos-label">🛒 Platefòm acha <span style="opacity:0.55;font-weight:400;">(jiska 2)</span></label>
-        <select id="achaPlateforme" class="form-input" style="cursor:pointer;">
-          <option value="">— Chwazi platefòm —</option>
-          <option value="alibaba">Alibaba</option>
-          <option value="aliexpress">AliExpress</option>
-          <option value="temu">Temu</option>
-          <option value="shein">Shein</option>
-          <option value="amazon">Amazon</option>
-        </select>
-      </div>
-
-      <div class="pos-field-group">
-        <label class="pos-label">🛒 2yèm platefòm <span style="opacity:0.55;font-weight:400;">(opsyonèl)</span></label>
-        <select id="achaPlateforme2" class="form-input" style="cursor:pointer;">
-          <option value="">— Chwazi platefòm —</option>
-          <option value="alibaba">Alibaba</option>
-          <option value="aliexpress">AliExpress</option>
-          <option value="temu">Temu</option>
-          <option value="shein">Shein</option>
-          <option value="amazon">Amazon</option>
-        </select>
-      </div>
-
-      <!-- Description marchandise -->
-      <div class="pos-field-group">
-        <label class="pos-label">Deskripsyon machandiz la</label>
-        <textarea id="achaDescription" placeholder="Eks: Machin koud, akseswa pou boutik, materyèl..." class="form-input form-textarea" rows="3"></textarea>
-      </div>
-
-      <!-- ── BLOC B: Suivi & Dates ── -->
-      <div style="padding:12px 14px 0;font-size:0.68rem;font-weight:800;color:rgba(0,150,166,0.8);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;">B. SUIVI KOMAND</div>
-
-      <div class="pos-field-group">
-        <label class="pos-label">Dat kòmand usine</label>
-        <input type="date" id="achaDateCommande" class="form-input" />
-      </div>
-
       <div class="two-col" style="padding:0 14px;">
         <div>
-          <label class="pos-label">Dat machandiz lan livre USA <span style="opacity:0.55;font-weight:400;">(opsyonèl)</span></label>
-          <input type="date" id="achaDateLivreUSA" class="form-input" />
+          <label class="pos-label">Telefòn</label>
+          <input type="tel" id="fkPhone" placeholder="+509 xx xx xx xx" class="form-input" />
         </div>
         <div>
-          <label class="pos-label">Dat machandiz lan disponib Ayiti <span style="opacity:0.55;font-weight:400;">(opsyonèl)</span></label>
-          <input type="date" id="achaDateDispoAyiti" class="form-input" />
+          <label class="pos-label">Imèl <span style="opacity:0.55;font-weight:400;">(opsyonèl)</span></label>
+          <input type="email" id="fkEmail" placeholder="nom@email.com" class="form-input" />
         </div>
       </div>
 
-      <!-- ── BLOC C: Finansye ── -->
-      <div style="padding:12px 14px 0;font-size:0.68rem;font-weight:800;color:rgba(101,51,19,0.9);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;">C. FINANSYE</div>
+      <!-- B. Sèvis (cases cochées en rouge sur le PDF) -->
+      <div style="padding:12px 14px 0;font-size:0.68rem;font-weight:800;color:rgba(212,175,55,0.7);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;">B. MOTIF PÈMAN</div>
+      <div style="display:flex;gap:10px;padding:6px 14px 0;">
+        <label style="flex:1;display:flex;align-items:center;gap:8px;border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:11px 12px;cursor:pointer;color:#ddd8cc;font-size:0.9rem;">
+          <input type="checkbox" id="fkAcha" onchange="fkOnFlags()" /> 🛒 Acha
+        </label>
+        <label style="flex:1;display:flex;align-items:center;gap:8px;border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:11px 12px;cursor:pointer;color:#ddd8cc;font-size:0.9rem;">
+          <input type="checkbox" id="fkShip" onchange="fkOnFlags()" /> 📦 Shipping
+        </label>
+      </div>
 
-      <!-- Achat usine -->
       <div class="pos-field-group">
-        <label class="pos-label">💰 Montan acha usine (USD)</label>
-        <input type="number" id="achaPrixUsine" placeholder="0.00" class="form-input" step="0.01" oninput="calcAchaLive()" />
+        <label class="pos-label">🛒 Orijin machandiz <span style="opacity:0.55;font-weight:400;">(logo sou PDF)</span></label>
+        <select id="fkPlat1" class="form-input" style="cursor:pointer;">
+          <option value="">— Chwazi platefòm —</option>
+          <option value="alibaba">Alibaba</option>
+          <option value="aliexpress">AliExpress</option>
+          <option value="temu">Temu</option>
+          <option value="shein">Shein</option>
+          <option value="amazon">Amazon</option>
+        </select>
       </div>
-
-      <!-- Résultat intermédiaire : sous-total -->
-      <div style="margin:6px 14px;padding:8px 12px;background:rgba(0,150,166,0.1);border-radius:8px;border-left:3px solid rgba(0,150,166,0.5);display:flex;flex-direction:column;gap:2px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <span style="font-size:0.8rem;color:rgba(0,150,166,0.9);font-family:'Rajdhani',sans-serif;font-weight:700;">SOUS-TOTAL ACHA</span>
-          <span id="resSousTotal" style="font-family:'Space Mono',monospace;font-size:0.95rem;color:#00a0aa;font-weight:700;">$0.00</span>
-        </div>
-        <div style="display:flex;justify-content:flex-end;">
-          <span id="resSousTotalHTG" style="font-family:'Space Mono',monospace;font-size:0.72rem;color:rgba(0,150,166,0.55);">≈ 0 HTG</span>
-        </div>
-      </div>
-
-      <!-- Shipping Haïti (optionnel) -->
       <div class="pos-field-group">
-        <label class="pos-label">🚢 Frè shipping USA → Ayiti (USD) <span style="opacity:0.55;font-weight:400;">(opsyonèl)</span></label>
-        <input type="number" id="achaShippingHaiti" placeholder="Opsyonèl — 0.00" class="form-input" step="0.01" oninput="calcAchaLive()" />
+        <label class="pos-label">🛒 2yèm platefòm <span style="opacity:0.55;font-weight:400;">(opsyonèl)</span></label>
+        <select id="fkPlat2" class="form-input" style="cursor:pointer;">
+          <option value="">— Chwazi platefòm —</option>
+          <option value="alibaba">Alibaba</option>
+          <option value="aliexpress">AliExpress</option>
+          <option value="temu">Temu</option>
+          <option value="shein">Shein</option>
+          <option value="amazon">Amazon</option>
+        </select>
       </div>
 
-      <!-- Résultat grand total -->
-      <div id="achaResultPanel" class="result-panel">
-        <div class="result-row highlight">
-          <span>TOTAL</span>
-          <span id="resGrandTotal" class="mono gold big">$0.00</span>
+      <!-- C. Liy fakti a : tout manyèl, 6 karaktè max (sof deskripsyon) -->
+      <div style="padding:12px 14px 0;font-size:0.68rem;font-weight:800;color:rgba(212,175,55,0.7);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;">C. LIY FAKTI (tout manyèl)</div>
+      <div class="two-col" style="padding:0 14px;">
+        <div>
+          <label class="pos-label">Pwa <span style="opacity:0.55;font-weight:400;">(6 kar.)</span></label>
+          <input type="text" id="fkPwa" maxlength="6" placeholder="Eks: 8.63lb" class="form-input" />
         </div>
-        <div style="display:flex;justify-content:flex-end;padding:0 4px 4px;">
-          <span id="resGrandTotalHTG" style="font-family:'Space Mono',monospace;font-size:0.72rem;color:rgba(212,175,55,0.55);">≈ 0 HTG</span>
+        <div>
+          <label class="pos-label">Pri U. <span style="opacity:0.55;font-weight:400;">(6 kar.)</span></label>
+          <input type="text" id="fkPri" maxlength="6" placeholder="Eks: 4.90" class="form-input" />
         </div>
       </div>
-
-      <!-- Note / Explication -->
       <div class="pos-field-group">
-        <label class="pos-label">Nòt / Eksplikasyon</label>
-        <textarea id="achaNoteExplication" placeholder="Eks: Balans pou machandiz ki poko livre, kondisyon espesyal..." class="form-input form-textarea" rows="2"></textarea>
+        <label class="pos-label">Deskripsyon <span id="fkDescCount" style="opacity:0.55;font-weight:400;">0 / 100</span></label>
+        <textarea id="fkDesc" maxlength="100" placeholder="Eks: 4 pwodwi Amazon" class="form-input form-textarea" rows="3"></textarea>
+      </div>
+      <div class="two-col" style="padding:0 14px;">
+        <div>
+          <label class="pos-label">Montan USD <span style="opacity:0.55;font-weight:400;">(6 kar.)</span></label>
+          <input type="text" id="fkUsd" maxlength="6" placeholder="Eks: 39" class="form-input" />
+        </div>
+        <div>
+          <label class="pos-label">Montan HTG <span style="opacity:0.55;font-weight:400;">(6 kar.)</span></label>
+          <input type="text" id="fkHtg" maxlength="6" placeholder="Eks: 5265" class="form-input" />
+        </div>
       </div>
 
-      <!-- Actions -->
-      <div style="display:flex;gap:10px;padding:0 14px 4px;">
-        <button id="achaGenBtn" class="btn-primary full-btn" style="flex:3;" onclick="generateAchaInvoice()">🖨️ Jenere Fich Acha PDF</button>
-        <button style="flex:1;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:10px;color:rgba(200,190,175,0.6);font-size:0.8rem;padding:12px 6px;cursor:pointer;" onclick="clearAchaForm()">🗑</button>
+      <!-- D. Peman -->
+      <div style="padding:12px 14px 0;font-size:0.68rem;font-weight:800;color:rgba(212,175,55,0.7);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;">D. PEMAN</div>
+      <div class="two-col" style="padding:0 14px;">
+        <div>
+          <label class="pos-label">Montan pou peye</label>
+          <input type="text" id="fkPay" maxlength="6" placeholder="6 kar." class="form-input" />
+        </div>
+        <div>
+          <label class="pos-label">Montan m bay <span style="opacity:0.55;font-weight:400;">(USD)</span></label>
+          <input type="text" id="fkPaid" maxlength="6" placeholder="6 kar." class="form-input" />
+        </div>
       </div>
+      <div id="fkStageHint" style="padding:3px 16px 0;font-size:0.68rem;color:rgba(200,190,175,0.5);"></div>
+      <div class="two-col" style="padding:6px 14px 0;">
+        <div>
+          <label class="pos-label">Balans m rete</label>
+          <input type="text" id="fkBal" maxlength="6" placeholder="6 kar." class="form-input" />
+        </div>
+        <div>
+          <label class="pos-label">Peye nèt ?</label>
+          <select id="fkNet" class="form-input" style="cursor:pointer;">
+            <option value="">— (pa make) —</option>
+            <option value="peye">Peye nèt</option>
+            <option value="pa">Pa peye nèt</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- E. Dat, Fèt pa, Nòt -->
+      <div style="padding:12px 14px 0;font-size:0.68rem;font-weight:800;color:rgba(212,175,55,0.7);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;">E. DAT · FÈT PA · NÒT</div>
+      <div class="two-col" style="padding:0 14px;">
+        <div>
+          <label class="pos-label">Dat fakti</label>
+          <input type="date" id="fkDate" class="form-input" />
+        </div>
+        <div>
+          <label class="pos-label">Fèt pa</label>
+          <input type="text" id="fkFaitPar" maxlength="30" placeholder="Non moun nan" class="form-input" />
+        </div>
+      </div>
+      <div class="pos-field-group">
+        <label class="pos-label">Dat kòmand izín <span style="opacity:0.55;font-weight:400;">(opsyonèl)</span></label>
+        <input type="date" id="fkDateCmd" class="form-input" />
+      </div>
+      <div class="two-col" style="padding:0 14px;">
+        <div>
+          <label class="pos-label">Dat machandiz lan livre USA</label>
+          <input type="date" id="fkDateUSA" class="form-input" />
+        </div>
+        <div>
+          <label class="pos-label">Dat machandiz lan disponib Ayiti</label>
+          <input type="date" id="fkDateHT" class="form-input" />
+        </div>
+      </div>
+      <div class="pos-field-group">
+        <label class="pos-label">Nòt <span style="opacity:0.55;font-weight:400;">(opsyonèl, 120 kar.)</span></label>
+        <input type="text" id="fkNote" maxlength="120" placeholder="Eks: Balans pou machandiz ki poko livre..." class="form-input" />
+      </div>
+
+      <div style="display:flex;gap:10px;padding:8px 14px 20px;">
+        <button id="fkDoneBtn" class="btn-primary full-btn" style="flex:3;" onclick="fkFinish()">✅ Terminé pour le client</button>
+        <button style="flex:1;margin-top:16px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:10px;color:rgba(200,190,175,0.6);font-size:0.8rem;padding:12px 6px;cursor:pointer;" onclick="fkClear()">🗑</button>
+      </div>
+    </div>
+
+    <!-- ══════════ FILE D'ATTENTE (jusqu'à 10 factures) ══════════ -->
+    <div id="fkPaneQueue" class="module-body scrollable" style="display:none;">
+      <div id="fkQueueBar" style="position:sticky;top:0;z-index:2;background:#1a1520;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:space-between;gap:8px;"></div>
+      <div id="fkQueueList"></div>
     </div>
 
     <!-- Historique POS -->
     <div id="posHistoryPanel" class="side-panel hidden">
       <div class="panel-header">
-        <h3>Istorik fich</h3>
+        <h3>Istorik fakti</h3>
         <button onclick="togglePosHistory()">✕</button>
       </div>
       <div id="posHistoryList" class="list-container"></div>

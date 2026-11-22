@@ -1,24 +1,27 @@
 /* ══════════════════════════════════════════════
-   THOMAS BUSINESS SUITE — pos.js  v5
-   Jeneratè Fich · Fich Shipping & Fich Acha (PDF A4 paysage, 2 fich pa paj)
+   THOMAS BUSINESS SUITE — pos.js  v6
+   Jeneratè Fakti inifye (Acha + Shipping) — PDF A4 paysaj, 2 fakti pa paj
 
-   RÈGLEMAN KALKIL (Shipping) :
-   • Pwa Volimik  = (L × l × H) / 4000  [cm → lb]
-   • Tarif fiks   = $4.90/lb  ·  Minimòm $25.00 sof si Pri Espesyal
-   • Total        = PrixSèvis + BalRès − BalPaye
-   • Afichaj      = $XX.XX  +  XXXX HTG (135 HTG/$)
-
-   FICH ACHA :
-   • Sous-total = montan acha · Total = sous-total + shipping USA→Ayiti
-   • Fich 1 (san shipping) → fich nèt (ak shipping) : modifye nan istorik
+   • Yon sèl fòm : kaz ACHA / SHIPPING (koche an wouj sou PDF la)
+   • Yon sèl liy nan tablo a : Pwa | Deskripsyon (100 kar.) | Pri U. | Montan USD | HTG
+     (chak chan sof deskripsyon : 6 karaktè maksimòm) — OKENN kalkil otomatik
+   • Non kliyan, adrès… = polis enfòmatize (Courier) · rès la = ekriti men, plim ble
+   • « Terminé pour X » : fakti a antre nan FILE D'ATTENTE (max 10), san PDF
+   • Chwazi 2 fakti nan file a → PDF paysaj → yo kite file a, men rete nan istorik
+   • Chak peman (Montan m bay) antre otomatikman nan pwofil kliyan an (customers.js)
+     → total ogmante, nivo kliyan rekalkile (Bronze / Argent / Platine / Or / Super Client)
    ══════════════════════════════════════════════ */
 
-const POS_KEY     = 'tbs_pos_history_v2';
-const ACHA_KEY    = 'tbs_acha_history_v2';
-const POS_MAX     = 20;
-const MIN_CHARGE  = 25.00;
-const TARIF_LB    = 4.90;
-const HTG_RATE    = 135;
+const FK_KEY       = 'tbs_fakti_v1';
+const FK_COUNTER   = 'tbs_fakti_counter';
+const FK_MIGRATED  = 'tbs_fakti_migrated_v1';
+const FK_PRINTED_MAX = 20;      // istorik : 20 dènye fakti deja enprime
+const FK_QUEUE_MAX   = 10;      // file d'attente : 10 fakti maksimòm
+const POS_KEY  = 'tbs_pos_history_v2';   // ansyen kle (lekti sèlman — migrasyon)
+const ACHA_KEY = 'tbs_acha_history_v2';
+
+const HAND_INK = [38, 18, 150];     // ankre ble-vyolèt (modèl manuscrit)
+const FK_RED      = [200, 0, 0];
 
 const PLAT_MAP = {
   alibaba:    { label: 'Alibaba',    file: 'alibaba.png'    },
@@ -27,266 +30,506 @@ const PLAT_MAP = {
   shein:      { label: 'Shein',      file: 'shein.png'      },
   amazon:     { label: 'Amazon',     file: 'amazon.png'     },
 };
+const STAGE_LABEL = { 'acha': 'Acha', 'ship': 'Shipping', 'acha+ship': 'Acha + Shipping' };
 
-let currentPosTab = 'shipping';
-let achaEditingId = null;     // id fich acha k ap modifye (si gen)
-let posSelected   = [];       // id fich chwazi pou PDF 2-an-1
+let fkEditingId = null;     // id fakti k ap modifye
+let fkSelected  = [];       // id chwazi nan file a (max 2)
+let fkPrev      = null;     // eta anvan modifikasyon : {acha, ship, stage}
+let fkFormStage = 'ship';   // etap peman fòm lan
+let fkFormMemo  = {};       // montan « m bay » pa etap
+let FK_HAND = { ok: false };   // polis manuscrit chaje ?
 
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
+function fkUid() { return (typeof uid === 'function') ? uid() : (Date.now().toString(36) + Math.random().toString(36).slice(2, 8)); }
+function fkPad(no) { return String(no || '0').padStart(4, '0'); }
+function fkNum(s) { const n = parseFloat(String(s || '').replace(',', '.').replace(/[^0-9.]/g, '')); return isFinite(n) ? n : 0; }
 
-function switchPosTab(tab) {
-  currentPosTab = tab;
-  posSelected = [];
-  const shippingPane = document.getElementById('posTabShipping');
-  const achaPane     = document.getElementById('posTabAcha');
-  const btnShipping  = document.getElementById('tabBtnShipping');
-  const btnAcha      = document.getElementById('tabBtnAcha');
+/* ── Estokaj ─────────────────────────────────── */
+function fkGet() { try { return JSON.parse(localStorage.getItem(FK_KEY)) || []; } catch { return []; } }
+function fkSave(list) {
+  /* Fakti pa enprime pa janm efase · istorik = 20 dènye fakti enprime */
+  const printed = list.filter(e => e.printed).sort((a, b) => (b.date || 0) - (a.date || 0)).slice(0, FK_PRINTED_MAX);
+  const keep = new Set([...list.filter(e => !e.printed), ...printed].map(e => e.id));
+  localStorage.setItem(FK_KEY, JSON.stringify(list.filter(e => keep.has(e.id))));
+}
+/* Kompatibilite ansyen non (lòt fichye ka rele yo) */
+function getPosHistory()  { try { return JSON.parse(localStorage.getItem(POS_KEY))  || []; } catch { return []; } }
+function getAchaHistory() { try { return JSON.parse(localStorage.getItem(ACHA_KEY)) || []; } catch { return []; } }
 
-  if (tab === 'shipping') {
-    shippingPane.style.display = '';
-    achaPane.style.display     = 'none';
-    btnShipping.classList.add('active');
-    btnAcha.classList.remove('active');
-  } else {
-    shippingPane.style.display = 'none';
-    achaPane.style.display     = '';
-    btnAcha.classList.add('active');
-    btnShipping.classList.remove('active');
-    calcAchaLive();
-  }
-  refreshHistoryIfOpen();
+/* Nimewo kontinye apre tout ansyen nimewo yo */
+function fkNextNo() {
+  const maxH = fkGet().reduce((m, h) => Math.max(m, parseInt(h.invoiceNo) || 0), 0);
+  const old  = Math.max(parseInt(localStorage.getItem('tbs_pos_counter')) || 0, parseInt(localStorage.getItem('tbs_acha_counter')) || 0);
+  const n = Math.max(parseInt(localStorage.getItem(FK_COUNTER)) || 0, maxH, old) + 1;
+  localStorage.setItem(FK_COUNTER, String(n));
+  return fkPad(n);
 }
 
-/* ── Estokaj (nouvo istorik — ansyen yo efase) ── */
-function getPosHistory()  { try { return JSON.parse(localStorage.getItem(POS_KEY))  || []; } catch { return []; } }
-function savePosHistory(l) { localStorage.setItem(POS_KEY,  JSON.stringify(l)); }
-function getAchaHistory() { try { return JSON.parse(localStorage.getItem(ACHA_KEY)) || []; } catch { return []; } }
-function saveAchaHistory(l){ localStorage.setItem(ACHA_KEY, JSON.stringify(l)); }
-
-/* Nimewo fich kontinye apre ansyen nimewo yo (pa gen doublon) */
-(function migrateOldHistory() {
+/* Migrasyon yon sèl fwa : ansyen fich Acha / Shipping → nouvo istorik (ansyen done yo pa efase) */
+(function fkMigrate() {
   try {
-    [['tbs_pos_history', 'pos'], ['tbs_acha_history', 'acha']].forEach(([oldKey, t]) => {
-      const raw = localStorage.getItem(oldKey);
-      if (raw === null) return;
-      let max = 0;
-      try { (JSON.parse(raw) || []).forEach(h => { max = Math.max(max, parseInt(h.invoiceNo) || 0); }); } catch {}
-      const ck = 'tbs_' + t + '_counter';
-      localStorage.setItem(ck, String(Math.max(max, parseInt(localStorage.getItem(ck)) || 0)));
-      localStorage.removeItem(oldKey);
+    if (localStorage.getItem(FK_MIGRATED)) return;
+    const out = fkGet();
+    const six = v => { const s = (v === 0 || v) ? String(v) : ''; return s.length <= 6 ? s : ''; };
+    const base = h => ({
+      id: h.id || fkUid(), invoiceNo: String(h.invoiceNo || '0'), date: h.date || Date.now(),
+      clientName: h.clientName || '', clientAddr: h.clientAddr || '', clientPhone: h.clientPhone || '', clientEmail: '',
+      origins: [], pwa: '', pri: '', totalPay: '', paid: '', bal: '', net: '', faitPar: '',
+      dateCmd: '', dateUSA: '', dateHT: '', note: String(h.note || '').slice(0, 120),
+      printed: true, pays: [], paidByStage: {}
     });
-  } catch {}
+    (JSON.parse(localStorage.getItem(ACHA_KEY)) || []).forEach(h => {
+      const ship = (h.shippingHT || 0) > 0, usd = ship ? h.grandTotal : h.achatUsine;
+      out.push({ ...base(h), origins: [h.plateforme, h.plateforme2].filter(Boolean), acha: true, ship,
+        stage: ship ? 'acha+ship' : 'acha', desc: String(h.desc || '').slice(0, 100),
+        usd: usd ? six(Number(usd).toFixed(2).replace(/\.00$/, '')) : '', htg: usd ? six(Math.round(usd * 135)) : '',
+        dateCmd: h.dateCommande || '', dateUSA: h.dateLivreUSA || '', dateHT: h.dateDispoAyiti || '' });
+    });
+    (JSON.parse(localStorage.getItem(POS_KEY)) || []).forEach(h => {
+      out.push({ ...base(h), acha: false, ship: true, stage: 'ship', desc: String(h.desc || '').slice(0, 100),
+        pwa: h.realWeight > 0 ? six(Number(h.realWeight).toFixed(2)) : '',
+        usd: h.total ? six(Number(h.total).toFixed(2).replace(/\.00$/, '')) : '', htg: h.total ? six(Math.round(h.total * 135)) : '' });
+    });
+    out.sort((a, b) => (b.date || 0) - (a.date || 0));
+    fkSave(out);
+    localStorage.setItem(FK_MIGRATED, '1');
+  } catch (err) {}
 })();
 
-function nextInvoiceNo(type) {
-  const t    = type === 'acha' ? 'acha' : 'pos';
-  const ck   = 'tbs_' + t + '_counter';
-  const hist = t === 'acha' ? getAchaHistory() : getPosHistory();
-  const maxH = hist.reduce((m, h) => Math.max(m, parseInt(h.invoiceNo) || 0), 0);
-  const n    = Math.max(parseInt(localStorage.getItem(ck)) || 0, maxH) + 1;
-  localStorage.setItem(ck, String(n));
-  return String(n).padStart(3, '0');
+/* ══════════════════════════════════════════════
+   PWOFIL KLIYAN (customers.js) — peman → total + nivo
+   ══════════════════════════════════════════════ */
+function normTxt(s) {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 }
 
-/* ══════════════════════════════════════════════
-   FICH ACHA — fòmilè
-   ══════════════════════════════════════════════ */
-function calcAchaLive() {
-  const achatUsine = parseFloat(document.getElementById('achaPrixUsine')?.value)     || 0;
-  const shippingHT = parseFloat(document.getElementById('achaShippingHaiti')?.value) || 0;
-  const sousTotal  = achatUsine;
-  const grandTotal = sousTotal + shippingHT;
-  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-  set('resSousTotal',     '$' + sousTotal.toFixed(2));
-  set('resSousTotalHTG',  '≈ ' + Math.round(sousTotal * HTG_RATE).toLocaleString('fr-HT') + ' HTG');
-  set('resGrandTotal',    '$' + grandTotal.toFixed(2));
-  set('resGrandTotalHTG', '≈ ' + Math.round(grandTotal * HTG_RATE).toLocaleString('fr-HT') + ' HTG');
-}
-
-const ACHA_FIELDS = {
-  clientName: 'achaClientName', clientAddr: 'achaClientAddress', clientPhone: 'achaClientPhone',
-  plateforme: 'achaPlateforme', plateforme2: 'achaPlateforme2', desc: 'achaDescription',
-  dateCommande: 'achaDateCommande', dateLivreUSA: 'achaDateLivreUSA', dateDispoAyiti: 'achaDateDispoAyiti',
-  achatUsine: 'achaPrixUsine', shippingHT: 'achaShippingHaiti', note: 'achaNoteExplication'
-};
-
-/* ══════════════════════════════════════════════
-   2 KLIYAN PA PAJ — Kliyan A / Kliyan B nan menm fòmilè a
-   Yon sèl seri chan; bouton A/B chanje kliyan an (done yo sove).
-   B opsyonèl : si li vid → PDF pou yon sèl kliyan.
-   ══════════════════════════════════════════════ */
-const SLOT = {
-  ship: {
-    ids: ['posL','posW','posH','posWeight','posCustomPrice','posDebt','posChange',
-          'posClientName','posClientAddress','posClientPhone','posDescription','posNote'],
-    slots: [{}, {}], active: 0, btn: 'shipSlotBtn', info: 'shipSlotInfo',
-    filled: o => !!(((o.posClientName || '').trim()) || parseFloat(o.posWeight) > 0 ||
-                    parseFloat(o.posCustomPrice) > 0 || parseFloat(o.posL) > 0),
-    calc: () => calcLive()
-  },
-  acha: {
-    ids: Object.values(ACHA_FIELDS),
-    slots: [{}, {}], active: 0, btn: 'achaSlotBtn', info: 'achaSlotInfo',
-    filled: o => !!(((o.achaClientName || '').trim()) || parseFloat(o.achaPrixUsine) > 0),
-    calc: () => calcAchaLive()
+function fkEnsureCustomer(e) {
+  if (typeof getCustomers !== 'function' || typeof saveCustomers !== 'function') return null;
+  const list = getCustomers();
+  let c = e.custId ? list.find(x => x.id === e.custId) : null;
+  if (!c) c = list.find(x => normTxt(x.name) === normTxt(e.clientName));
+  if (!c) {
+    c = { id: fkUid(), name: e.clientName, address: e.clientAddr || '', phone: e.clientPhone || '', email: e.clientEmail || '',
+          bio: '', avatar: null, transactions: [], createdAt: Date.now(), updatedAt: Date.now() };
+    list.unshift(c);
+  } else {
+    if (!c.address && e.clientAddr)  c.address = e.clientAddr;
+    if (!c.phone   && e.clientPhone) c.phone   = e.clientPhone;
+    if (!c.email   && e.clientEmail) c.email   = e.clientEmail;
   }
-};
-
-function slotSnap(t) {
-  const o = {};
-  SLOT[t].ids.forEach(id => { const el = document.getElementById(id); o[id] = el ? el.value : ''; });
-  return o;
-}
-function slotFill(t, o) {
-  SLOT[t].ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = (o && o[id] !== undefined) ? o[id] : ''; });
-}
-function slotCurrent(t) {          // [A, B] avèk kliyan aktif la ajou
-  const S = SLOT[t], arr = [S.slots[0], S.slots[1]];
-  arr[S.active] = slotSnap(t);
-  return arr;
-}
-function slotSwitch(t, i) {
-  const S = SLOT[t];
-  if (i === S.active) return;
-  S.slots[S.active] = slotSnap(t);
-  S.active = i;
-  slotFill(t, S.slots[i]);
-  S.calc();
-  slotUI(t);
-}
-function slotReset(t) {
-  const S = SLOT[t];
-  S.slots = [{}, {}]; S.active = 0;
-  slotFill(t, {});
-  S.calc();
-  slotUI(t);
-}
-function slotUI(t) {
-  const S = SLOT[t], cur = slotCurrent(t);
-  [0, 1].forEach(i => {
-    const b = document.getElementById(S.btn + i);
-    if (!b) return;
-    const on = S.active === i, ok = S.filled(cur[i]);
-    b.textContent = '👤 Kliyan ' + (i === 0 ? 'A' : 'B') + (i === 1 ? ' (opsyonèl)' : '') + (ok ? ' ✓' : '');
-    b.style.background  = on ? 'rgba(0,150,166,0.25)' : 'rgba(255,255,255,0.05)';
-    b.style.borderColor = on ? 'rgba(0,150,166,0.7)'  : 'rgba(255,255,255,0.12)';
-    b.style.color       = on ? '#00acc1' : 'rgba(200,190,175,0.65)';
-  });
-  const n = cur.filter(S.filled).length;
-  const info = document.getElementById(S.info);
-  if (info) info.textContent = n >= 2 ? '2 fich sou menm paj PDF paysaj.' : 'Yon sèl fich — lòt mwatye paj la rete blan.';
+  saveCustomers(list);
+  return c.id;
 }
 
-function readAchaForm(snap) {
-  snap = snap || slotSnap('acha');
-  const f = {};
-  Object.keys(ACHA_FIELDS).forEach(k => { f[k] = (snap[ACHA_FIELDS[k]] || '').trim(); });
-  f.achatUsine = parseFloat(f.achatUsine) || 0;
-  f.shippingHT = parseFloat(f.shippingHT) || 0;
-  return f;
+/* Etap peman : dènye sèvis ki ajoute a. Acha → apre sa Shipping = 2yèm peman (pa doublon) */
+function fkStageFor(prev, acha, ship) {
+  if (!prev) return (acha && ship) ? 'acha+ship' : (acha ? 'acha' : 'ship');
+  if (prev.acha === acha && prev.ship === ship) return prev.stage;
+  if (acha && ship) {
+    if (prev.acha && !prev.ship) return 'ship';
+    if (prev.ship && !prev.acha) return 'acha';
+    return prev.stage;
+  }
+  return acha ? 'acha' : 'ship';
 }
 
-function setAchaEditUI(entry) {
-  const banner = document.getElementById('achaEditBanner');
-  const btn    = document.getElementById('achaGenBtn');
-  if (banner) banner.style.display = entry ? '' : 'none';
-  const no = document.getElementById('achaEditNo');
-  if (no && entry) no.textContent = entry.invoiceNo;
-  if (btn) btn.textContent = entry ? '💾 Mete ajou Fich Acha PDF' : '🖨️ Jenere Fich Acha PDF';
-}
+/* Anrejistre (oswa korije) peman an nan pwofil kliyan an. Chak etap = yon sèl tranzaksyon. */
+function fkLogPayment(e, stage, amount) {
+  if (!(amount > 0) || typeof getCustomers !== 'function') return;
+  const custId = fkEnsureCustomer(e);
+  if (!custId) return;
+  const list = getCustomers();
+  const c = list.find(x => x.id === custId);
+  if (!c) return;
+  if (!c.transactions) c.transactions = [];
 
-function generateAchaInvoice() {
-  const cur = slotCurrent('acha');
-  const hist = getAchaHistory();
-  const entries = [];
+  const prevRank = getTierRank(getTotalDepenses(c));
+  const origin = (e.origins || []).map(k => PLAT_MAP[k] ? PLAT_MAP[k].label : '').filter(Boolean).join(' + ');
+  const desc = 'Fakti lcd' + fkPad(e.invoiceNo) + ' · ' + STAGE_LABEL[stage] + (origin ? ' · ' + origin : '');
+  e.pays = e.pays || [];
+  const p = e.pays.find(x => x.stage === stage);
 
-  cur.forEach((snap, i) => {
-    if (!SLOT.acha.filled(snap)) return;
-    const f = readAchaForm(snap);
-    const sousTotal  = f.achatUsine;
-    const grandTotal = sousTotal + f.shippingHT;
-    const idx = (i === 0 && achaEditingId) ? hist.findIndex(h => h.id === achaEditingId) : -1;
-    let entry;
-    if (idx >= 0) {
-      entry = { ...hist[idx], ...f, sousTotal, grandTotal, updatedAt: Date.now() };
-      hist[idx] = entry;
-    } else {
-      entry = { id: uid(), type: 'acha', invoiceNo: nextInvoiceNo('acha'), ...f, sousTotal, grandTotal, date: Date.now() };
-      hist.unshift(entry);
+  if (p) {
+    if (p.custId && p.custId !== custId) {               // kliyan chanje → deplase tranzaksyon an
+      const old = list.find(x => x.id === p.custId);
+      if (old) old.transactions = (old.transactions || []).filter(t => t.id !== p.txId);
+      p.txId = null;
     }
-    entry._updated = idx >= 0;
-    entries.push(entry);
-    savePosClient(f.clientName, f.clientAddr, f.clientPhone);
-  });
+    const t = p.txId ? c.transactions.find(x => x.id === p.txId) : null;
+    if (t) { t.amount = amount; t.desc = desc; }
+    else { p.txId = fkUid(); c.transactions.push({ id: p.txId, amount, desc, txType: 'depans', date: Date.now(), invoiceId: e.id, stage }); }
+    p.usd = amount; p.custId = custId;
+  } else {
+    const txId = fkUid();
+    c.transactions.push({ id: txId, amount, desc, txType: 'depans', date: Date.now(), invoiceId: e.id, stage });
+    e.pays.push({ stage, usd: amount, txId, custId, date: Date.now() });
+  }
+  c.updatedAt = Date.now();
+  e.custId = custId;
+  saveCustomers(list);
 
-  if (!entries.length) { showToast('Antre omwen non kliyan oswa montan yo'); return; }
+  if (getTierRank(getTotalDepenses(c)) > prevRank && typeof showCelebrationModal === 'function') {
+    showCelebrationModal(c.name, getClientBadge(c));
+  }
+  if (typeof renderCustomers === 'function') { try { renderCustomers(); } catch (err) {} }
+}
 
-  if (hist.length > POS_MAX) hist.length = POS_MAX;
-  saveAchaHistory(hist.map(h => { const c = { ...h }; delete c._updated; return c; }));
+/* ══════════════════════════════════════════════
+   FÒM : lekti / ranpli / efase
+   ══════════════════════════════════════════════ */
+const FK_FIELDS = ['fkName','fkAddr','fkPhone','fkEmail','fkPlat1','fkPlat2','fkPwa','fkDesc','fkPri','fkUsd','fkHtg',
+                   'fkPay','fkPaid','fkBal','fkNet','fkFaitPar','fkDateCmd','fkDateUSA','fkDateHT','fkNote'];
+const fkEl = id => document.getElementById(id);
+const fkVal = id => ((fkEl(id) && fkEl(id).value) || '').trim();
+const fkChk = id => !!(fkEl(id) && fkEl(id).checked);
+function fkToday() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 
-  buildFichesPdf('acha', entries);
-  showToast('Fich Acha ' + entries.map(e => '#' + e.invoiceNo).join(' + ') + (entries[0]._updated ? ' mete ajou' : ' jenere'));
-  clearAchaForm(true);
+function fkRead() {
+  const lim = (id, n) => fkVal(id).slice(0, n);
+  const ds = fkVal('fkDate');
+  const origins = [fkVal('fkPlat1'), fkVal('fkPlat2')].filter(Boolean).filter((p, i, a) => a.indexOf(p) === i);
+  return {
+    clientName: fkVal('fkName'), clientAddr: fkVal('fkAddr'), clientPhone: fkVal('fkPhone'), clientEmail: fkVal('fkEmail'),
+    origins, acha: fkChk('fkAcha'), ship: fkChk('fkShip'),
+    pwa: lim('fkPwa', 6), desc: lim('fkDesc', 100), pri: lim('fkPri', 6), usd: lim('fkUsd', 6), htg: lim('fkHtg', 6),
+    totalPay: lim('fkPay', 6), paid: lim('fkPaid', 6), bal: lim('fkBal', 6), net: fkVal('fkNet'),
+    faitPar: lim('fkFaitPar', 30), dateCmd: fkVal('fkDateCmd'), dateUSA: fkVal('fkDateUSA'), dateHT: fkVal('fkDateHT'),
+    note: lim('fkNote', 120),
+    date: ds ? new Date(ds + 'T12:00:00').getTime() : Date.now()
+  };
+}
+
+function fkFill(e) {
+  const map = { fkName: e.clientName, fkAddr: e.clientAddr, fkPhone: e.clientPhone, fkEmail: e.clientEmail,
+    fkPlat1: (e.origins || [])[0] || '', fkPlat2: (e.origins || [])[1] || '', fkPwa: e.pwa, fkDesc: e.desc, fkPri: e.pri,
+    fkUsd: e.usd, fkHtg: e.htg, fkPay: e.totalPay, fkPaid: e.paid, fkBal: e.bal, fkNet: e.net || '', fkFaitPar: e.faitPar,
+    fkDateCmd: e.dateCmd, fkDateUSA: e.dateUSA, fkDateHT: e.dateHT, fkNote: e.note };
+  FK_FIELDS.forEach(id => { if (fkEl(id)) fkEl(id).value = (map[id] == null ? '' : map[id]); });
+  if (fkEl('fkAcha')) fkEl('fkAcha').checked = !!e.acha;
+  if (fkEl('fkShip')) fkEl('fkShip').checked = !!e.ship;
+  if (fkEl('fkDate')) { const d = new Date(e.date || Date.now()); fkEl('fkDate').value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+}
+
+function fkOnFlags() {
+  const acha = fkChk('fkAcha'), ship = fkChk('fkShip');
+  const ns = fkStageFor(fkEditingId ? fkPrev : null, acha, ship);
+  if (ns !== fkFormStage && fkEl('fkPaid')) {
+    fkFormMemo[fkFormStage] = fkEl('fkPaid').value;
+    fkEl('fkPaid').value = fkFormMemo[ns] || '';
+    fkFormStage = ns;
+  }
+  const h = fkEl('fkStageHint');
+  if (h) h.textContent = (acha || ship) ? ('Peman etap : ' + STAGE_LABEL[ns] + ' → ajoute nan pwofil kliyan an') : 'Chwazi Acha oswa Shipping';
+}
+
+function fkUpdateBtn() {
+  const b = fkEl('fkDoneBtn'); if (!b) return;
+  const n = fkVal('fkName');
+  b.textContent = (fkEditingId ? '💾 Mettre à jour pour ' : '✅ Terminé pour ') + (n || 'le client');
+}
+
+function fkClear(silent) {
+  FK_FIELDS.forEach(id => { if (fkEl(id)) fkEl(id).value = ''; });
+  if (fkEl('fkAcha')) fkEl('fkAcha').checked = false;
+  if (fkEl('fkShip')) fkEl('fkShip').checked = false;
+  if (fkEl('fkDate')) fkEl('fkDate').value = fkToday();
+  fkEditingId = null; fkPrev = null; fkFormStage = 'ship'; fkFormMemo = {};
+  const b = fkEl('fkEditBanner'); if (b) b.style.display = 'none';
+  fkOnFlags(); fkUpdateBtn(); fkCount();
+  if (!silent) showToast('Fòm efase');
+}
+
+function fkCount() {
+  const d = fkEl('fkDescCount'); if (d) d.textContent = fkVal('fkDesc').length + ' / 100';
+}
+
+/* ══════════════════════════════════════════════
+   « TERMINÉ POUR X » — enrejistre fakti a + peman nan pwofil
+   ══════════════════════════════════════════════ */
+function fkFinish() {
+  const f = fkRead();
+  if (!f.clientName) { showToast('Antre non kliyan an'); return; }
+  if (!f.acha && !f.ship) { showToast('Chwazi Acha oswa Shipping'); return; }
+
+  const list = fkGet();
+  const idx = fkEditingId ? list.findIndex(h => h.id === fkEditingId) : -1;
+  let e, prev = null;
+  if (idx < 0) {
+    if (list.filter(h => !h.printed).length >= FK_QUEUE_MAX) { showToast("File d'attente pleine (10) — enprime 2 fakti dabò"); return; }
+    e = { id: fkUid(), invoiceNo: fkNextNo(), pays: [], paidByStage: {}, ...f, printed: false };
+    list.unshift(e);
+  } else {
+    const old = list[idx];
+    prev = { acha: old.acha, ship: old.ship, stage: old.stage || fkStageFor(null, old.acha, old.ship) };
+    e = { ...old, ...f, date: f.date, printed: false, updatedAt: Date.now() };
+    list[idx] = e;
+  }
+  const stage = fkStageFor(prev, e.acha, e.ship);
+  e.stage = stage;
+  e.paidByStage = { ...(e.paidByStage || {}), [stage]: e.paid };
+  fkLogPayment(e, stage, fkNum(e.paid));
+  if (typeof savePosClient === 'function') savePosClient(e.clientName, e.clientAddr, e.clientPhone);
+  fkSave(list);
+
+  const q = fkGet().filter(h => !h.printed).length;
+  showToast('Fakti #lcd' + fkPad(e.invoiceNo) + (idx < 0 ? ' anrejistre' : ' mete ajou') + ' · file : ' + q);
+  fkClear(true);
+  fkRefresh();
+}
+
+function fkEdit(id) {
+  const e = fkGet().find(h => h.id === id); if (!e) return;
+  fkClear(true);
+  fkEditingId = id;
+  fkPrev = { acha: !!e.acha, ship: !!e.ship, stage: e.stage || fkStageFor(null, e.acha, e.ship) };
+  fkFormMemo = { ...(e.paidByStage || {}) };
+  fkFormStage = fkPrev.stage;
+  fkFill(e);
+  if (fkEl('fkPaid')) fkEl('fkPaid').value = fkFormMemo[fkFormStage] || '';
+  const b = fkEl('fkEditBanner'); if (b) b.style.display = '';
+  if (fkEl('fkEditNo')) fkEl('fkEditNo').textContent = 'lcd' + fkPad(e.invoiceNo);
+  fkOnFlags(); fkUpdateBtn(); fkCount();
+  const p = fkEl('posHistoryPanel'); if (p) p.classList.add('hidden');
+  switchPosTab('new');
+  const pane = fkEl('fkPaneNew'); if (pane) pane.scrollTop = 0;
+}
+
+/* ══════════════════════════════════════════════
+   ONGLET + FILE D'ATTENTE + ISTORIK
+   ══════════════════════════════════════════════ */
+function switchPosTab(tab) {
+  const t = (tab === 'queue') ? 'queue' : 'new';
+  if (fkEl('fkPaneNew'))   fkEl('fkPaneNew').style.display   = t === 'new' ? '' : 'none';
+  if (fkEl('fkPaneQueue')) fkEl('fkPaneQueue').style.display = t === 'queue' ? '' : 'none';
+  if (fkEl('fkTabNew'))   fkEl('fkTabNew').classList.toggle('active', t === 'new');
+  if (fkEl('fkTabQueue')) fkEl('fkTabQueue').classList.toggle('active', t === 'queue');
+  if (t === 'queue') fkRenderQueue();
+}
+
+function fkRefresh() {
+  const q = fkGet().filter(h => !h.printed).length;
+  const c = fkEl('fkQueueCount'); if (c) c.textContent = q;
+  fkRenderQueue();
   refreshHistoryIfOpen();
 }
 
-function clearAchaForm(silent) {
-  achaEditingId = null;
-  setAchaEditUI(null);
-  slotReset('acha');
-  if (silent !== true) showToast('Fomilè efase');
+function fkFlagChips(h) {
+  const chip = (t) => `<span style="font-size:0.62rem;background:rgba(255,255,255,0.1);color:#ddd8cc;border-radius:4px;padding:1px 5px;margin-right:4px;">${t}</span>`;
+  return (h.acha ? chip('ACHA') : '') + (h.ship ? chip('SHIPPING') : '');
 }
 
-/* Rechaje yon fich nan fòmilè pou modifye li (egz. ajoute shipping) */
-function editAchaFiche(id) {
-  const entry = getAchaHistory().find(h => h.id === id);
-  if (!entry) return;
-  if (currentPosTab !== 'acha') switchPosTab('acha');
-  slotReset('acha');
-  Object.keys(ACHA_FIELDS).forEach(k => {
-    const el = document.getElementById(ACHA_FIELDS[k]);
-    if (!el) return;
-    const v = entry[k];
-    el.value = (v === undefined || v === null || ((k === 'achatUsine' || k === 'shippingHT') && !v)) ? '' : v;
-  });
-  achaEditingId = id;
-  setAchaEditUI(entry);
-  calcAchaLive();
-  slotUI('acha');
-  document.getElementById('posHistoryPanel')?.classList.add('hidden');
-  document.getElementById('posTabAcha')?.scrollTo?.({ top: 0, behavior: 'smooth' });
-  showToast('Fich #' + entry.invoiceNo + ' chaje — ajoute shipping la');
+function fkRenderQueue() {
+  const el = fkEl('fkQueueList'); if (!el) return;
+  const q = fkGet().filter(h => !h.printed);
+  fkSelected = fkSelected.filter(id => q.some(h => h.id === id));
+  const bar = fkEl('fkQueueBar');
+  if (bar) bar.innerHTML = `<span id="fkSelCount" style="font-size:0.74rem;color:rgba(200,190,175,0.6);">${fkSelected.length} / 2 chwazi · ${q.length} / ${FK_QUEUE_MAX} nan file</span>
+    <button onclick="fkPrintSelected()" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.3);border-radius:6px;color:#fff;font-size:0.78rem;padding:7px 12px;cursor:pointer;">📄 PDF paysaj (1-2 fakti)</button>`;
+  if (!q.length) { el.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:30px;font-size:0.85rem;">File d'attente vid.<br>Fè yon fakti epi klike « Terminé pour… ».</div>`; return; }
+  el.innerHTML = q.map(h => `
+    <div style="padding:12px 14px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;justify-content:space-between;align-items:center;gap:8px;">
+      <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;min-width:0;">
+        <input type="checkbox" ${fkSelected.includes(h.id) ? 'checked' : ''} onchange="fkToggleSel('${h.id}', this)" style="margin-top:3px;" />
+        <div style="min-width:0;">
+          <div style="font-size:0.92rem;font-weight:600;color:#ddd8cc;">${esc(h.clientName)}</div>
+          <div style="margin-top:3px;">${fkFlagChips(h)}</div>
+          <div style="font-size:0.72rem;color:rgba(200,190,175,0.45);margin-top:3px;">#lcd${fkPad(h.invoiceNo)} · ${fkFmtDate(h.date)}${h.usd ? ' · $' + esc(h.usd) : ''}</div>
+        </div>
+      </label>
+      <div style="display:flex;gap:6px;flex-shrink:0;">
+        <button onclick="fkEdit('${h.id}')" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:6px;color:#ddd8cc;font-size:0.8rem;padding:6px 9px;cursor:pointer;">✏️</button>
+        <button onclick="fkDelete('${h.id}')" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:rgba(200,190,175,0.7);font-size:0.8rem;padding:6px 9px;cursor:pointer;">🗑</button>
+      </div>
+    </div>`).join('');
+}
+
+function fkToggleSel(id, cb) {
+  const i = fkSelected.indexOf(id);
+  if (cb.checked) {
+    if (fkSelected.length >= 2) { cb.checked = false; showToast('Maksimòm 2 fakti pa paj'); return; }
+    if (i < 0) fkSelected.push(id);
+  } else if (i >= 0) fkSelected.splice(i, 1);
+  const n = fkEl('fkSelCount');
+  if (n) n.textContent = fkSelected.length + ' / 2 chwazi · ' + fkGet().filter(h => !h.printed).length + ' / ' + FK_QUEUE_MAX + ' nan file';
+}
+
+function fkDelete(id) {
+  const e = fkGet().find(h => h.id === id); if (!e) return;
+  if (!confirm('Efase fakti ' + e.clientName + ' ? (peman nan pwofil kliyan an rete)')) return;
+  fkSave(fkGet().filter(h => h.id !== id));
+  if (fkEditingId === id) fkClear(true);
+  fkRefresh();
+}
+
+function fkRequeue(id) {
+  const list = fkGet();
+  if (list.filter(h => !h.printed).length >= FK_QUEUE_MAX) { showToast("File d'attente pleine (10)"); return; }
+  const i = list.findIndex(h => h.id === id); if (i < 0) return;
+  list[i].printed = false; fkSave(list); fkRefresh();
+}
+
+function fkPrintSelected() {
+  if (!fkSelected.length) { showToast('Chwazi 1 oswa 2 fakti'); return; }
+  fkPrintIds(fkSelected.slice());
+}
+
+async function fkPrintIds(ids) {
+  const list = fkGet();
+  const sel = ids.map(id => list.find(h => h.id === id)).filter(Boolean);
+  if (!sel.length) return;
+  const ok = await buildFichesPdf(sel);
+  if (!ok) return;
+  const list2 = fkGet();
+  sel.forEach(s => { const i = list2.findIndex(h => h.id === s.id); if (i >= 0) { list2[i].printed = true; list2[i].printedAt = Date.now(); } });
+  fkSave(list2);
+  fkSelected = [];
+  fkRefresh();
+  showToast('PDF anrejistre · ' + sel.map(e => '#lcd' + fkPad(e.invoiceNo)).join(' + '));
+}
+
+function printOneFiche(id) { fkPrintIds([id]); }
+
+/* Istorik (panno kote) : tout fakti, pi nouvo anwo */
+function togglePosHistory() {
+  const panel = fkEl('posHistoryPanel'); if (!panel) return;
+  panel.classList.toggle('hidden');
+  if (!panel.classList.contains('hidden')) renderPosHistory();
+}
+function refreshHistoryIfOpen() {
+  const p = fkEl('posHistoryPanel');
+  if (p && !p.classList.contains('hidden')) renderPosHistory();
+}
+function renderPosHistory() {
+  const el = fkEl('posHistoryList'); if (!el) return;
+  const list = fkGet().sort((a, b) => (b.date || 0) - (a.date || 0));
+  if (!list.length) { el.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:30px;font-size:0.85rem;">Okenn fakti ankò.</div>`; return; }
+  const btn = 'margin-top:4px;margin-left:4px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:6px;color:#ddd8cc;font-size:0.72rem;padding:3px 8px;cursor:pointer;';
+  el.innerHTML = list.map(h => {
+    const st = h.printed
+      ? `<span style="font-size:0.62rem;background:rgba(60,160,80,0.2);color:#6fcf86;border-radius:4px;padding:1px 5px;margin-left:5px;">ENPRIME</span>`
+      : `<span style="font-size:0.62rem;background:rgba(212,175,55,0.2);color:#d4af37;border-radius:4px;padding:1px 5px;margin-left:5px;">NAN FILE</span>`;
+    return `
+    <div style="padding:12px 14px;border-bottom:1px solid rgba(255,255,255,0.06);">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <div style="min-width:0;">
+          <div style="font-size:0.9rem;font-weight:600;color:#ddd8cc;">${esc(h.clientName) || '-'}${st}</div>
+          <div style="margin-top:3px;">${fkFlagChips(h)}</div>
+          <div style="font-size:0.72rem;color:rgba(200,190,175,0.4);margin-top:2px;">#lcd${fkPad(h.invoiceNo)} · ${fkFmtDate(h.date)}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-family:'Space Mono',monospace;font-size:0.9rem;color:#d4af37;">${h.usd ? '$' + esc(h.usd) : ''}</div>
+          <div style="font-size:0.7rem;color:rgba(200,180,100,0.55);">${h.htg ? esc(h.htg) + ' HTG' : ''}</div>
+          <button onclick="fkEdit('${h.id}')" style="${btn}">✏️</button><button onclick="printOneFiche('${h.id}')" style="${btn}">PDF</button>${h.printed ? `<button onclick="fkRequeue('${h.id}')" style="${btn}">↩</button>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 /* ══════════════════════════════════════════════
-   MOTÈ PDF — A4 PAYSAJ, 2 SEKSYON ENGAL
-   Chak fich desine nan fòma pòtrè A4 (210 × h mm) epi mete
-   a echèl nan yon mwatye paj (148.5 × 210 mm = A5 pòtrè).
-   Yon sèl fich → lòt mwatye a rete blan.
+   SIJESYON KLIYAN — customers.js + lis POS (non, adrès, telefòn, imèl)
    ══════════════════════════════════════════════ */
-/* Eseye plizyè non fichye (png/jpg, majiskil/minisk) — premye ki chaje a genyen */
-function platCandidates(key) {
-  const base = PLAT_MAP[key].file.replace(/\.\w+$/, '');
-  const names = [...new Set([base, base.charAt(0).toUpperCase() + base.slice(1), PLAT_MAP[key].label])];
-  const out = [];
-  names.forEach(n => ['png', 'jpg', 'jpeg'].forEach(x => out.push(n + '.' + x)));
-  return out;
+function getPosClients() {
+  try { return JSON.parse(localStorage.getItem('tbs_pos_clients')) || []; }
+  catch { return []; }
 }
-async function loadImgAny(list) {
-  for (const src of list) { const d = await loadImg(src); if (d) return d; }
-  return null;
+function savePosClient(name, address, phone) {
+  if (!name) return;
+  const list = getPosClients();
+  const idx  = list.findIndex(c => c.name.toLowerCase() === name.toLowerCase());
+  if (idx !== -1) { list[idx].address = address || list[idx].address; list[idx].phone = phone || list[idx].phone || ''; }
+  else list.push({ name, address: address || '', phone: phone || '' });
+  localStorage.setItem('tbs_pos_clients', JSON.stringify(list));
 }
+function nameMatches(name, typed) {
+  const n = normTxt(name).replace(/[\-'’.,]+/g, ' ');
+  const v = normTxt(typed).replace(/[\-'’.,]+/g, ' ');
+  if (!v) return false;
+  return n.startsWith(v) || (' ' + n).includes(' ' + v);
+}
+function getClientSources() {
+  const sources = [];
+  const add = c => {
+    if (!c || !c.name) return;
+    const key = normTxt(c.name);
+    const ex  = sources.find(s => normTxt(s.name) === key);
+    if (ex) {
+      if (!ex.address && c.address) ex.address = c.address;
+      if (!ex.phone   && c.phone)   ex.phone   = c.phone;
+      if (!ex.email   && c.email)   ex.email   = c.email;
+    } else sources.push({ name: c.name, address: c.address || '', phone: c.phone || '', email: c.email || '' });
+  };
+  if (typeof getCustomers === 'function') { try { getCustomers().forEach(add); } catch (err) {} }
+  getPosClients().forEach(add);
+  return sources;
+}
+function findClientMatches(typed) {
+  const v = normTxt(typed);
+  return getClientSources()
+    .filter(c => nameMatches(c.name, typed))
+    .sort((a, b) => (normTxt(b.name).startsWith(v) ? 1 : 0) - (normTxt(a.name).startsWith(v) ? 1 : 0) || a.name.localeCompare(b.name))
+    .slice(0, 8);
+}
+function showClientDropdown(nameInput, ddId, onPick) {
+  const old = document.getElementById(ddId);
+  if (old) old.remove();
+  const val = nameInput.value.trim();
+  if (!val) return;
+  const matches = findClientMatches(val);
+  if (matches.length === 0) return;
+  const dd = document.createElement('div');
+  dd.id = ddId;
+  dd.style.cssText = `position:absolute;z-index:999;background:#1a1520;border:1px solid rgba(255,255,255,0.15);border-radius:8px;left:0;right:0;top:100%;max-height:200px;overflow-y:auto;`;
+  matches.forEach(c => {
+    const item = document.createElement('div');
+    item.style.cssText = 'padding:10px 12px;cursor:pointer;font-size:0.875rem;border-bottom:1px solid rgba(255,255,255,0.06);';
+    const strong = document.createElement('strong');
+    strong.style.color = '#ddd8cc'; strong.textContent = c.name; item.appendChild(strong);
+    const extra = [c.address, c.phone].filter(Boolean).join(' · ');
+    if (extra) {
+      const sp = document.createElement('div');
+      sp.style.cssText = 'color:rgba(200,190,175,0.55);font-size:0.78em;margin-top:2px;';
+      sp.textContent = extra; item.appendChild(sp);
+    }
+    item.addEventListener('mousedown', ev => { ev.preventDefault(); onPick(c); dd.remove(); });
+    item.addEventListener('touchstart', () => { onPick(c); dd.remove(); }, { passive: true });
+    dd.appendChild(item);
+  });
+  const wrap = nameInput.parentElement;
+  if (wrap) { wrap.style.position = 'relative'; wrap.appendChild(dd); }
+}
+function removeFkDropdown() { const dd = fkEl('fkNameDropdown'); if (dd) dd.remove(); }
 
-function loadImg(src) {
+function initFkAutocomplete() {
+  const n = fkEl('fkName'); if (!n) return;
+  n.addEventListener('input', () => {
+    fkUpdateBtn();
+    showClientDropdown(n, 'fkNameDropdown', c => {
+      n.value = c.name;
+      if (fkEl('fkAddr'))  fkEl('fkAddr').value  = c.address || '';
+      if (fkEl('fkPhone')) fkEl('fkPhone').value = c.phone   || '';
+      if (fkEl('fkEmail')) fkEl('fkEmail').value = c.email   || '';
+      removeFkDropdown(); fkUpdateBtn();
+    });
+  });
+  n.addEventListener('blur', () => setTimeout(removeFkDropdown, 200));
+}
+document.addEventListener('click', e => { if (!e.target.closest('#fkName')) removeFkDropdown(); });
+
+/* ══════════════════════════════════════════════
+   IMAJ + POLIS
+   ══════════════════════════════════════════════ */
+function loadImg(src, size) {
+  size = size || 200;
   return new Promise(resolve => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
       const c = document.createElement('canvas');
-      c.width = 200; c.height = 200;
-      c.getContext('2d').drawImage(img, 0, 0, 200, 200);
+      c.width = size; c.height = size;
+      c.getContext('2d').drawImage(img, 0, 0, size, size);
       resolve(c.toDataURL('image/png'));
     };
     img.onerror = () => resolve(null);
@@ -294,81 +537,14 @@ function loadImg(src) {
   });
 }
 
-/* Tit antet : "LES CAYES DROPSHIPPING CO., LTD." — rapetise otomatikman si li twò laj */
-function drawCompanyTitle(doc, x, y) {
-  const txt = 'LES CAYES DROPSHIPPING CO., LTD.';
-  let size = 15;
-  doc.setFont('helvetica', 'bold');
-  if (typeof doc.getTextWidth === 'function') {
-    doc.setFontSize(size);
-    while (size > 10 && doc.getTextWidth(txt) > 102) { size -= 0.5; doc.setFontSize(size); }
-  }
-  doc.setFontSize(size);
-  doc.setTextColor(255, 255, 255);
-  doc.text(txt, x, y);
-}
-
-/* Siyati manuscrit : kenbe pwopòsyon, retire fon blan an (transparan) */
-function loadImgRaw(src) {
+/* Kenbe pwopòsyon (logo platfòm, imaj peman) */
+function loadImgFit(src, maxPx) {
   return new Promise(resolve => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
       try {
-        const r = Math.min(1, 700 / img.width);
-        const w = Math.max(1, Math.round(img.width * r)), h = Math.max(1, Math.round(img.height * r));
-        const c = document.createElement('canvas');
-        c.width = w; c.height = h;
-        const ctx = c.getContext('2d');
-        ctx.drawImage(img, 0, 0, w, h);
-        const id = ctx.getImageData(0, 0, w, h), d = id.data;
-        for (let i = 0; i < d.length; i += 4) {
-          const lum = (d[i] + d[i + 1] + d[i + 2]) / 3;
-          d[i + 3] = lum >= 235 ? 0 : (lum <= 150 ? 255 : Math.round((235 - lum) / 85 * 255));
-        }
-        ctx.putImageData(id, 0, 0);
-        resolve({ data: c.toDataURL('image/png'), w, h });
-      } catch (err) { resolve(null); }
-    };
-    img.onerror = () => resolve(null);
-    img.src = src;
-  });
-}
-async function loadSignature() {
-  for (const n of ['manuscrit.jpg', 'Manuscrit.jpg', 'manuscrit.jpeg', 'manuscrit.png', 'Manuscrit.png', 'Manuscrit.jpeg']) {
-    const r = await loadImgRaw(n); if (r) return r;
-  }
-  return null;
-}
-
-/* Siyati : imaj manuscrit sou liy la, "Thomas Kabé (Responsab Sid)" anba — retounen y final */
-function drawSignature(doc, y, pw, sig) {
-  const LS = 15;
-  doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 100, 100);
-  doc.text('Siyati kliyan:', 14, y + 6);
-  doc.setDrawColor(160, 150, 135); doc.setLineWidth(0.3);
-  doc.line(14, y + LS, 82, y + LS);
-  const x2 = pw - 14, x1 = x2 - 82, cx = (x1 + x2) / 2;
-  if (sig && sig.data) {
-    const k = Math.min(46 / sig.w, 13 / sig.h), w = sig.w * k, h = sig.h * k;
-    doc.addImage(sig.data, 'PNG', cx - w / 2, y + LS - h + 0.8, w, h);
-  }
-  doc.setDrawColor(212, 175, 55); doc.setLineWidth(0.5);
-  doc.line(x1, y + LS, x2, y + LS);
-  doc.setFontSize(11); doc.setFont('times', 'bolditalic'); doc.setTextColor(40, 20, 5);
-  doc.text('Thomas Kabé (Responsab Sid)', cx, y + LS + 6, { align: 'center' });
-  return y + LS + 10;
-}
-
-
-/* Image "paiement.png" : garde ses proportions (pas de carré 200×200, fond conservé) */
-function loadImgFit(src) {
-  return new Promise(resolve => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      try {
-        const r = Math.min(1, 900 / img.width);
+        const r = Math.min(1, (maxPx || 900) / img.width);
         const w = Math.max(1, Math.round(img.width * r)), h = Math.max(1, Math.round(img.height * r));
         const c = document.createElement('canvas');
         c.width = w; c.height = h;
@@ -380,30 +556,70 @@ function loadImgFit(src) {
     img.src = src;
   });
 }
+function platCandidates(key) {
+  const base = PLAT_MAP[key].file.replace(/\.\w+$/, '');
+  const names = [...new Set([base, base.charAt(0).toUpperCase() + base.slice(1), PLAT_MAP[key].label])];
+  const out = [];
+  names.forEach(n => ['png', 'jpg', 'jpeg'].forEach(x => out.push(n + '.' + x)));
+  return out;
+}
+async function loadPlatFit(key) {
+  for (const src of platCandidates(key)) { const d = await loadImgFit(src, 500); if (d) return d; }
+  return null;
+}
 async function loadPaiement() {
   for (const n of ['paiement.png', 'Paiement.png', 'paiement.jpg', 'paiement.jpeg', 'paiement.webp']) {
-    const r = await loadImgFit(n); if (r) return r;
+    const r = await loadImgFit(n, 1400); if (r) return r;
   }
   return null;
 }
-/* Dessine l'image dans une boîte (maxW × maxH), alignée à droite (x = bord droit).
-   Si "title" est donné : petit titre (ex. "Mòd pèman") centré au-dessus de l'image. */
-function drawPaiement(doc, img, xRight, yTop, maxW, maxH, title) {
-  if (!img || !img.data) return;
-  const titleH = title ? 4.5 : 0;
-  const boxH = maxH - titleH;
-  const k = Math.min(maxW / img.w, boxH / img.h), w = img.w * k, h = img.h * k;
-  if (title) {
-    const f = doc.getFont(), fs = doc.getFontSize(), tc = doc.getTextColor();
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(101, 51, 19);
-    doc.text(title, xRight - w / 2, yTop + 3, { align: 'center' });
-    doc.setFont(f.fontName, f.fontStyle); doc.setFontSize(fs); doc.setTextColor(tc);
+
+/* Polis manuscrit (.ttf) mete sou hébergement : manuscrit.ttf — si li absan, yon itali ble ranplase l */
+function fkB64(buf) {
+  let s = ''; const b = new Uint8Array(buf), CH = 0x8000;
+  for (let i = 0; i < b.length; i += CH) s += String.fromCharCode.apply(null, b.subarray(i, i + CH));
+  return btoa(s);
+}
+async function loadHandFont() {
+  for (const n of ['manuscrit.ttf', 'Manuscrit.ttf', 'ecriture.ttf', 'hand.ttf']) {
+    try {
+      const r = await fetch(n);
+      if (!r.ok) continue;
+      const buf = await r.arrayBuffer(), h = new Uint8Array(buf.slice(0, 4));
+      const isTTF = (h[0] === 0 && h[1] === 1 && h[2] === 0 && h[3] === 0) || String.fromCharCode(h[0], h[1], h[2], h[3]) === 'true';
+      if (isTTF) return fkB64(buf);
+    } catch (err) {}
   }
-  doc.addImage(img.data, 'PNG', xRight - w, yTop + titleH + (boxH - h) / 2, w, h);
+  return null;
 }
 
-/* Flèche USA → Ayiti : jsPDF (Helvetica) ne sait pas écrire ► ni →.
-   On écrit "->" dans le texte (largeur réservée) et on DESSINE la flèche à cet endroit. */
+/* ══════════════════════════════════════════════
+   DESEN PDF — chak fakti = 148.5 × 210 mm (mwatye paj A4 paysaj)
+   ══════════════════════════════════════════════ */
+function fkFmtDate(v) {
+  if (!v) return '';
+  let d;
+  if (typeof v === 'number') d = new Date(v);
+  else if (/^\d{4}-\d{2}-\d{2}/.test(v)) d = new Date(v.slice(0, 10) + 'T12:00:00');
+  else return String(v);
+  if (isNaN(d)) return '';
+  return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
+}
+
+function drawCompanyTitle(doc, x, y, rgb, maxW) {
+  const txt = 'LES CAYES DROPSHIPPING CO., LTD.';
+  let size = 15;
+  rgb = rgb || [255, 255, 255]; maxW = maxW || 102;
+  doc.setFont('helvetica', 'bold');
+  if (typeof doc.getTextWidth === 'function') {
+    doc.setFontSize(size);
+    while (size > 10 && doc.getTextWidth(txt) > maxW) { size -= 0.5; doc.setFontSize(size); }
+  }
+  doc.setFontSize(size);
+  doc.setTextColor(rgb[0], rgb[1], rgb[2]);
+  doc.text(txt, x, y);
+}
+
 function drawLineWithArrows(doc, line, x, y, rgb, opts) {
   const parts = String(line).split('->');
   if (parts.length === 1) { doc.text(line, x, y, opts); return; }
@@ -411,7 +627,7 @@ function drawLineWithArrows(doc, line, x, y, rgb, opts) {
   const total = doc.getTextWidth(line);
   let cx = align === 'right' ? x - total : (align === 'center' ? x - total / 2 : x);
   const aw = doc.getTextWidth('->');
-  const fs = doc.getFontSize() * 0.3528;              // hauteur du texte en mm
+  const fs = doc.getFontSize() * 0.3528;
   const midY = y - fs * 0.30;
   parts.forEach((p, i) => {
     if (p) { doc.text(p, cx, y); cx += doc.getTextWidth(p); }
@@ -430,982 +646,258 @@ function drawLineWithArrows(doc, line, x, y, rgb, opts) {
   });
 }
 
-function buildFichesPdf(type, entries) {
-  if (!window.jspdf) { showToast('jsPDF pa chaje'); return; }
-  entries = (entries || []).filter(Boolean).slice(0, 2);
-  if (!entries.length) return;
-  const { jsPDF } = window.jspdf;
-  const drawFn = type === 'acha' ? drawAchaFiche : drawShippingFiche;
-
-  const platKeys = [];
-  if (type === 'acha') {
-    entries.forEach(e => [e.plateforme, e.plateforme2].forEach(p => { if (PLAT_MAP[p] && !platKeys.includes(p)) platKeys.push(p); }));
-  }
-
-  Promise.all([
-    loadImg('lescayesdropshipping.png'),
-    loadSignature(),
-    loadPaiement(),
-    ...platKeys.map(k => loadImgAny(platCandidates(k)))
-  ]).then(res => {
-    const imgs = { 'lescayesdropshipping.png': res[0], 'manuscrit': res[1], 'paiement': res[2] };
-    platKeys.forEach((k, i) => { imgs['plat:' + k] = res[i + 3]; });
-
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-    const k = doc.internal.scaleFactor;
-    const PAGE_H = 210, HALF_W = 148.5, FW = 210;
-
-    entries.forEach((e, i) => {
-      /* 1) Mezi wotè reyèl kontni an (san desen) pou li antre nan yon sèl paj */
-      const probe = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [210, 1500] });
-      const yEnd  = drawFn(probe, e, {}, 297);
-      const phV   = Math.max(297, yEnd + 6 + 14);          // 14 = bannè pye paj
-
-      /* 2) Echèl + pozisyon nan mwatye a */
-      const s  = Math.min(HALF_W / FW, PAGE_H / phV);
-      const ox = i * HALF_W + (HALF_W - FW * s) / 2;
-
-      doc.saveGraphicsState();
-      doc.internal.write(s.toFixed(5), '0', '0', s.toFixed(5), (ox * k).toFixed(4), (PAGE_H * k * (1 - s)).toFixed(4), 'cm');
-      drawFn(doc, e, imgs, phV);
-      doc.restoreGraphicsState();
-    });
-
-    if (entries.length === 2) {
-      doc.setDrawColor(255, 255, 255); doc.setLineWidth(0.8);
-      doc.line(HALF_W, 0, HALF_W, PAGE_H);
-      doc.setDrawColor(170, 170, 170); doc.setLineWidth(0.15);
-      doc.setLineDashPattern([1.5, 1.5], 0);
-      doc.line(HALF_W, 0, HALF_W, PAGE_H);
-      doc.setLineDashPattern([], 0);
-    }
-
-    const slug = e => (e.clientName || 'Kliyan').trim().replace(/\s+/g, '_');
-    const no   = e => 'lcd' + String(e.invoiceNo || '0').padStart(4, '0');
-    const pre  = type === 'acha' ? 'FichAcha_' : 'Fakti_';
-    const fname = entries.length === 1
-      ? pre + slug(entries[0]) + '_' + no(entries[0]) + '.pdf'
-      : pre + slug(entries[0]) + '_et_' + slug(entries[1]) + '.pdf';
-    doc.save(fname);
+/* Ekriti men : ankre ble, ti dekalaj ak ti anjòl pa mo (deterministik) */
+function fkSetHand(doc, size) {
+  if (FK_HAND.ok) doc.setFont('Hand', 'normal'); else doc.setFont('times', 'italic');
+  doc.setFontSize(size);
+  doc.setTextColor(HAND_INK[0], HAND_INK[1], HAND_INK[2]);
+}
+function fkHash(s) { let h = 7; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); }
+function fkRand(seed) { const x = Math.sin(seed * 12.9898) * 43758.5453; return (x - Math.floor(x)) * 2 - 1; }
+function fkHandText(doc, txt, x, y, size, o) {
+  txt = String(txt == null ? '' : txt);
+  if (!txt) return;
+  o = o || {};
+  fkSetHand(doc, size);
+  if (o.maxW) { let s = size; while (s > 5.5 && doc.getTextWidth(txt) > o.maxW) { s -= 0.4; doc.setFontSize(s); } }
+  const seed = fkHash(txt);
+  const words = txt.split(' '), sp = doc.getTextWidth(' ');
+  const ws = words.map(w => doc.getTextWidth(w));
+  const total = ws.reduce((a, b) => a + b, 0) + sp * (words.length - 1);
+  let cx = o.align === 'right' ? x - total : (o.align === 'center' ? x - total / 2 : x);
+  words.forEach((w, i) => {
+    if (w) doc.text(w, cx, y + fkRand(seed + i * 13 + 3) * 0.22, { angle: fkRand(seed + i * 7) * 0.8 });
+    cx += ws[i] + sp;
   });
 }
+function fkType(doc, txt, x, y, maxW, size) {   // polis enfòmatize (Courier)
+  txt = String(txt == null ? '' : txt);
+  if (!txt) return;
+  doc.setFont('courier', 'normal'); doc.setTextColor(15, 15, 15);
+  let s = size; doc.setFontSize(s);
+  while (s > 5.5 && doc.getTextWidth(txt) > maxW) { s -= 0.3; doc.setFontSize(s); }
+  doc.text(txt, x, y);
+}
+function fkBox(doc, x, y, s, checked) {
+  doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.4); doc.rect(x, y, s, s, 'S');
+  if (checked) {
+    doc.setDrawColor(FK_RED[0], FK_RED[1], FK_RED[2]); doc.setLineWidth(0.8);
+    doc.line(x + s * 0.16, y + s * 0.56, x + s * 0.42, y + s * 0.84);
+    doc.line(x + s * 0.42, y + s * 0.84, x + s * 0.95, y + s * 0.08);
+    doc.setDrawColor(15, 15, 15);
+  }
+}
+function fkImgFit(doc, img, x, y, maxW, maxH, alignX) {
+  const k = Math.min(maxW / img.w, maxH / img.h), w = img.w * k, h = img.h * k;
+  const px = alignX === 'center' ? x + (maxW - w) / 2 : x;
+  doc.addImage(img.data, 'PNG', px, y + (maxH - h) / 2, w, h);
+  return w;
+}
 
-/* ══════════════════════════════════════════════
-   DESEN FICH ACHA (pòtrè 210 mm × ph) — retounen y final
-   ══════════════════════════════════════════════ */
-function drawAchaFiche(doc, e, imgs, ph) {
-  const pw = 210;
-  const bruR = 101, bruG = 51,  bruB = 19;
-  const orR  = 212, orG  = 175, orB  = 55;
-  const tqR  = 0,   tqG  = 150, tqB  = 166;
-  const imgData = imgs['lescayesdropshipping.png'] || null;
-  const plats   = [e.plateforme, e.plateforme2].filter(p => PLAT_MAP[p]);
-  const tableW = pw - 28, colMontX = pw - 12;
-  let y = 60;
+function drawFakti(doc, e, imgs, ox) {
+  const W = 148.5, M = 7, R = W - M, CW = W - 2 * M;
+  const X = v => ox + v;
+  const logo = imgs.logo;
+  const label = (t, x, y, size) => { doc.setFont('helvetica', 'bold'); doc.setFontSize(size || 7.5); doc.setTextColor(15, 15, 15); doc.text(t, x, y); return doc.getTextWidth(t); };
 
-  /* Watermark */
-  if (imgData) {
+  /* Watermark — logo an koulè, dèyè tout kontni */
+  if (logo) {
     doc.saveGraphicsState();
     doc.setGState(new doc.GState({ opacity: 0.10 }));
-    doc.addImage(imgData, 'PNG', (pw - 110) / 2, (ph - 110) / 2 - 10, 110, 110);
+    const s = 100;
+    doc.addImage(logo, 'PNG', X((W - s) / 2), 70, s, s);
     doc.restoreGraphicsState();
   }
 
   /* 1. ANTET */
-  doc.setFillColor(tqR, tqG, tqB); doc.rect(0, 0, pw, 46, 'F');
-  doc.setFillColor(orR, orG, orB); doc.rect(0, 46, pw, 2, 'F');
-  if (imgData) doc.addImage(imgData, 'PNG', 8, 7, 30, 30);
+  if (logo) doc.addImage(logo, 'PNG', X(M), 6, 22, 22);
+  drawCompanyTitle(doc, X(M + 26), 12.5, [15, 15, 15], R - (M + 26));
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(40, 40, 40);
+  doc.text('USA: 9801 SW 3rd St, Pembroke Pines, FL 33025-1064', X(M + 26), 18.5);
+  doc.text('Haiti: Miragoane, Les Cayes', X(M + 26), 22.7);
+  doc.text('+509 35 60 88 69  _  lescayesdropshipping@gmail.com', X(M + 26), 26.9);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(FK_RED[0], FK_RED[1], FK_RED[2]);
+  doc.text('No. lcd' + fkPad(e.invoiceNo), X(R), 26.9, { align: 'right' });
+  doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.6); doc.line(X(M), 31, X(R), 31);
 
-  doc.setTextColor(255, 255, 255);
-  drawCompanyTitle(doc, 44, 17);
-  doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(220, 242, 248);
-  doc.text('USA: 14030 NW 5th Pl, North Miami, FL, 33168', 44, 25);
-  doc.text('Haiti: Miragoane, Les Cayes', 44, 31);
-  doc.text('+509 35 60 88 69  -  lescayesdropshipping@gmail.com', 44, 37);
+  /* 2. BLOK KLIYAN : NON → ADRÈS → ORIJIN | DAT, TELEFÒN, IMÈL + MOTIF PÈMAN */
+  const bx = X(M), by = 34, hr = 9.2, LW = 84;
+  const rowBase = i => by + hr * i + hr / 2 + 1.2;
+  doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.5); doc.roundedRect(bx, by, CW, hr * 4, 2, 2, 'S');
+  doc.setLineWidth(0.3);
+  for (let i = 1; i <= 3; i++) doc.line(bx, by + hr * i, bx + CW, by + hr * i);
+  doc.line(bx + LW, by, bx + LW, by + hr * 3);
 
-  const dateTxt = new Date(e.date).toLocaleDateString('fr-HT', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  doc.setFontSize(10); doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255);
-  doc.text('FICH ACHA  lcd' + String(e.invoiceNo || '0').padStart(4, '0'), pw - 10, 18, { align: 'right' });
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(220, 242, 248);
-  doc.text('Dat: ' + dateTxt, pw - 10, 27, { align: 'right' });
-
-  /* Badge platfòm (1 oswa 2) — sou fon touez */
-  if (plats.length) {
-    const n = plats.length, totalW = n === 1 ? 40 : 52, bx = pw - 12 - totalW, slotW = totalW / n;
-    plats.forEach((p, i) => {
-      const d = imgs['plat:' + p], x = bx + i * slotW;
-      if (d) doc.addImage(d, 'PNG', x + 2, 33, slotW - 4, 10);
-      else {
-        doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255);
-        doc.text(PLAT_MAP[p].label, x + slotW / 2, 40, { align: 'center' });
-      }
-    });
-  } else {
-    doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255);
-    doc.text('FICH ACHA', pw - 32, 40, { align: 'center' });
+  let w = label('NON', bx + 2.5, rowBase(0));      fkType(doc, String(e.clientName || "").toUpperCase(), bx + 2.5 + w + 2.5, rowBase(0), LW - w - 7.5, 9);
+  w = label('DAT', bx + LW + 2.5, rowBase(0));     fkType(doc, fkFmtDate(e.date), bx + LW + 2.5 + w + 2.5, rowBase(0), CW - LW - w - 7.5, 8.5);
+  w = label('ADRÈS', bx + 2.5, rowBase(1));        fkType(doc, e.clientAddr, bx + 2.5 + w + 2.5, rowBase(1), LW - w - 7.5, 8.5);
+  w = label('TELEFÒN', bx + LW + 2.5, rowBase(1)); fkType(doc, e.clientPhone, bx + LW + 2.5 + w + 2.5, rowBase(1), CW - LW - w - 7.5, 8.5);
+  w = label('ORIJIN MACHANDIZ', bx + 2.5, rowBase(2));
+  {
+    const ax = bx + 2.5 + w + 3, avail = LW - w - 8, n = (e.origins || []).length;
+    if (n) {
+      const slot = avail / n;
+      e.origins.forEach((k, i) => {
+        const im = imgs['plat:' + k];
+        if (im) fkImgFit(doc, im, ax + i * slot, by + hr * 2 + 1.3, slot - 2, hr - 2.6, 'left');
+        else fkType(doc, PLAT_MAP[k] ? PLAT_MAP[k].label : k, ax + i * slot, rowBase(2), slot - 2, 8.5);
+      });
+    }
   }
+  w = label('IMÈL', bx + LW + 2.5, rowBase(2));    fkType(doc, e.clientEmail, bx + LW + 2.5 + w + 2.5, rowBase(2), CW - LW - w - 7.5, 8);
+  label('MOTIF PÈMAN', bx + 2.5, rowBase(3));
+  fkBox(doc, bx + 36, by + hr * 3 + (hr - 4) / 2, 4, e.acha);    label('ACHA', bx + 42, rowBase(3), 8.5);
+  fkBox(doc, bx + 66, by + hr * 3 + (hr - 4) / 2, 4, e.ship);    label('SHIPPING', bx + 72, rowBase(3), 8.5);
 
-  /* 2. BLOK KLIYAN */
-  if (e.clientName) {
-    doc.setFontSize(13); doc.setFont('helvetica', 'bold'); doc.setTextColor(15, 15, 15);
-    doc.text(e.clientName.toUpperCase(), 14, y); y += 8;
-  }
-  if (e.clientAddr) {
-    doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(60, 60, 60);
-    doc.text('Adrès: ' + e.clientAddr, 14, y); y += 6;
-  }
-  if (e.clientPhone) {
-    doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(60, 60, 60);
-    doc.text('Tél: ' + e.clientPhone, 14, y); y += 6;
-  }
-  y += 2;
-  doc.setDrawColor(orR, orG, orB); doc.setLineWidth(0.7);
-  doc.line(14, y, pw - 14, y); y += 10;
+  /* 3. MÒD PÈMAN (imaj) + MONTAN yo */
+  const py = by + hr * 4 + 2.6, ph = 22, lw2 = 70;
+  doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.5); doc.roundedRect(bx, py, lw2, ph, 2, 2, 'S');
+  doc.setLineWidth(0.3); doc.line(bx, py + 6.5, bx + lw2, py + 6.5);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(15, 15, 15);
+  doc.text('MÒD PÈMAN', bx + lw2 / 2, py + 4.6, { align: 'center' });
+  if (imgs.pay) fkImgFit(doc, imgs.pay, bx + 2, py + 7.6, lw2 - 4, ph - 9, 'center');
+  const rx = bx + lw2 + 2.5, rw = CW - lw2 - 2.5, rh = ph / 3, vx = rx + 33;
+  doc.setLineWidth(0.5); doc.roundedRect(rx, py, rw, ph, 2, 2, 'S');
+  doc.setLineWidth(0.3); doc.line(rx, py + rh, rx + rw, py + rh); doc.line(rx, py + 2 * rh, rx + rw, py + 2 * rh); doc.line(vx, py, vx, py + ph);
+  [['MONTAN POU PEYE', e.totalPay], ['MONTAN M BAY', e.paid], ['BALANS M RETE', e.bal]].forEach(([t, v], i) => {
+    const yb = py + rh * i + rh / 2 + 1.1;
+    label(t, rx + 2, yb, 6.8);
+    fkHandText(doc, v, vx + 2.5, yb + 0.2, 10, { maxW: rx + rw - vx - 4 });
+  });
 
-  /* 3. DESKRIPSYON */
+  /* 4. FÈT PA + PEYE NÈT / PA PEYE NÈT */
+  const fy = py + ph + 2.6, fh = 9;
+  doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.5); doc.roundedRect(bx, fy, CW, fh, 2, 2, 'S');
+  doc.setLineWidth(0.3); doc.line(bx + LW, fy, bx + LW, fy + fh);
+  const fb = fy + fh / 2 + 1.2;
+  w = label('FÈT PA', bx + 2.5, fb, 7.5);
+  doc.setDrawColor(110, 110, 110); doc.setLineWidth(0.25); doc.line(bx + 2.5 + w + 2, fb + 0.8, bx + LW - 3, fb + 0.8);
+  fkHandText(doc, e.faitPar, bx + 2.5 + w + 3.5, fb - 0.3, 9.5, { maxW: LW - w - 10 });
+  fkBox(doc, bx + LW + 3, fy + (fh - 3.8) / 2, 3.8, e.net === 'peye');   label('PEYE NÈT', bx + LW + 8.5, fb, 7);
+  fkBox(doc, bx + LW + 23, fy + (fh - 3.8) / 2, 3.8, e.net === 'pa');    label('PA PEYE NÈT', bx + LW + 28.5, fb, 7);
+
+  /* 5. DAT yo (toujou afiche, menm vid) */
+  const dy = fy + fh + 2.6, dh = 9.5, cw3 = CW / 3;
+  doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.5); doc.roundedRect(bx, dy, CW, dh, 2, 2, 'S');
+  doc.setLineWidth(0.3); doc.line(bx + cw3, dy, bx + cw3, dy + dh); doc.line(bx + 2 * cw3, dy, bx + 2 * cw3, dy + dh);
+  [['DAT KÒMAND IZÍN', e.dateCmd], ['DAT MACHANDIZ LAN LIVRE USA', e.dateUSA], ['DAT MACHANDIZ LAN DISPONIB AYITI', e.dateHT]].forEach(([t, v], i) => {
+    const cx = bx + cw3 * i + 2.5;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(5.8); doc.setTextColor(15, 15, 15);
+    let s = 5.8; while (s > 4.2 && doc.getTextWidth(t) > cw3 - 4) { s -= 0.2; doc.setFontSize(s); }
+    doc.text(t, cx, dy + 3.4);
+    fkHandText(doc, fkFmtDate(v), cx, dy + 7.7, 9);
+  });
+
+  /* 6. TABLO : yon sèl liy — Pwa | Deskripsyon | Pri U. | Montan USD | HTG */
+  const ty = dy + dh + 2.6, th = 9, TBL_END = 157, totH = 8.5;
+  const dataH = TBL_END - (ty + th) - totH;
+  const x1 = bx + 17, x2 = bx + 75, x3 = bx + 92, x4 = bx + 112;
+  doc.setFillColor(85, 85, 85); doc.rect(bx, ty, CW, th, 'F');
+  doc.setDrawColor(255, 255, 255); doc.setLineWidth(0.3);
+  [x1, x2, x3].forEach(x => doc.line(x, ty, x, ty + th));
+  doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255); doc.setFontSize(7.5);
+  doc.text('PWA', (bx + x1) / 2, ty + 5.6, { align: 'center' });
+  doc.text('DESKRIPSYON', (x1 + x2) / 2, ty + 5.6, { align: 'center' });
+  doc.text('PRI U.', (x2 + x3) / 2, ty + 5.6, { align: 'center' });
+  doc.text('MONTAN', (x3 + bx + CW) / 2, ty + 3.9, { align: 'center' });
+  doc.setFontSize(6); doc.text('USD', (x3 + x4) / 2, ty + 7.5, { align: 'center' }); doc.text('HTG', (x4 + bx + CW) / 2, ty + 7.5, { align: 'center' });
+  doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.5); doc.rect(bx, ty, CW, th + dataH + totH, 'S');
+  doc.setLineWidth(0.3);
+  doc.line(bx, ty + th + dataH, bx + CW, ty + th + dataH);
+  [x1, x2, x3].forEach(x => doc.line(x, ty + th, x, ty + th + dataH));
+  doc.setLineDashPattern([1.2, 1.2], 0); doc.line(x4, ty + th, x4, ty + th + dataH + totH); doc.setLineDashPattern([], 0);
+
+  const midY = ty + th + dataH / 2 + 1.4;
+  fkHandText(doc, e.pwa, (bx + x1) / 2, midY, 10.5, { align: 'center', maxW: 15 });
+  fkHandText(doc, e.pri, (x2 + x3) / 2, midY, 10.5, { align: 'center', maxW: 15 });
+  fkHandText(doc, e.usd, (x3 + x4) / 2, midY, 10.5, { align: 'center', maxW: 18 });
+  fkHandText(doc, e.htg, (x4 + bx + CW) / 2, midY, 10.5, { align: 'center', maxW: 20.5 });
   if (e.desc) {
-    doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(bruR, bruG, bruB);
-    doc.text('Deskripsyon machandiz:', 14, y); y += 6;
-    doc.setFont('helvetica', 'normal'); doc.setTextColor(30, 30, 30);
-    const descLines = doc.splitTextToSize(e.desc, tableW);
-    doc.text(descLines, 14, y); y += descLines.length * 5.5 + 4;
+    let size = 9.5, lines, lh;
+    fkSetHand(doc, size);
+    do { doc.setFontSize(size); lines = doc.splitTextToSize(e.desc, x2 - x1 - 4); lh = size * 0.46; size -= 0.5; }
+    while (lines.length * lh > dataH - 1.5 && size > 6);
+    const y0 = ty + th + (dataH - lines.length * lh) / 2 + lh * 0.78;
+    lines.forEach((ln, i) => fkHandText(doc, ln, x1 + 2, y0 + i * lh, size + 0.5));
   }
+  /* TOTAL — repete menm montan yo (pa gen kalkil) */
+  const tb = ty + th + dataH + totH / 2 + 1.3;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(15, 15, 15);
+  doc.text('TOTAL', x3 - 3, tb, { align: 'right' });
+  fkHandText(doc, e.usd, (x3 + x4) / 2, tb, 10.5, { align: 'center', maxW: 18 });
+  fkHandText(doc, e.htg, (x4 + bx + CW) / 2, tb, 10.5, { align: 'center', maxW: 20.5 });
 
-  /* 3B. DATES — toujou afiche (— si vid) */
-  const fmtD = v => v ? new Date(v + 'T12:00:00').toLocaleDateString('fr-HT', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
-  [
-    ['Dat kòmand izín:',                    e.dateCommande],
-    ['Dat machandiz lan livre USA:',        e.dateLivreUSA],
-    ['Dat machandiz lan disponib Ayiti:',   e.dateDispoAyiti],
-  ].forEach(([lab, v]) => {
-    doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(bruR, bruG, bruB);
-    doc.text(lab, 14, y);
-    doc.setFont('helvetica', 'normal'); doc.setTextColor(30, 30, 30);
-    doc.text(fmtD(v), colMontX, y, { align: 'right' }); y += 5.2;
-  });
-  y += 4;
-
-  /* 4. TABLO — yon sèl bar ble, ranje beige, kadriyaj lò fen (menm stil ak Shipping) */
-  const tTop = y;
-  doc.setFillColor(tqR, tqG, tqB); doc.rect(14, y, tableW, 12, 'F');
-  doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255);
-  const platNames = plats.map(p => PLAT_MAP[p].label).join(' + ');
-  doc.text('Orijin acha a  (' + (platNames ? platNames + ' / ' : '') + 'Izín)', 18, y + 8);
-  doc.text('Amount', colMontX, y + 8, { align: 'right' });
-  y += 12;
-
-  const htg = v => '≈ ' + Math.round((v || 0) * HTG_RATE).toLocaleString('fr-HT') + ' HTG';
-  const row = (label, usd, bg, bold, dash) => {
-    doc.setFillColor(bg[0], bg[1], bg[2]); doc.rect(14, y, tableW, 12, 'F');
-    doc.setFontSize(9); doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setTextColor(30, 30, 30);
-    drawLineWithArrows(doc, label, 18, y + 7.5, [30, 30, 30]);
-    doc.setFont('helvetica', 'bold'); doc.setTextColor(bruR, bruG, bruB);
-    doc.text(dash ? '—' : '$' + (usd || 0).toFixed(2), colMontX, y + 6.5, { align: 'right' });
-    if (!dash) {
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(120, 100, 70);
-      doc.text(htg(usd), colMontX, y + 10.3, { align: 'right' });
-    }
-    y += 12;
-  };
-  const hasShipping = (e.shippingHT || 0) > 0;
-  row('Montan acha izín (USD)', e.achatUsine, [252, 250, 245], false, false);
-  row('SOUS-TOTAL ACHA', e.sousTotal, [246, 242, 236], true, false);
-  row(hasShipping ? 'Frè shipping USA -> Ayiti (USD)' : 'Frè shipping USA -> Ayiti (USD)  (poko konfime)',
-      e.shippingHT, [252, 250, 245], false, !hasShipping);
-
-  /* Liy separasyon fen + kadriyaj lò */
-  doc.setDrawColor(210, 200, 185); doc.setLineWidth(0.25);
-  doc.line(14, y - 12, 14 + tableW, y - 12);
-  doc.line(14, y - 24, 14 + tableW, y - 24);
-  doc.setDrawColor(orR, orG, orB); doc.setLineWidth(0.3);
-  doc.line(14, tTop, 14, y);                    // gòch
-  doc.line(14, y, 14 + tableW, y);              // anba
-  /* pa gen liy sou bò dwat : montan yo pa dwe travèse l */
-  y += 4;
-
-  /* TOTAL (USD) — jòn pal, tèks mawon */
-  doc.setFillColor(255, 243, 196); doc.rect(14, y, tableW, 16, 'F');
-  doc.setTextColor(101, 51, 19); doc.setFontSize(14); doc.setFont('helvetica', 'bold');
-  doc.text('Total (USD)', 18, y + 10.5);
-  doc.text('$' + (e.grandTotal || 0).toFixed(2), colMontX, y + 10.5, { align: 'right' });
-  y += 16;
-
-  /* Ekivalan HTG — diskrè */
-  doc.saveGraphicsState();
-  doc.setGState(new doc.GState({ opacity: 0.55 }));
-  doc.setFillColor(230, 225, 215); doc.rect(14, y, tableW, 11, 'F');
-  doc.setTextColor(120, 100, 70); doc.setFontSize(8); doc.setFont('helvetica', 'normal');
-  doc.text('Ekivalan HTG (' + HTG_RATE + ' HTG / $1)', 18, y + 7.5);
-  doc.setFontSize(9);
-  doc.text(htg(e.grandTotal), colMontX, y + 7.5, { align: 'right' });
-  doc.restoreGraphicsState();
-  y += 19;   // 11 mm barre + ~6 mm d'espace avant la 1re ligne de la note
-
-  /* 5. NÒT */
+  /* 7. NÒT */
   if (e.note) {
-    doc.setFontSize(8.5); doc.setFont('helvetica', 'italic'); doc.setTextColor(70, 70, 70);
-    const noteLines = doc.splitTextToSize('Nòt: ' + e.note, tableW);
-    doc.text(noteLines, 14, y); y += noteLines.length * 5.5 + 5;
-  } else {
-    doc.setFontSize(8); doc.setFont('helvetica', 'italic'); doc.setTextColor(160, 150, 135);
-    doc.text('Nòt:', 14, y);
-    doc.setDrawColor(200, 190, 175); doc.setLineWidth(0.3);
-    doc.line(28, y, pw - 14, y); y += 6;
-    doc.line(14, y, pw - 14, y); y += 7;
+    const ny = TBL_END + 5.2;
+    label('NÒT:', bx, ny, 7);
+    fkSetHand(doc, 8.5);
+    const nl = doc.splitTextToSize(e.note, CW - 10).slice(0, 2);
+    nl.forEach((ln, i) => fkHandText(doc, ln, bx + 9, ny + i * 4.2, 8.5));
   }
 
-  /* 6. MARKETING — san fon ni fòm, an italik (pou fich la respire) */
-  const msg1 = 'Siw gen machandiz ki entèresew sou sit chinwa yo, ou ka pataje link yo avèk nou pou edew evalye pri l oswa achte li pou ou.';
-  const msg2 = 'Les Cayes Dropshipping, nou se patnè fyab ou pou pwojè komès ak livrezon USA -> Ayiti.';
-  const PAY_W = 50, PAY_H = 18;               // boîte réservée à paiement.png (hauteur fixe)
-  doc.setDrawColor(orR, orG, orB); doc.setLineWidth(0.5);
-  doc.line(14, y, pw - 14, y); y += 6;
-  doc.setFontSize(8.5); doc.setFont('helvetica', 'italic'); doc.setTextColor(bruR, bruG, bruB);
-  const msg1Lines = doc.splitTextToSize(msg1, tableW);
-  doc.text(msg1Lines, 14, y); y += msg1Lines.length * 5.5 + 3;
-  doc.setFontSize(8); doc.setFont('helvetica', 'bolditalic'); doc.setTextColor(bruR, bruG, bruB);
-  const msg2Lines = doc.splitTextToSize(msg2, tableW - PAY_W - 8);
-  const lh2 = doc.getFontSize() * 1.15 / doc.internal.scaleFactor;
-  msg2Lines.forEach((ln, i) => drawLineWithArrows(doc, ln, 14, y + i * lh2, [bruR, bruG, bruB]));
-  drawPaiement(doc, imgs['paiement'], pw - 14, y - 4, PAY_W, PAY_H, 'Mòd pèman');
-  y += Math.max(msg2Lines.length * 5.2 + 2, PAY_H - 4) + 5;
+  /* 8. MESAJ + SIYATI + PYE PAJ */
+  doc.setFont('helvetica', 'italic'); doc.setFontSize(7.2); doc.setTextColor(40, 40, 40);
+  drawLineWithArrows(doc, 'Nou se patnè fyab ou pou pwojè komès ak livrezon USA -> Ayiti.', X(W / 2), 174.3, [40, 40, 40], { align: 'center' });
+  doc.setFont('helvetica', 'italic'); doc.setFontSize(7.2); doc.setTextColor(40, 40, 40);
+  doc.text('Achte sou entènèt avè n ak konfyans.', X(W / 2), 178.3, { align: 'center' });
 
-  /* 7. SIYATI */
-  const yEnd = drawSignature(doc, y, pw, imgs['manuscrit']);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(100, 100, 100);
+  doc.text('Siyati kliyan:', bx, 184);
+  doc.setDrawColor(130, 130, 130); doc.setLineWidth(0.3); doc.line(bx, 191.5, bx + 58, 191.5);
+  const sx1 = X(R) - 62, sx2 = X(R);
+  doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.4); doc.line(sx1, 191.5, sx2, 191.5);
+  doc.setFont('times', 'bolditalic'); doc.setFontSize(10.5); doc.setTextColor(15, 15, 15);
+  doc.text('Thomas Kabé (Responsab Sid)', (sx1 + sx2) / 2, 197, { align: 'center' });
 
-  /* 8. PYE PAJ */
-  doc.setFillColor(tqR, tqG, tqB);
-  doc.rect(0, ph - 14, pw, 14, 'F');
-  doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(255, 255, 255);
-  doc.text('Les Cayes Dropshipping  _  +509 35 60 88 69  _  Aux Cayes', pw / 2, ph - 6, { align: 'center' });
-
-  return yEnd;
+  doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.3); doc.line(X(M), 200.6, X(R), 200.6);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(6.6); doc.setTextColor(40, 40, 40);
+  doc.text('Les Cayes Dropshipping  _  lescayesdropshipping@gmail.com  _  +509 35 60 88 69  _  Aux Cayes', X(W / 2), 204.3, { align: 'center' });
 }
 
+async function buildFichesPdf(entries) {
+  if (!window.jspdf) { showToast('jsPDF pa chaje'); return false; }
+  entries = (entries || []).filter(Boolean).slice(0, 2);
+  if (!entries.length) return false;
+  const { jsPDF } = window.jspdf;
+  const platKeys = [];
+  entries.forEach(e => (e.origins || []).forEach(p => { if (PLAT_MAP[p] && !platKeys.includes(p)) platKeys.push(p); }));
 
-/* ══════════════════════════════════════════
-   FICH SHIPPING — kliyan, kalkil, jenerasyon
-   ══════════════════════════════════════════ */
-function getPosClients() {
-  try { return JSON.parse(localStorage.getItem('tbs_pos_clients')) || []; }
-  catch { return []; }
-}
+  const res = await Promise.all([loadImg('lescayesdropshipping.png', 400), loadPaiement(), loadHandFont(), ...platKeys.map(loadPlatFit)]);
+  const imgs = { logo: res[0], pay: res[1] };
+  platKeys.forEach((k, i) => { imgs['plat:' + k] = res[i + 3]; });
 
-function savePosClient(name, address, phone) {
-  if (!name) return;
-  const list = getPosClients();
-  const idx  = list.findIndex(c => c.name.toLowerCase() === name.toLowerCase());
-  if (idx !== -1) {
-    list[idx].address = address || list[idx].address;
-    list[idx].phone   = phone   || list[idx].phone || '';
-  } else {
-    list.push({ name, address: address || '', phone: phone || '' });
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  FK_HAND.ok = false;
+  if (res[2]) {
+    try { doc.addFileToVFS('Hand.ttf', res[2]); doc.addFont('Hand.ttf', 'Hand', 'normal'); doc.setFont('Hand', 'normal'); FK_HAND.ok = true; }
+    catch (err) { FK_HAND.ok = false; }
   }
-  localStorage.setItem('tbs_pos_clients', JSON.stringify(list));
-}
+  entries.forEach((e, i) => drawFakti(doc, e, imgs, i * 148.5));
 
-/* ══════════════════════════════════════════════
-   SUGGESTIONS KLIYAN — customers.js + liste POS
-   • Sous-tab : tout kliyan anrejistre nan customers.js parèt,
-     menm si li poko janm itilize nan POS la.
-   • Rechèch : pa non OSWA pa prenon (nenpòt mo ki kòmanse ak sa w tape),
-     san sansib pou aksan ni majiskil.
-   ══════════════════════════════════════════════ */
-function normTxt(s) {
-  return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-}
-function nameMatches(name, typed) {
-  const n = normTxt(name).replace(/[\-'’.,]+/g, ' ');
-  const v = normTxt(typed).replace(/[\-'’.,]+/g, ' ');
-  if (!v) return false;
-  return n.startsWith(v) || (' ' + n).includes(' ' + v);
-}
-function getClientSources() {
-  const sources = [];
-  const add = c => {
-    if (!c || !c.name) return;
-    const key = normTxt(c.name);
-    const ex  = sources.find(s => normTxt(s.name) === key);
-    if (ex) {
-      if (!ex.address && c.address) ex.address = c.address;
-      if (!ex.phone   && c.phone)   ex.phone   = c.phone;
-    } else {
-      sources.push({ name: c.name, address: c.address || '', phone: c.phone || '' });
-    }
-  };
-  if (typeof getCustomers === 'function') {
-    try { getCustomers().forEach(add); } catch (err) {}
+  if (entries.length === 2) {
+    doc.setDrawColor(170, 170, 170); doc.setLineWidth(0.15);
+    doc.setLineDashPattern([1.5, 1.5], 0); doc.line(148.5, 0, 148.5, 210); doc.setLineDashPattern([], 0);
   }
-  getPosClients().forEach(add);
-  return sources;
-}
-function findClientMatches(typed) {
-  const v = normTxt(typed);
-  return getClientSources()
-    .filter(c => nameMatches(c.name, typed))
-    .sort((a, b) => (normTxt(b.name).startsWith(v) ? 1 : 0) - (normTxt(a.name).startsWith(v) ? 1 : 0)
-                    || a.name.localeCompare(b.name))
-    .slice(0, 8);
-}
-/* Dropdown pataje (Shipping + Acha) */
-function showClientDropdown(nameInput, ddId, onPick) {
-  const old = document.getElementById(ddId);
-  if (old) old.remove();
-  const val = nameInput.value.trim();
-  if (!val) return;
-  const matches = findClientMatches(val);
-  if (matches.length === 0) return;
-
-  const dd = document.createElement('div');
-  dd.id = ddId;
-  dd.style.cssText = `
-    position:absolute;z-index:999;background:#1a1520;
-    border:1px solid rgba(255,255,255,0.15);border-radius:8px;
-    left:0;right:0;top:100%;max-height:200px;overflow-y:auto;
-  `;
-  matches.forEach(c => {
-    const item = document.createElement('div');
-    item.style.cssText = 'padding:10px 12px;cursor:pointer;font-size:0.875rem;border-bottom:1px solid rgba(255,255,255,0.06);';
-    const strong = document.createElement('strong');
-    strong.style.color = '#ddd8cc';
-    strong.textContent = c.name;
-    item.appendChild(strong);
-    const extra = [c.address, c.phone].filter(Boolean).join(' · ');
-    if (extra) {
-      const sp = document.createElement('div');
-      sp.style.cssText = 'color:rgba(200,190,175,0.55);font-size:0.78em;margin-top:2px;';
-      sp.textContent = extra;
-      item.appendChild(sp);
-    }
-    item.addEventListener('mousedown', ev => { ev.preventDefault(); onPick(c); dd.remove(); });
-    item.addEventListener('touchstart', () => { onPick(c); dd.remove(); }, { passive: true });
-    dd.appendChild(item);
-  });
-  const wrap = nameInput.parentElement;
-  if (wrap) { wrap.style.position = 'relative'; wrap.appendChild(dd); }
+  const slug = e => (e.clientName || 'Kliyan').trim().replace(/\s+/g, '_');
+  const no = e => 'lcd' + fkPad(e.invoiceNo);
+  doc.save(entries.length === 1 ? 'Fakti_' + slug(entries[0]) + '_' + no(entries[0]) + '.pdf'
+                                : 'Fakti_' + slug(entries[0]) + '_et_' + slug(entries[1]) + '.pdf');
+  return true;
 }
 
-/* ── Kalkil an dirèk ─────────────────────────── */
-function calcLive() {
-  const L           = parseFloat(document.getElementById('posL')?.value)           || 0;
-  const W           = parseFloat(document.getElementById('posW')?.value)           || 0;
-  const H           = parseFloat(document.getElementById('posH')?.value)           || 0;
-  const realWeight  = parseFloat(document.getElementById('posWeight')?.value)      || 0;
-  const customPrice = parseFloat(document.getElementById('posCustomPrice')?.value) || 0;
-  const balRest     = parseFloat(document.getElementById('posDebt')?.value)        || 0;
-  const balPaye     = parseFloat(document.getElementById('posChange')?.value)      || 0;
-
-  /* Pwa Volimik : TOUJOU fòmil (L×W×H)/4000 — pa janm chanje pou customPrice */
-  const volWeight   = (L * W * H) / 4000;
-
-  /* Pwa Final = volimik + balans */
-  const finalWeight = volWeight + realWeight;
-
-  /* ── Fòmil definitif : (Pwa Reyèl × 4.90) × 2 ── */
-  let subtotal    = 0;
-  let discount    = 0;
-  let discountPct = 0;
-  let servicePrix = 0;
-
-  if (realWeight > 0) {
-    const brut = (realWeight * TARIF_LB) * 2;
-    subtotal   = brut < MIN_CHARGE ? MIN_CHARGE : brut;
-  }
-
-  /* ── Si customPrice aktif : aplike l dirèkteman ── */
-  if (customPrice > 0 && subtotal > 0) {
-    servicePrix = customPrice;
-  } else if (customPrice > 0 && subtotal === 0) {
-    subtotal    = customPrice;
-    servicePrix = customPrice;
-  } else {
-    servicePrix = subtotal;
-  }
-
-  /* Total = PrixServis + BalRes - BalPaye */
-  const total    = Math.max(0, servicePrix + balRest - balPaye);
-  const totalHTG = total * HTG_RATE;
-
-  /* ── Afichaj ─────────────────────────────────── */
-  const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-
-  setTxt('resVolWeight',   volWeight > 0   ? volWeight.toFixed(2) + ' lb'   : '- lb');
-  setTxt('resFinalWeight', finalWeight > 0 ? finalWeight.toFixed(2) + ' lb' : '- lb');
-  setTxt('resTarif',       finalWeight > 0 ? '$' + TARIF_LB.toFixed(2) + '/lb' : '-');
-  setTxt('resSubtotal',    subtotal > 0    ? '$' + subtotal.toFixed(2)      : '-');
-  setTxt('resService',     servicePrix > 0 ? '$' + servicePrix.toFixed(2)   : '-');
-  setTxt('resTotal',       '$' + total.toFixed(2));
-  setTxt('resTotalHTG',    totalHTG.toFixed(0) + ' HTG');
-
-  /* Endikasyon minimom */
-  const minBadge = document.getElementById('resMinBadge');
-  if (minBadge) {
-    if (customPrice <= 0 && finalWeight > 0 && (finalWeight * TARIF_LB) < MIN_CHARGE) {
-      minBadge.style.display = 'inline-block';
-    } else {
-      minBadge.style.display = 'none';
-    }
-  }
-
-  return { volWeight, finalWeight, subtotal, discount, discountPct, servicePrix, total, totalHTG, balRest, balPaye, customPrice, realWeight };
-}
-
-/* ── Otokomplete kliyan (Shipping) ───────────── */
-function initPosAutocomplete() {
-  const nameInput = document.getElementById('posClientName');
-  const addrInput = document.getElementById('posClientAddress');
-  const phoneInput = document.getElementById('posClientPhone');
-  if (!nameInput) return;
-
-  nameInput.addEventListener('input', () => {
-    showClientDropdown(nameInput, 'posClientDropdown', c => {
-      nameInput.value = c.name;
-      if (addrInput)  addrInput.value  = c.address || '';
-      if (phoneInput) phoneInput.value = c.phone   || '';
-      removePosDropdown();
-      calcLive();
-      (addrInput || nameInput).dispatchEvent(new Event('input', { bubbles: true })); // mete ajou endikatè ✓
-    });
-  });
-
-  nameInput.addEventListener('blur', () => setTimeout(removePosDropdown, 200));
-}
-
-function removePosDropdown() {
-  const dd = document.getElementById('posClientDropdown');
-  if (dd) dd.remove();
-}
-
-/* ── Jenere Fakti PDF ─────────────────────────── */
-function generatePOSInvoice() {
-  const cur    = slotCurrent('ship');
-  const backup = SLOT.ship.active;
-  const hist   = getPosHistory();
-  const entries = [];
-
-  cur.forEach(snap => {
-    if (!SLOT.ship.filled(snap)) return;
-    slotFill('ship', snap);              // calcLive() li chan yo
-    const vals = calcLive();
-    const clientName = (snap.posClientName || '').trim();
-    const clientAddr = (snap.posClientAddress || '').trim();
-    const clientPhone = (snap.posClientPhone || '').trim();
-    const entry = {
-      id: uid(), invoiceNo: nextInvoiceNo('pos'),
-      clientName, clientAddr, clientPhone,
-      desc: (snap.posDescription || '').trim(), note: (snap.posNote || '').trim(),
-      ...vals,
-      dimL: parseFloat(snap.posL) || 0, dimW: parseFloat(snap.posW) || 0, dimH: parseFloat(snap.posH) || 0,
-      date: Date.now(),
-    };
-    hist.unshift(entry);
-    entries.push(entry);
-    savePosClient(clientName, clientAddr, clientPhone);
-  });
-  slotFill('ship', cur[backup]);         // remèt kliyan aktif la
-  calcLive();
-
-  if (!entries.length) { showToast('Antre omwen pwa oswa non kliyan'); return; }
-
-  if (hist.length > POS_MAX) hist.length = POS_MAX;
-  savePosHistory(hist);
-  buildFichesPdf('shipping', entries);
-  showToast('Fakti ' + entries.map(e => '#' + e.invoiceNo).join(' + ') + ' jenere');
-  renderPosHistory();
-}
-
-/* ══════════════════════════════════════════════
-   BUILD PDF A4 — VERSION KORIJE KONPLÈ v5
-   Chanjman :
-   ✔ Fakti ranpli paj la antye (yon sèl ranje prensipal)
-   ✔ Yon sèl deskripsyon nan tablo (maks 100 mo, pasaj liy otomatik)
-   ✔ Non kliyan an gras + "Adrès: " devan adrès
-   ✔ Antet aliye pwòp ak pwofesyonèl
-   ✔ Watermark (logo transparan) nan sant zòn kontni paj la
-   ✔ Pwa Balans + Pwa Volimik afiche klèman avèk "lb"
-   ✔ Konvèsyon HTG vizib ak eleg anba total USD (135 HTG/$1)
-   ✔ Tablo espasye pou evite chevauchement tèks
-   ✔ Tou an Kreyòl Ayisyen
-
-/* ══════════════════════════════════════════
-   DESEN FICH SHIPPING (pòtrè 210 mm × ph) — retounen y final
-   ══════════════════════════════════════════ */
-function drawShippingFiche(doc, e, imgs, ph) {
-  const pw = 210;
-  const bruR = 101, bruG = 51,  bruB = 19;
-  const orR  = 212, orG  = 175, orB  = 55;
-  const tqR  = 0,   tqG  = 150, tqB  = 166;
-  const imgData = imgs['lescayesdropshipping.png'] || null;
-
-    /* ══════════════════════════════════════════
-       WATERMARK — nan sant zòn kontni paj la
-       Mete l ANVAN tout kontni pou l rete dèyè
-       ══════════════════════════════════════════ */
-    if (imgData) {
-      doc.saveGraphicsState();
-      doc.setGState(new doc.GState({ opacity: 0.10 }));
-      const wmSize = 110;
-      const wmX = (pw - wmSize) / 2;
-      const wmY = (ph - wmSize) / 2 - 10;
-      doc.addImage(imgData, 'PNG', wmX, wmY, wmSize, wmSize);
-      doc.restoreGraphicsState();
-    }
-
-    /* ══════════════════════════════════════════
-       1. ANTET — banye touez (0–46 mm)
-       Logo agòch, tèks konpayi a mitan-gòch,
-       Nimewo fakti + dat nan kwen dwat
-       ══════════════════════════════════════════ */
-    doc.setFillColor(tqR, tqG, tqB);
-    doc.rect(0, 0, pw, 46, 'F');
-
-    /* Liy lò anba antet */
-    doc.setFillColor(orR, orG, orB);
-    doc.rect(0, 46, pw, 2, 'F');
-
-    /* Logo */
-    if (imgData) {
-      doc.addImage(imgData, 'PNG', 8, 7, 30, 30);
-    }
-
-    /* Non konpayi */
-    drawCompanyTitle(doc, 44, 17);
-
-    /* Adres sou 3 liy */
-    doc.setFontSize(7.5);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(220, 242, 248);
-    doc.text('USA: 14030 NW 5th Pl, North Miami, FL, 33168', 44, 25);
-    doc.text('Haiti: Miragoane, Les Cayes', 44, 31);
-    doc.text('+509 35 60 88 69  _  lescayesdropshipping@gmail.com', 44, 37);
-
-    /* Nimewo fakti + dat — kwen dwat antet */
-    const dateTxt = new Date(e.date).toLocaleDateString('fr-HT', {
-      day: '2-digit', month: '2-digit', year: 'numeric'
-    });
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(255, 255, 255);
-    doc.text('FAKTI  lcd' + String(e.invoiceNo || '0').padStart(4, '0'), pw - 10, 18, { align: 'right' });
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(220, 242, 248);
-    doc.text('Dat: ' + dateTxt, pw - 10, 27, { align: 'right' });
-
-    /* ══════════════════════════════════════════
-       2. BLOK KLIYAN (58–82 mm)
-       Non an gras majiskil, Adrès avèk prefiks "Adrès: "
-       ══════════════════════════════════════════ */
-    let y = 60;
-
-    if (e.clientName) {
-      doc.setFontSize(13);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(15, 15, 15);
-      doc.text(e.clientName.toUpperCase(), 14, y);
-      y += 8;
-    }
-
-    if (e.clientAddr) {
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(60, 60, 60);
-      doc.text('Adrès: ' + e.clientAddr, 14, y);
-      y += 6;
-    }
-
-    if (e.clientPhone) {
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(60, 60, 60);
-      doc.text('Tél: ' + e.clientPhone, 14, y);
-      y += 6;
-    }
-
-    /* Liy lò separatè anba blok kliyan */
-    y += 2;
-    doc.setDrawColor(orR, orG, orB);
-    doc.setLineWidth(0.7);
-    doc.line(14, y, pw - 14, y);
-    y += 10;
-
-    /* ══════════════════════════════════════════
-       3. ANTET TABLO
-       Kolòn: Deskripsyon | Pwa Balans | Pwa Volimik | Montan
-       ══════════════════════════════════════════ */
-    const tableW   = pw - 28;       // 182 mm (maji 14 mm chak bò)
-    const colDesc  = 14;            // bò gòch Deskripsyon
-    const colBal   = 119;           // sant Pwa Balans
-    const colVol   = 152;           // sant Pwa Volimik
-    const colMontX = pw - 12;       // bò dwat Montan
-    const tblHeaderH = 12;
-
-    doc.setFillColor(tqR, tqG, tqB);
-    doc.rect(14, y, tableW, tblHeaderH, 'F');
-    doc.setFontSize(8.5);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(255, 255, 255);
-    const hY = y + 8;
-    doc.text('Deskripsyon',  colDesc + 4,  hY);
-    doc.text('Scale Weight',   colBal,        hY, { align: 'center' });
-    doc.text('DIM Weight',  colVol,        hY, { align: 'center' });
-    doc.text('Amount',       colMontX,      hY, { align: 'right'  });
-    y += tblHeaderH;
-
-    /* ══════════════════════════════════════════
-       4. RANJE PRENSIPAL — yon sèl fwa (pa de fwa)
-       Deskripsyon (maks 100 mo, pasaj liy otomatik)
-       Pwa Balans | Pwa Volimik avèk "lb"
-       ══════════════════════════════════════════ */
-    const rawDesc   = (e.desc || 'Sèvis lojistik');
-    const words     = rawDesc.split(/\s+/);
-    const shortDesc = words.slice(0, 100).join(' ') + (words.length > 100 ? '...' : '');
-
-    /* ── Pwa Balans : toujou pwa reyèl ── */
-    const pwaBalansVal = (e.realWeight > 0 ? e.realWeight.toFixed(2) : '0.00') + ' lb';
-
-    /* ── Pwa Volimik : TOUJOU pwa reyèl (L×W×H)/4000 — pa janm ajiste ── */
-    const displayVolWeight = e.volWeight || 0;
-
-    /* Récupère L, W, H stockés dans l'entrée (si disponibles) */
-    const dimL = e.dimL || 0;
-    const dimW = e.dimW || 0;
-    const dimH = e.dimH || 0;
-    const hasDims = dimL > 0 && dimW > 0 && dimH > 0;
-
-    /* Ligne 1 : dimensions (si dispo) — Ligne 2 : résultat lb */
-    const volLine1 = hasDims ? `(${dimL}×${dimW}×${dimH})` : '';
-    const volLine2 = displayVolWeight.toFixed(2) + ' lb';
-
-    const montant = '$' + (e.servicePrix || e.subtotal || 0).toFixed(2);
-
-    doc.setFontSize(8.5);
-    const descMaxW   = 88;
-    const descSplits = doc.splitTextToSize(shortDesc, descMaxW);
-    /* Wotè ranje = nombre liy × 5.5 mm + pading vètikal 10 mm min */
-    const mainRowH   = Math.max(descSplits.length * 5.5 + 10, 18);
-
-    /* Fond ranje */
-    doc.setFillColor(252, 250, 245);
-    doc.rect(14, y, tableW, mainRowH, 'F');
-
-    /* Sèpasyon kolòn (liy vètikal leje) */
-    doc.setDrawColor(210, 200, 185);
-    doc.setLineWidth(0.25);
-    const colSepY1 = y;
-    const colSepY2 = y + mainRowH;
-    doc.line(colBal - 15, colSepY1, colBal - 15, colSepY2);
-    doc.line(colVol - 12, colSepY1, colVol - 12, colSepY2);
-    doc.line(colMontX - 18, colSepY1, colMontX - 18, colSepY2);
-
-    /* Tèks Deskripsyon — aliye anlè ranje + pading 5 mm */
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(30, 30, 30);
-    doc.text(descSplits, colDesc + 4, y + 7);
-
-    /* Pwa Balans + Pwa Volimik + Montan — aliye mitan vètikal ranje */
-    const midRow = y + mainRowH / 2 + 1.5;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(35, 35, 35);
-
-    /* Pwa Balans — yon liy */
-    doc.text(pwaBalansVal, colBal, midRow, { align: 'center' });
-
-    /* Pwa Volimik — de liy si gen dimansyon, sinon yon liy */
-    if (hasDims) {
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.5);
-      doc.text(volLine1, colVol, midRow - 3, { align: 'center' });
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.text(volLine2, colVol, midRow + 3.5, { align: 'center' });
-    } else {
-      doc.text(volLine2, colVol, midRow, { align: 'center' });
-    }
-
-    doc.saveGraphicsState();
-    doc.setGState(new doc.GState({ opacity: 0.55 }));
-    doc.setFontSize(9.5);
-    doc.setTextColor(bruR, bruG, bruB);
-    doc.text(montant, colMontX, midRow, { align: 'right' });
-    doc.restoreGraphicsState();
-
-    y += mainRowH;
-
-    /* ══════════════════════════════════════════
-       5. RANJE RÈS Balans + BALANS PEYE
-       ══════════════════════════════════════════ */
-    const extraRows = [];
-    if (e.balRest > 0) extraRows.push(['Rès balans',  '+$' + e.balRest.toFixed(2)]);
-    if (e.balPaye > 0) extraRows.push(['Balans peye', '-$' + e.balPaye.toFixed(2)]);
-
-    extraRows.forEach((r, i) => {
-      doc.saveGraphicsState();
-      doc.setGState(new doc.GState({ opacity: 0.55 }));
-      doc.setFillColor(i % 2 === 0 ? 246 : 255, i % 2 === 0 ? 248 : 255, i % 2 === 0 ? 243 : 255);
-      doc.rect(14, y, tableW, 10, 'F');
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.5);
-      doc.setTextColor(40, 40, 40);
-      doc.text(r[0], colDesc + 4, y + 7);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.setTextColor(bruR, bruG, bruB);
-      doc.text(r[1], colMontX, y + 7, { align: 'right' });
-      doc.restoreGraphicsState();
-      y += 10;
-    });
-
-    y += 4;
-
-    /* ══════════════════════════════════════════
-       7. TOTAL (USD) — bannè prensipal (te rele "Sibtotal")
-       Se liy ofisyèl final la (servicePrix aprè rabè)
-       ══════════════════════════════════════════ */
-doc.saveGraphicsState();
-    doc.setFillColor(255, 243, 196);
-    doc.rect(14, y, tableW, 16, 'F');
-    doc.setTextColor(101, 51, 19);
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Total (USD)', colDesc + 4, y + 10.5);
-    doc.text('$' + (e.servicePrix || 0).toFixed(2), colMontX, y + 10.5, { align: 'right' });
-    doc.restoreGraphicsState();
-    y += 16;
-
-    /* ══════════════════════════════════════════
-       8. TOTAL HTG — konvèsyon referans discrè
-       ══════════════════════════════════════════ */
-    const totalHTG = Math.round((e.total || 0) * 135);
-    doc.saveGraphicsState();
-    doc.setGState(new doc.GState({ opacity: 0.55 }));
-    doc.setFillColor(230, 225, 215);
-    doc.rect(14, y, tableW, 11, 'F');
-    doc.setTextColor(120, 100, 70);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Ekivalan HTG (135 HTG / $1)', colDesc + 4, y + 7.5);
-    doc.setFontSize(9);
-    doc.text('≈ ' + totalHTG.toLocaleString('en-US') + ' HTG', colMontX, y + 7.5, { align: 'right' });
-    doc.restoreGraphicsState();
-    y += 17;
-
-    /* ══════════════════════════════════════════
-       9. ZON NOT
-       ══════════════════════════════════════════ */
-    const fullNote = e.note || '';
-    const hasDiscount = false;
-    if (fullNote) {
-      doc.setFontSize(8.5);
-      doc.setFont('helvetica', 'italic');
-      doc.setTextColor(hasDiscount ? 30 : 70, hasDiscount ? 100 : 70, hasDiscount ? 30 : 70);
-      const noteLines = doc.splitTextToSize('Not: ' + fullNote, tableW);
-      doc.text(noteLines, 14, y);
-      y += noteLines.length * 5.5 + 6;
-    } else {
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'italic');
-      doc.setTextColor(160, 150, 135);
-      doc.text('Not:', 14, y);
-      doc.setDrawColor(200, 190, 175);
-      doc.setLineWidth(0.3);
-      doc.line(28, y, pw - 14, y);
-      y += 7;
-      doc.line(14, y, pw - 14, y);
-      y += 9;
-    }
-
-    /* ══════════════════════════════════════════
-       10. KONDISYON PEMAN
-       ══════════════════════════════════════════ */
-    doc.setFillColor(246, 242, 236);
-    doc.rect(14, y, tableW, 26, 'F');
-    doc.setDrawColor(orR, orG, orB);
-    doc.setLineWidth(0.5);
-    doc.rect(14, y, tableW, 26);
-
-    doc.setFontSize(8.5);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(bruR, bruG, bruB);
-    drawLineWithArrows(doc, 'Patnè fyab ou pou pwojè komès ak livrezon USA -> Ayiti', 19, y + 9, [bruR, bruG, bruB]);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(50, 50, 50);
-    doc.setFontSize(8);
-    doc.text('Achte sou entènèt avè n ak konfyans.', 19, y + 16);
-    drawPaiement(doc, imgs['paiement'], pw - 19, y + 2, 52, 22, 'Mòd pèman');
-    y += 31;
-
-    /* ══════════════════════════════════════════
-       11. SIYATI
-       ══════════════════════════════════════════ */
-    y = drawSignature(doc, y, pw, imgs['manuscrit']);
-    const yEndShip = y;
-
-    /* ══════════════════════════════════════════
-       12. PYE PAJ — bannè touez tout lajè
-       ══════════════════════════════════════════ */
-    doc.setFillColor(tqR, tqG, tqB);
-    doc.rect(0, ph - 14, pw, 14, 'F');
-    doc.setFontSize(7.5);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(255, 255, 255);
-    doc.text(
-      'Les Cayes Dropshipping  _  lescayesdropshipping@gmail.com  _  +509 35 60 88 69  _  Aux Cayes',
-      pw / 2, ph - 5.5, { align: 'center' }
-    );
-  return yEndShip;
-}
-
-/* ══════════════════════════════════════════════
-   ISTORIK (20 dènye fich pa kalite) + PDF 1 oswa 2 fich
-   ══════════════════════════════════════════════ */
-function refreshHistoryIfOpen() {
-  const p = document.getElementById('posHistoryPanel');
-  if (p && !p.classList.contains('hidden')) renderPosHistory();
-}
-
-function togglePosHistory() {
-  const panel = document.getElementById('posHistoryPanel');
-  if (!panel) return;
-  panel.classList.toggle('hidden');
-  if (!panel.classList.contains('hidden')) { posSelected = []; renderPosHistory(); }
-}
-
-function currentHistory() { return currentPosTab === 'acha' ? getAchaHistory() : getPosHistory(); }
-
-function togglePosSelect(id, cb) {
-  const i = posSelected.indexOf(id);
-  if (cb.checked) {
-    if (posSelected.length >= 2) { cb.checked = false; showToast('Maksimòm 2 fich pa paj'); return; }
-    if (i < 0) posSelected.push(id);
-  } else if (i >= 0) {
-    posSelected.splice(i, 1);
-  }
-  const n = document.getElementById('posSelCount');
-  if (n) n.textContent = posSelected.length + ' / 2 chwazi';
-}
-
-function printSelectedFiches() {
-  const list = currentHistory();
-  const sel = posSelected.map(id => list.find(h => h.id === id)).filter(Boolean);
-  if (!sel.length) { showToast('Chwazi 1 oswa 2 fich'); return; }
-  buildFichesPdf(currentPosTab, sel);
-}
-
-function printOneFiche(id) {
-  const h = currentHistory().find(x => x.id === id);
-  if (h) buildFichesPdf(currentPosTab, [h]);
-}
-
-function renderPosHistory() {
-  const el = document.getElementById('posHistoryList');
-  if (!el) return;
-  const isAcha = currentPosTab === 'acha';
-  const list = currentHistory().slice(0, POS_MAX);
-
-  if (list.length === 0) {
-    el.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:30px;font-size:0.85rem;">Okenn fich ankò.</div>`;
-    return;
-  }
-
-  const bar = `
-    <div style="position:sticky;top:0;z-index:2;background:#1a1520;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:space-between;gap:8px;">
-      <span id="posSelCount" style="font-size:0.74rem;color:rgba(200,190,175,0.6);">${posSelected.length} / 2 chwazi</span>
-      <button onclick="printSelectedFiches()" style="background:rgba(0,150,166,0.25);border:1px solid rgba(0,150,166,0.5);border-radius:6px;color:#00acc1;font-size:0.74rem;padding:5px 10px;cursor:pointer;">📄 PDF paysaj (1-2 fich)</button>
-    </div>`;
-
-  el.innerHTML = bar + list.map(h => {
-    const amount  = isAcha ? (h.grandTotal || 0) : (h.total || 0);
-    const dateStr = new Date(h.date).toLocaleDateString('fr-HT', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    const status  = isAcha
-      ? ((h.shippingHT || 0) > 0
-          ? `<span style="font-size:0.62rem;background:rgba(60,160,80,0.2);color:#6fcf86;border-radius:4px;padding:1px 5px;margin-left:5px;">NÈT</span>`
-          : `<span style="font-size:0.62rem;background:rgba(212,175,55,0.2);color:#d4af37;border-radius:4px;padding:1px 5px;margin-left:5px;">SHIPPING POKO METE</span>`)
-      : '';
-    const editBtn = isAcha
-      ? `<button onclick="editAchaFiche('${h.id}')" style="margin-top:4px;margin-right:4px;background:rgba(0,150,166,0.2);border:1px solid rgba(0,150,166,0.45);border-radius:6px;color:#00acc1;font-size:0.72rem;padding:3px 8px;cursor:pointer;">✏️ Modifye</button>`
-      : '';
-    return `
-    <div class="pos-history-item" style="padding:12px 14px;border-bottom:1px solid rgba(255,255,255,0.06);">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-        <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;">
-          <input type="checkbox" ${posSelected.includes(h.id) ? 'checked' : ''} onchange="togglePosSelect('${h.id}', this)" style="margin-top:3px;" />
-          <div>
-            <div style="font-size:0.9rem;font-weight:600;color:#ddd8cc;">${esc(h.clientName) || '-'}${status}</div>
-            ${h.clientAddr ? `<div style="font-size:0.72rem;color:rgba(200,190,175,0.5);">${esc(h.clientAddr)}</div>` : ''}
-            <div style="font-size:0.72rem;color:rgba(200,190,175,0.4);margin-top:2px;">#${esc(h.invoiceNo) || '-'} · ${dateStr}</div>
-          </div>
-        </label>
-        <div style="text-align:right;flex-shrink:0;">
-          <div style="font-size:0.62rem;color:rgba(200,190,175,0.45);margin-bottom:1px;">Total</div>
-          <div style="font-family:'Space Mono',monospace;font-size:0.95rem;color:#d4af37;">$${amount.toFixed(2)}</div>
-          <div style="font-size:0.7rem;color:rgba(200,180,100,0.55);font-style:italic;">${Math.round(amount * HTG_RATE).toLocaleString('fr-HT')} HTG</div>
-          ${editBtn}<button onclick="printOneFiche('${h.id}')" style="margin-top:4px;background:rgba(101,51,19,0.3);border:1px solid rgba(101,51,19,0.5);border-radius:6px;color:#d4af37;font-size:0.72rem;padding:3px 8px;cursor:pointer;">PDF</button>
-        </div>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-/* ── Efase fomilè (tab-aware) ────────────────── */
-function clearPosForm() {
-  if (currentPosTab === 'acha') { clearAchaForm(); return; }
-  slotReset('ship');
-  showToast('Fomilè efase');
-}
+/* Kompatibilite ansyen non (si lòt fichye rele yo) */
+function calcLive() {}
+function calcAchaLive() {}
+function generatePOSInvoice() { fkFinish(); }
+function generateAchaInvoice() { fkFinish(); }
+function clearPosForm() { fkClear(); }
 
 /* ── Init ────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
-  initPosAutocomplete();
-
-  ['posL','posW','posH','posWeight','posCustomPrice','posDebt','posChange'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('input', calcLive);
-  });
-  ['achaPrixUsine','achaShippingHaiti'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('input', calcAchaLive);
-  });
-
-  const achaNameInput = document.getElementById('achaClientName');
-  if (achaNameInput) {
-    achaNameInput.addEventListener('input', initAchaAutocomplete);
-    achaNameInput.addEventListener('blur', () => setTimeout(removeAchaDropdown, 200));
-  }
-  setAchaEditUI(null);
-
-  /* Bouton Kliyan A / B + endikatè ✓ */
-  document.getElementById('posTabShipping')?.addEventListener('input', () => slotUI('ship'));
-  document.getElementById('posTabAcha')?.addEventListener('input', () => slotUI('acha'));
-  slotUI('ship');
-  slotUI('acha');
-});
-
-/* ── Otokomplete Acha ──────────────────────────
-   Fonksyon sa a rele chak fwa yo tape nan champ
-   'achaClientName' (ataché nan DOMContentLoaded)
-   ──────────────────────────────────────────── */
-function initAchaAutocomplete() {
-  const nameInput  = document.getElementById('achaClientName');
-  const addrInput  = document.getElementById('achaClientAddress');
-  const phoneInput = document.getElementById('achaClientPhone');
-  if (!nameInput) return;
-
-  showClientDropdown(nameInput, 'achaClientDropdown', c => {
-    nameInput.value = c.name;
-    if (addrInput)  addrInput.value  = c.address || '';
-    if (phoneInput) phoneInput.value = c.phone   || '';
-    removeAchaDropdown();
-    (addrInput || nameInput).dispatchEvent(new Event('input', { bubbles: true })); // mete ajou endikatè ✓
-  });
-}
-
-function removeAchaDropdown() {
-  const dd = document.getElementById('achaClientDropdown');
-  if (dd) dd.remove();
-}
-
-document.addEventListener('click', e => {
-  if (!e.target.closest('#achaClientName')) removeAchaDropdown();
+  initFkAutocomplete();
+  const d = fkEl('fkDesc'); if (d) d.addEventListener('input', fkCount);
+  fkClear(true);
+  switchPosTab('new');
+  fkRefresh();
 });
