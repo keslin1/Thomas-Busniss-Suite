@@ -287,7 +287,7 @@
         ✏️ Modification de la facture <span id="fkEditNo"></span> — ajoutez le paiement du transport (cochez Shipping), puis « Mettre à jour ». (🗑 pour annuler)
       </div>
 
-      <!-- A. Client -->
+      <!-- A. Kliyan -->
       <div style="padding:10px 14px 0;font-size:0.68rem;font-weight:800;color:rgba(212,175,55,0.7);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;">A. KLIYAN</div>
       <div class="pos-field-group" style="position:relative;">
         <label class="pos-label">Non kliyan</label>
@@ -308,7 +308,7 @@
         </div>
       </div>
 
-      <!-- B. Sèvis (cases cochées en rouge sur le PDF) -->
+      <!-- B. Motif pèman (cases cochées en rouge sur le PDF) -->
       <div style="padding:12px 14px 0;font-size:0.68rem;font-weight:800;color:rgba(212,175,55,0.7);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;">B. MOTIF PÈMAN</div>
       <div style="display:flex;gap:10px;padding:6px 14px 0;">
         <label style="flex:1;display:flex;align-items:center;gap:8px;border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:11px 12px;cursor:pointer;color:#ddd8cc;font-size:0.9rem;">
@@ -319,39 +319,56 @@
         </label>
       </div>
 
-      <div class="pos-field-group">
-        <label class="pos-label">🛒 Orijin machandiz <span style="opacity:0.55;font-weight:400;">(logo sou PDF)</span></label>
-        <select id="fkPlat1" class="form-input" style="cursor:pointer;">
-          <option value="">— Chwazi platefòm —</option>
-          <option value="alibaba">Alibaba</option>
-          <option value="aliexpress">AliExpress</option>
-          <option value="temu">Temu</option>
-          <option value="shein">Shein</option>
-          <option value="amazon">Amazon</option>
-        </select>
-      </div>
-      <div class="pos-field-group">
-        <label class="pos-label">🛒 2yèm platefòm <span style="opacity:0.55;font-weight:400;">(opsyonèl)</span></label>
-        <select id="fkPlat2" class="form-input" style="cursor:pointer;">
-          <option value="">— Chwazi platefòm —</option>
-          <option value="alibaba">Alibaba</option>
-          <option value="aliexpress">AliExpress</option>
-          <option value="temu">Temu</option>
-          <option value="shein">Shein</option>
-          <option value="amazon">Amazon</option>
-        </select>
+      <!-- Acha : orijin machandiz (logo) -->
+      <div id="fkRowOrigin" style="display:none;">
+        <div class="pos-field-group">
+          <label class="pos-label">🛒 Orijin machandiz <span style="opacity:0.55;font-weight:400;">(logo sou PDF)</span></label>
+          <select id="fkPlat1" class="form-input" style="cursor:pointer;">
+            <option value="">— Chwazi platefòm —</option>
+            <option value="alibaba">Alibaba</option>
+            <option value="aliexpress">AliExpress</option>
+            <option value="temu">Temu</option>
+            <option value="shein">Shein</option>
+            <option value="amazon">Amazon</option>
+          </select>
+        </div>
+        <div class="pos-field-group">
+          <label class="pos-label">🛒 2yèm platefòm <span style="opacity:0.55;font-weight:400;">(opsyonèl)</span></label>
+          <select id="fkPlat2" class="form-input" style="cursor:pointer;">
+            <option value="">— Chwazi platefòm —</option>
+            <option value="alibaba">Alibaba</option>
+            <option value="aliexpress">AliExpress</option>
+            <option value="temu">Temu</option>
+            <option value="shein">Shein</option>
+            <option value="amazon">Amazon</option>
+          </select>
+        </div>
       </div>
 
-      <!-- C. Liy fakti a : tout manyèl, 6 karaktè max (sof deskripsyon) -->
-      <div style="padding:12px 14px 0;font-size:0.68rem;font-weight:800;color:rgba(212,175,55,0.7);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;">C. LIY FAKTI (tout manyèl)</div>
+      <!-- Shipping : label kliyan -->
+      <div id="fkRowLabel" style="display:none;">
+        <div class="pos-field-group">
+          <label class="pos-label">🏷️ Label kliyan <span style="opacity:0.55;font-weight:400;">(non ki idantifye koli a)</span></label>
+          <input type="text" id="fkLabel" maxlength="30" placeholder="Eks: MP-Colis 1" class="form-input" />
+        </div>
+      </div>
+
+      <!-- C. Liy fakti a : manyèl · ekstansyon otomatik -->
+      <div style="padding:12px 14px 0;font-size:0.68rem;font-weight:800;color:rgba(212,175,55,0.7);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;">C. LIY FAKTI (manyèl)</div>
       <div class="two-col" style="padding:0 14px;">
         <div>
-          <label class="pos-label">Pwa <span style="opacity:0.55;font-weight:400;">(6 kar.)</span></label>
-          <input type="text" id="fkPwa" maxlength="6" placeholder="Eks: 8.63lb" class="form-input" />
+          <label class="pos-label">Pwa <span style="opacity:0.55;font-weight:400;">(23 → 23 LBS)</span></label>
+          <input type="text" id="fkPwa" maxlength="6" placeholder="Eks: 23" class="form-input" />
         </div>
         <div>
-          <label class="pos-label">Pri U. <span style="opacity:0.55;font-weight:400;">(6 kar.)</span></label>
-          <input type="text" id="fkPri" maxlength="6" placeholder="Eks: 4.90" class="form-input" />
+          <label class="pos-label">Pri U.</label>
+          <select id="fkPriSel" class="form-input" style="cursor:pointer;" onchange="fkOnPri()">
+            <option value="">— Chwazi —</option>
+            <option value="3,99">3,99$</option>
+            <option value="4,90">4,90$</option>
+            <option value="other">Lòt pri…</option>
+          </select>
+          <input type="text" id="fkPriOther" maxlength="6" placeholder="Eks: 5.50" class="form-input" style="display:none;margin-top:6px;" />
         </div>
       </div>
       <div class="pos-field-group">
@@ -360,45 +377,70 @@
       </div>
       <div class="two-col" style="padding:0 14px;">
         <div>
-          <label class="pos-label">Montan USD <span style="opacity:0.55;font-weight:400;">(6 kar.)</span></label>
+          <label class="pos-label">Taux <span style="opacity:0.55;font-weight:400;">(135 → 135 HTG)</span></label>
+          <input type="text" id="fkTaux" maxlength="6" placeholder="Eks: 135" class="form-input" />
+        </div>
+        <div>
+          <label class="pos-label">Montan US <span style="opacity:0.55;font-weight:400;">(39 → 39$)</span></label>
           <input type="text" id="fkUsd" maxlength="6" placeholder="Eks: 39" class="form-input" />
         </div>
-        <div>
-          <label class="pos-label">Montan HTG <span style="opacity:0.55;font-weight:400;">(6 kar.)</span></label>
-          <input type="text" id="fkHtg" maxlength="6" placeholder="Eks: 5265" class="form-input" />
+      </div>
+      <div class="pos-field-group">
+        <label class="pos-label">Total HTG <span style="opacity:0.55;font-weight:400;">(an gras sou fakti a)</span></label>
+        <input type="text" id="fkHtg" maxlength="6" placeholder="Eks: 5265" class="form-input" />
+      </div>
+
+      <!-- D. Peman — Fich Acha sèlman (tiret si vid sou Shipping) -->
+      <div id="fkAchaBlock" style="display:none;">
+        <div style="padding:12px 14px 0;font-size:0.68rem;font-weight:800;color:rgba(212,175,55,0.7);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;">D. PEMAN <span style="opacity:0.6;font-weight:600;">(Fich Acha sèlman)</span></div>
+        <div class="two-col" style="padding:0 14px;">
+          <div>
+            <label class="pos-label">Montan pou peye</label>
+            <input type="text" id="fkPay" maxlength="6" placeholder="6 kar." class="form-input" />
+          </div>
+          <div>
+            <label class="pos-label">Montan m bay <span style="opacity:0.55;font-weight:400;">(USD)</span></label>
+            <input type="text" id="fkPaid" maxlength="6" placeholder="6 kar." class="form-input" />
+          </div>
+        </div>
+        <div class="two-col" style="padding:6px 14px 0;">
+          <div>
+            <label class="pos-label">Balans m rete</label>
+            <input type="text" id="fkBal" maxlength="6" placeholder="6 kar." class="form-input" />
+          </div>
+          <div>
+            <label class="pos-label">Peye nèt ?</label>
+            <select id="fkNet" class="form-input" style="cursor:pointer;">
+              <option value="">— (pa make) —</option>
+              <option value="peye">Peye nèt</option>
+              <option value="pa">Pa peye nèt</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div id="fkStageHint" style="padding:6px 16px 0;font-size:0.68rem;color:rgba(200,190,175,0.5);"></div>
+
+      <!-- E. Dat — Fich Acha sèlman -->
+      <div id="fkRowDates" style="display:none;">
+        <div style="padding:12px 14px 0;font-size:0.68rem;font-weight:800;color:rgba(212,175,55,0.7);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;">E. SIVI KÒMAND <span style="opacity:0.6;font-weight:600;">(opsyonèl)</span></div>
+        <div class="pos-field-group">
+          <label class="pos-label">Dat kòmand izín</label>
+          <input type="date" id="fkDateCmd" class="form-input" />
+        </div>
+        <div class="two-col" style="padding:0 14px;">
+          <div>
+            <label class="pos-label">Dat machandiz lan livre USA</label>
+            <input type="date" id="fkDateUSA" class="form-input" />
+          </div>
+          <div>
+            <label class="pos-label">Dat machandiz lan disponib Ayiti</label>
+            <input type="date" id="fkDateHT" class="form-input" />
+          </div>
         </div>
       </div>
 
-      <!-- D. Peman -->
-      <div style="padding:12px 14px 0;font-size:0.68rem;font-weight:800;color:rgba(212,175,55,0.7);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;">D. PEMAN</div>
-      <div class="two-col" style="padding:0 14px;">
-        <div>
-          <label class="pos-label">Montan pou peye</label>
-          <input type="text" id="fkPay" maxlength="6" placeholder="6 kar." class="form-input" />
-        </div>
-        <div>
-          <label class="pos-label">Montan m bay <span style="opacity:0.55;font-weight:400;">(USD)</span></label>
-          <input type="text" id="fkPaid" maxlength="6" placeholder="6 kar." class="form-input" />
-        </div>
-      </div>
-      <div id="fkStageHint" style="padding:3px 16px 0;font-size:0.68rem;color:rgba(200,190,175,0.5);"></div>
-      <div class="two-col" style="padding:6px 14px 0;">
-        <div>
-          <label class="pos-label">Balans m rete</label>
-          <input type="text" id="fkBal" maxlength="6" placeholder="6 kar." class="form-input" />
-        </div>
-        <div>
-          <label class="pos-label">Peye nèt ?</label>
-          <select id="fkNet" class="form-input" style="cursor:pointer;">
-            <option value="">— (pa make) —</option>
-            <option value="peye">Peye nèt</option>
-            <option value="pa">Pa peye nèt</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- E. Dat, Fèt pa, Nòt -->
-      <div style="padding:12px 14px 0;font-size:0.68rem;font-weight:800;color:rgba(212,175,55,0.7);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;">E. DAT · FÈT PA · NÒT</div>
+      <!-- F. Dat fakti, Fèt pa, Nòt -->
+      <div style="padding:12px 14px 0;font-size:0.68rem;font-weight:800;color:rgba(212,175,55,0.7);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;">F. DAT · FÈT PA · NÒT</div>
       <div class="two-col" style="padding:0 14px;">
         <div>
           <label class="pos-label">Dat fakti</label>
@@ -407,20 +449,6 @@
         <div>
           <label class="pos-label">Fèt pa</label>
           <input type="text" id="fkFaitPar" maxlength="30" placeholder="Non moun nan" class="form-input" />
-        </div>
-      </div>
-      <div class="pos-field-group">
-        <label class="pos-label">Dat kòmand izín <span style="opacity:0.55;font-weight:400;">(opsyonèl)</span></label>
-        <input type="date" id="fkDateCmd" class="form-input" />
-      </div>
-      <div class="two-col" style="padding:0 14px;">
-        <div>
-          <label class="pos-label">Dat machandiz lan livre USA</label>
-          <input type="date" id="fkDateUSA" class="form-input" />
-        </div>
-        <div>
-          <label class="pos-label">Dat machandiz lan disponib Ayiti</label>
-          <input type="date" id="fkDateHT" class="form-input" />
         </div>
       </div>
       <div class="pos-field-group">

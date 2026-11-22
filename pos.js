@@ -4,8 +4,8 @@
 
    • Yon sèl fòm : kaz ACHA / SHIPPING (koche an wouj sou PDF la)
    • Yon sèl liy nan tablo a : Pwa | Deskripsyon (100 kar.) | Pri U. | Montan USD | HTG
-     (chak chan sof deskripsyon : 6 karaktè maksimòm) — OKENN kalkil otomatik
-   • Non kliyan, adrès… = polis enfòmatize (Courier) · rès la = ekriti men, plim ble
+     (chak chan sof deskripsyon : 6 karaktè maksimòm) · ekstansyon otomatik (LBS, $, HTG) — OKENN kalkil otomatik
+   • Tout ranpli = menm polis (Courier nwa) · siyati Thomas Kabé = imaj manuscrit.jpg
    • « Terminé pour X » : fakti a antre nan FILE D'ATTENTE (max 10), san PDF
    • Chwazi 2 fakti nan file a → PDF paysaj → yo kite file a, men rete nan istorik
    • Chak peman (Montan m bay) antre otomatikman nan pwofil kliyan an (customers.js)
@@ -20,7 +20,6 @@ const FK_QUEUE_MAX   = 10;      // file d'attente : 10 fakti maksimòm
 const POS_KEY  = 'tbs_pos_history_v2';   // ansyen kle (lekti sèlman — migrasyon)
 const ACHA_KEY = 'tbs_acha_history_v2';
 
-const HAND_INK = [38, 18, 150];     // ankre ble-vyolèt (modèl manuscrit)
 const FK_RED      = [200, 0, 0];
 
 const PLAT_MAP = {
@@ -37,7 +36,6 @@ let fkSelected  = [];       // id chwazi nan file a (max 2)
 let fkPrev      = null;     // eta anvan modifikasyon : {acha, ship, stage}
 let fkFormStage = 'ship';   // etap peman fòm lan
 let fkFormMemo  = {};       // montan « m bay » pa etap
-let FK_HAND = { ok: false };   // polis manuscrit chaje ?
 
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
@@ -179,21 +177,29 @@ function fkLogPayment(e, stage, amount) {
 /* ══════════════════════════════════════════════
    FÒM : lekti / ranpli / efase
    ══════════════════════════════════════════════ */
-const FK_FIELDS = ['fkName','fkAddr','fkPhone','fkEmail','fkPlat1','fkPlat2','fkPwa','fkDesc','fkPri','fkUsd','fkHtg',
+const FK_FIELDS = ['fkName','fkAddr','fkPhone','fkEmail','fkPlat1','fkPlat2','fkLabel','fkPwa','fkDesc','fkPriOther','fkTaux','fkUsd','fkHtg',
                    'fkPay','fkPaid','fkBal','fkNet','fkFaitPar','fkDateCmd','fkDateUSA','fkDateHT','fkNote'];
-const fkEl = id => document.getElementById(id);
+const FK_PRICES = ['3,99', '4,90'];
+const fkEl  = id => document.getElementById(id);
 const fkVal = id => ((fkEl(id) && fkEl(id).value) || '').trim();
 const fkChk = id => !!(fkEl(id) && fkEl(id).checked);
 function fkToday() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+
+function fkOnPri() {
+  const o = fkEl('fkPriOther');
+  if (o) o.style.display = fkVal('fkPriSel') === 'other' ? '' : 'none';
+}
 
 function fkRead() {
   const lim = (id, n) => fkVal(id).slice(0, n);
   const ds = fkVal('fkDate');
   const origins = [fkVal('fkPlat1'), fkVal('fkPlat2')].filter(Boolean).filter((p, i, a) => a.indexOf(p) === i);
+  const sel = fkVal('fkPriSel');
   return {
     clientName: fkVal('fkName'), clientAddr: fkVal('fkAddr'), clientPhone: fkVal('fkPhone'), clientEmail: fkVal('fkEmail'),
-    origins, acha: fkChk('fkAcha'), ship: fkChk('fkShip'),
-    pwa: lim('fkPwa', 6), desc: lim('fkDesc', 100), pri: lim('fkPri', 6), usd: lim('fkUsd', 6), htg: lim('fkHtg', 6),
+    origins, label: lim('fkLabel', 30), acha: fkChk('fkAcha'), ship: fkChk('fkShip'),
+    pwa: lim('fkPwa', 6), desc: lim('fkDesc', 100), pri: sel === 'other' ? lim('fkPriOther', 6) : sel,
+    taux: lim('fkTaux', 6), usd: lim('fkUsd', 6), htg: lim('fkHtg', 6),
     totalPay: lim('fkPay', 6), paid: lim('fkPaid', 6), bal: lim('fkBal', 6), net: fkVal('fkNet'),
     faitPar: lim('fkFaitPar', 30), dateCmd: fkVal('fkDateCmd'), dateUSA: fkVal('fkDateUSA'), dateHT: fkVal('fkDateHT'),
     note: lim('fkNote', 120),
@@ -203,17 +209,41 @@ function fkRead() {
 
 function fkFill(e) {
   const map = { fkName: e.clientName, fkAddr: e.clientAddr, fkPhone: e.clientPhone, fkEmail: e.clientEmail,
-    fkPlat1: (e.origins || [])[0] || '', fkPlat2: (e.origins || [])[1] || '', fkPwa: e.pwa, fkDesc: e.desc, fkPri: e.pri,
-    fkUsd: e.usd, fkHtg: e.htg, fkPay: e.totalPay, fkPaid: e.paid, fkBal: e.bal, fkNet: e.net || '', fkFaitPar: e.faitPar,
-    fkDateCmd: e.dateCmd, fkDateUSA: e.dateUSA, fkDateHT: e.dateHT, fkNote: e.note };
+    fkPlat1: (e.origins || [])[0] || '', fkPlat2: (e.origins || [])[1] || '', fkLabel: e.label, fkPwa: e.pwa, fkDesc: e.desc,
+    fkTaux: e.taux, fkUsd: e.usd, fkHtg: e.htg, fkPay: e.totalPay, fkPaid: e.paid, fkBal: e.bal, fkNet: e.net || '',
+    fkFaitPar: e.faitPar, fkDateCmd: e.dateCmd, fkDateUSA: e.dateUSA, fkDateHT: e.dateHT, fkNote: e.note };
   FK_FIELDS.forEach(id => { if (fkEl(id)) fkEl(id).value = (map[id] == null ? '' : map[id]); });
+  if (fkEl('fkPriSel')) {
+    const p = e.pri || '';
+    if (!p) { fkEl('fkPriSel').value = ''; }
+    else if (FK_PRICES.includes(p)) { fkEl('fkPriSel').value = p; }
+    else { fkEl('fkPriSel').value = 'other'; if (fkEl('fkPriOther')) fkEl('fkPriOther').value = p; }
+  }
   if (fkEl('fkAcha')) fkEl('fkAcha').checked = !!e.acha;
   if (fkEl('fkShip')) fkEl('fkShip').checked = !!e.ship;
-  if (fkEl('fkDate')) { const d = new Date(e.date || Date.now()); fkEl('fkDate').value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  if (fkEl('fkDate')) {
+    const d = new Date(e.date || Date.now());
+    fkEl('fkDate').value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  fkOnPri();
+}
+
+/* Montan ki antre nan pwofil kliyan an selon etap la :
+   Shipping → Montan US (oswa Total HTG ÷ taux) · Acha → Montan m bay · Acha + Shipping → Montan m bay, sinon Montan US */
+function fkPayAmount(e, stage) {
+  const usd = fkNum(e.usd);
+  const fromHtg = (fkNum(e.taux) > 0 && fkNum(e.htg) > 0) ? Math.round(fkNum(e.htg) / fkNum(e.taux) * 100) / 100 : 0;
+  const ship = usd > 0 ? usd : fromHtg;
+  if (stage === 'ship') return ship;
+  const paid = fkNum(e.paid);
+  if (paid > 0) return paid;
+  return stage === 'acha+ship' ? ship : 0;
 }
 
 function fkOnFlags() {
   const acha = fkChk('fkAcha'), ship = fkChk('fkShip');
+  const show = (id, on) => { const el = fkEl(id); if (el) el.style.display = on ? '' : 'none'; };
+  show('fkRowOrigin', acha); show('fkRowLabel', ship); show('fkRowDates', acha); show('fkAchaBlock', acha);
   const ns = fkStageFor(fkEditingId ? fkPrev : null, acha, ship);
   if (ns !== fkFormStage && fkEl('fkPaid')) {
     fkFormMemo[fkFormStage] = fkEl('fkPaid').value;
@@ -221,7 +251,10 @@ function fkOnFlags() {
     fkFormStage = ns;
   }
   const h = fkEl('fkStageHint');
-  if (h) h.textContent = (acha || ship) ? ('Peman etap : ' + STAGE_LABEL[ns] + ' → ajoute nan pwofil kliyan an') : 'Chwazi Acha oswa Shipping';
+  if (h) {
+    if (!acha && !ship) h.textContent = 'Chwazi Acha oswa Shipping';
+    else h.textContent = 'Peman etap ' + STAGE_LABEL[ns] + ' = ' + (ns === 'ship' ? 'Montan US' : 'Montan m bay') + ' → ajoute nan pwofil kliyan an';
+  }
 }
 
 function fkUpdateBtn() {
@@ -235,6 +268,8 @@ function fkClear(silent) {
   if (fkEl('fkAcha')) fkEl('fkAcha').checked = false;
   if (fkEl('fkShip')) fkEl('fkShip').checked = false;
   if (fkEl('fkDate')) fkEl('fkDate').value = fkToday();
+  if (fkEl('fkPriSel')) fkEl('fkPriSel').value = '';
+  fkOnPri();
   fkEditingId = null; fkPrev = null; fkFormStage = 'ship'; fkFormMemo = {};
   const b = fkEl('fkEditBanner'); if (b) b.style.display = 'none';
   fkOnFlags(); fkUpdateBtn(); fkCount();
@@ -269,7 +304,7 @@ function fkFinish() {
   const stage = fkStageFor(prev, e.acha, e.ship);
   e.stage = stage;
   e.paidByStage = { ...(e.paidByStage || {}), [stage]: e.paid };
-  fkLogPayment(e, stage, fkNum(e.paid));
+  fkLogPayment(e, stage, fkPayAmount(e, stage));
   if (typeof savePosClient === 'function') savePosClient(e.clientName, e.clientAddr, e.clientPhone);
   fkSave(list);
 
@@ -574,27 +609,42 @@ async function loadPaiement() {
   return null;
 }
 
-/* Polis manuscrit (.ttf) mete sou hébergement : manuscrit.ttf — si li absan, yon itali ble ranplase l */
-function fkB64(buf) {
-  let s = ''; const b = new Uint8Array(buf), CH = 0x8000;
-  for (let i = 0; i < b.length; i += CH) s += String.fromCharCode.apply(null, b.subarray(i, i + CH));
-  return btoa(s);
+/* Siyati Thomas Kabé = imaj manuscrit.jpg (fon blan retire → transparan, kenbe pwopòsyon) */
+function loadImgRaw(src) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const r = Math.min(1, 700 / img.width);
+        const w = Math.max(1, Math.round(img.width * r)), h = Math.max(1, Math.round(img.height * r));
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        const id = ctx.getImageData(0, 0, w, h), d = id.data;
+        for (let i = 0; i < d.length; i += 4) {
+          const lum = (d[i] + d[i + 1] + d[i + 2]) / 3;
+          d[i + 3] = lum >= 235 ? 0 : (lum <= 150 ? 255 : Math.round((235 - lum) / 85 * 255));
+        }
+        ctx.putImageData(id, 0, 0);
+        resolve({ data: c.toDataURL('image/png'), w, h });
+      } catch (err) { resolve(null); }
+    };
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
 }
-async function loadHandFont() {
-  for (const n of ['manuscrit.ttf', 'Manuscrit.ttf', 'ecriture.ttf', 'hand.ttf']) {
-    try {
-      const r = await fetch(n);
-      if (!r.ok) continue;
-      const buf = await r.arrayBuffer(), h = new Uint8Array(buf.slice(0, 4));
-      const isTTF = (h[0] === 0 && h[1] === 1 && h[2] === 0 && h[3] === 0) || String.fromCharCode(h[0], h[1], h[2], h[3]) === 'true';
-      if (isTTF) return fkB64(buf);
-    } catch (err) {}
+async function loadSignatureImg() {
+  for (const n of ['manuscrit.jpg', 'Manuscrit.jpg', 'manuscrit.jpeg', 'manuscrit.png']) {
+    const r = await loadImgRaw(n); if (r) return r;
   }
   return null;
 }
 
 /* ══════════════════════════════════════════════
    DESEN PDF — chak fakti = 148.5 × 210 mm (mwatye paj A4 paysaj)
+   Estil : papye ki respire — liy fen, pa gen kwen won, tout ranpli an Courier nwa
    ══════════════════════════════════════════════ */
 function fkFmtDate(v) {
   if (!v) return '';
@@ -604,6 +654,30 @@ function fkFmtDate(v) {
   else return String(v);
   if (isNaN(d)) return '';
   return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
+}
+
+/* Ekstansyon otomatik : 23 → 23 LBS · 4.90 → 4,90$ · 39 → 39$ · 135 → 135 HTG · 5265 → 5,265 HTG */
+function fkFmtWeight(s) {
+  s = String(s == null ? '' : s).trim();
+  if (!s) return '';
+  const m = s.replace(',', '.').match(/^([0-9]*\.?[0-9]+)\s*([a-zA-Z]*)$/);
+  if (!m) return s;
+  let u = (m[2] || 'LBS').toUpperCase();
+  if (u === 'LB') u = 'LBS';
+  return m[1].replace('.', ',') + ' ' + u;
+}
+function fkFmtUsd(s) {
+  s = String(s == null ? '' : s).trim();
+  if (!s) return '';
+  const m = s.replace(',', '.').match(/^\$?\s*([0-9]*\.?[0-9]+)\s*\$?$/);
+  return m ? m[1].replace('.', ',') + '$' : s;
+}
+function fkFmtHtg(s) {
+  s = String(s == null ? '' : s).trim();
+  if (!s) return '';
+  const m = s.replace(/[\s,]/g, '').replace(/(htg|gdes|g)$/i, '').match(/^([0-9]+)(\.[0-9]+)?$/);
+  if (!m) return s;
+  return m[1].replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (m[2] ? m[2].replace('.', ',') : '') + ' HTG';
 }
 
 function drawCompanyTitle(doc, x, y, rgb, maxW) {
@@ -646,213 +720,206 @@ function drawLineWithArrows(doc, line, x, y, rgb, opts) {
   });
 }
 
-/* Ekriti men : ankre ble, ti dekalaj ak ti anjòl pa mo (deterministik) */
-function fkSetHand(doc, size) {
-  if (FK_HAND.ok) doc.setFont('Hand', 'normal'); else doc.setFont('times', 'italic');
-  doc.setFontSize(size);
-  doc.setTextColor(HAND_INK[0], HAND_INK[1], HAND_INK[2]);
-}
-function fkHash(s) { let h = 7; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); }
-function fkRand(seed) { const x = Math.sin(seed * 12.9898) * 43758.5453; return (x - Math.floor(x)) * 2 - 1; }
-function fkHandText(doc, txt, x, y, size, o) {
+/* Tout ranpli = Courier nwa (menm polis ak enfo kliyan an) */
+function fkType(doc, txt, x, y, maxW, size, o) {
   txt = String(txt == null ? '' : txt);
   if (!txt) return;
   o = o || {};
-  fkSetHand(doc, size);
-  if (o.maxW) { let s = size; while (s > 5.5 && doc.getTextWidth(txt) > o.maxW) { s -= 0.4; doc.setFontSize(s); } }
-  const seed = fkHash(txt);
-  const words = txt.split(' '), sp = doc.getTextWidth(' ');
-  const ws = words.map(w => doc.getTextWidth(w));
-  const total = ws.reduce((a, b) => a + b, 0) + sp * (words.length - 1);
-  let cx = o.align === 'right' ? x - total : (o.align === 'center' ? x - total / 2 : x);
-  words.forEach((w, i) => {
-    if (w) doc.text(w, cx, y + fkRand(seed + i * 13 + 3) * 0.22, { angle: fkRand(seed + i * 7) * 0.8 });
-    cx += ws[i] + sp;
-  });
-}
-function fkType(doc, txt, x, y, maxW, size) {   // polis enfòmatize (Courier)
-  txt = String(txt == null ? '' : txt);
-  if (!txt) return;
-  doc.setFont('courier', 'normal'); doc.setTextColor(15, 15, 15);
+  doc.setFont('courier', o.bold ? 'bold' : 'normal'); doc.setTextColor(15, 15, 15);
   let s = size; doc.setFontSize(s);
   while (s > 5.5 && doc.getTextWidth(txt) > maxW) { s -= 0.3; doc.setFontSize(s); }
-  doc.text(txt, x, y);
+  doc.text(txt, x, y, o.align ? { align: o.align } : undefined);
 }
 function fkBox(doc, x, y, s, checked) {
-  doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.4); doc.rect(x, y, s, s, 'S');
+  doc.setDrawColor(40, 40, 40); doc.setLineWidth(0.3); doc.rect(x, y, s, s, 'S');
   if (checked) {
-    doc.setDrawColor(FK_RED[0], FK_RED[1], FK_RED[2]); doc.setLineWidth(0.8);
+    doc.setDrawColor(FK_RED[0], FK_RED[1], FK_RED[2]); doc.setLineWidth(0.75);
     doc.line(x + s * 0.16, y + s * 0.56, x + s * 0.42, y + s * 0.84);
     doc.line(x + s * 0.42, y + s * 0.84, x + s * 0.95, y + s * 0.08);
-    doc.setDrawColor(15, 15, 15);
   }
 }
 function fkImgFit(doc, img, x, y, maxW, maxH, alignX) {
   const k = Math.min(maxW / img.w, maxH / img.h), w = img.w * k, h = img.h * k;
-  const px = alignX === 'center' ? x + (maxW - w) / 2 : x;
+  const px = alignX === 'center' ? x + (maxW - w) / 2 : (alignX === 'right' ? x + maxW - w : x);
   doc.addImage(img.data, 'PNG', px, y + (maxH - h) / 2, w, h);
   return w;
 }
 
 function drawFakti(doc, e, imgs, ox) {
-  const W = 148.5, M = 7, R = W - M, CW = W - 2 * M;
-  const X = v => ox + v;
-  const logo = imgs.logo;
-  const label = (t, x, y, size) => { doc.setFont('helvetica', 'bold'); doc.setFontSize(size || 7.5); doc.setTextColor(15, 15, 15); doc.text(t, x, y); return doc.getTextWidth(t); };
+  const W = 148.5, M = 10, R = W - M, CW = W - 2 * M;
+  const L = ox + M, RR = ox + R, MID = ox + W / 2;
+  const acha = !!e.acha, ship = !!e.ship;
+  const hair = (x1, x2, y) => { doc.setDrawColor(175, 175, 175); doc.setLineWidth(0.15); doc.line(x1, y, x2, y); };
+  const lab = (t, x, y, size, o) => {
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(size || 6.3); doc.setTextColor(95, 95, 95);
+    doc.text(t, x, y, o);
+    return doc.getTextWidth(t);
+  };
 
   /* Watermark — logo an koulè, dèyè tout kontni */
-  if (logo) {
+  if (imgs.logo) {
     doc.saveGraphicsState();
     doc.setGState(new doc.GState({ opacity: 0.10 }));
     const s = 100;
-    doc.addImage(logo, 'PNG', X((W - s) / 2), 70, s, s);
+    doc.addImage(imgs.logo, 'PNG', ox + (W - s) / 2, 72, s, s);
     doc.restoreGraphicsState();
   }
 
   /* 1. ANTET */
-  if (logo) doc.addImage(logo, 'PNG', X(M), 6, 22, 22);
-  drawCompanyTitle(doc, X(M + 26), 12.5, [15, 15, 15], R - (M + 26));
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(40, 40, 40);
-  doc.text('USA: 9801 SW 3rd St, Pembroke Pines, FL 33025-1064', X(M + 26), 18.5);
-  doc.text('Haiti: Miragoane, Les Cayes', X(M + 26), 22.7);
-  doc.text('+509 35 60 88 69  _  lescayesdropshipping@gmail.com', X(M + 26), 26.9);
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(FK_RED[0], FK_RED[1], FK_RED[2]);
-  doc.text('No. lcd' + fkPad(e.invoiceNo), X(R), 26.9, { align: 'right' });
-  doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.6); doc.line(X(M), 31, X(R), 31);
+  if (imgs.logo) doc.addImage(imgs.logo, 'PNG', L, 8, 20, 20);
+  drawCompanyTitle(doc, L + 25, 14.5, [15, 15, 15], RR - (L + 25));
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(6.8); doc.setTextColor(70, 70, 70);
+  doc.text('USA: 9801 SW 3rd St, Pembroke Pines, FL 33025', L + 25, 19.6);
+  doc.text('Haiti: Les Cayes', L + 25, 23.6);
+  doc.text('+509 35 60 88 69  |  lescayesdropshipping@gmail.com', L + 25, 27.6);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(FK_RED[0], FK_RED[1], FK_RED[2]);
+  doc.text('No. lcd' + fkPad(e.invoiceNo), RR, 27.6, { align: 'right' });
+  doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.5); doc.line(L, 32.5, RR, 32.5);
 
-  /* 2. BLOK KLIYAN : NON → ADRÈS → ORIJIN | DAT, TELEFÒN, IMÈL + MOTIF PÈMAN */
-  const bx = X(M), by = 34, hr = 9.2, LW = 84;
-  const rowBase = i => by + hr * i + hr / 2 + 1.2;
-  doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.5); doc.roundedRect(bx, by, CW, hr * 4, 2, 2, 'S');
-  doc.setLineWidth(0.3);
-  for (let i = 1; i <= 3; i++) doc.line(bx, by + hr * i, bx + CW, by + hr * i);
-  doc.line(bx + LW, by, bx + LW, by + hr * 3);
+  /* ── Blòk yo (flux vètikal, espas distribye pou fakti a respire) ── */
+  const lw = 78, rgap = 4.5, rwid = CW - lw - rgap, rx = L + lw + rgap;
+  const PITCH = 9.5;
+  const leftItems = ['NON', 'ADRÈS'];
+  if (acha) leftItems.push('ORIJIN');
+  if (ship) leftItems.push('LABEL');
+  const nRows = Math.max(leftItems.length, 3);
 
-  let w = label('NON', bx + 2.5, rowBase(0));      fkType(doc, String(e.clientName || "").toUpperCase(), bx + 2.5 + w + 2.5, rowBase(0), LW - w - 7.5, 9);
-  w = label('DAT', bx + LW + 2.5, rowBase(0));     fkType(doc, fkFmtDate(e.date), bx + LW + 2.5 + w + 2.5, rowBase(0), CW - LW - w - 7.5, 8.5);
-  w = label('ADRÈS', bx + 2.5, rowBase(1));        fkType(doc, e.clientAddr, bx + 2.5 + w + 2.5, rowBase(1), LW - w - 7.5, 8.5);
-  w = label('TELEFÒN', bx + LW + 2.5, rowBase(1)); fkType(doc, e.clientPhone, bx + LW + 2.5 + w + 2.5, rowBase(1), CW - LW - w - 7.5, 8.5);
-  w = label('ORIJIN MACHANDIZ', bx + 2.5, rowBase(2));
-  {
-    const ax = bx + 2.5 + w + 3, avail = LW - w - 8, n = (e.origins || []).length;
-    if (n) {
-      const slot = avail / n;
-      e.origins.forEach((k, i) => {
-        const im = imgs['plat:' + k];
-        if (im) fkImgFit(doc, im, ax + i * slot, by + hr * 2 + 1.3, slot - 2, hr - 2.6, 'left');
-        else fkType(doc, PLAT_MAP[k] ? PLAT_MAP[k].label : k, ax + i * slot, rowBase(2), slot - 2, 8.5);
+  const field = (x, w, y0, title, draw) => {
+    lab(title, x, y0 + 2.6);
+    hair(x, x + w, y0 + 8.3);
+    draw(x, w, y0);
+  };
+  const text = (t, x, w, y0, size) => fkType(doc, t, x, y0 + 7.1, w, size || 8.8);
+
+  const blocks = [];
+
+  /* Motif pèman */
+  blocks.push({ h: 4.4, draw: y => {
+    const yb = y + 3.3;
+    lab('MOTIF PÈMAN', L, yb, 6.3);
+    fkBox(doc, L + 27, y + 0.1, 3.8, acha);  lab('ACHA', L + 32.5, yb, 7.5);
+    fkBox(doc, L + 50, y + 0.1, 3.8, ship);  lab('SHIPPING', L + 55.5, yb, 7.5);
+  } });
+
+  /* Enfo kliyan */
+  blocks.push({ h: PITCH * nRows, draw: y => {
+    const rowY = i => y + PITCH * i;
+    field(L, lw, rowY(0), 'NON', () => text(String(e.clientName || '').toUpperCase(), L, lw, rowY(0), 9.2));
+    field(rx, rwid, rowY(0), 'DAT', () => text(fkFmtDate(e.date), rx, rwid, rowY(0)));
+    field(L, lw, rowY(1), 'ADRÈS', () => text(e.clientAddr, L, lw, rowY(1)));
+    field(rx, rwid, rowY(1), 'TELEFÒN', () => text(e.clientPhone, rx, rwid, rowY(1)));
+    let r = 2;
+    if (acha) {
+      const y0 = rowY(r);
+      field(L, lw, y0, 'ORIJIN MACHANDIZ', () => {
+        const ks = e.origins || [], n = ks.length;
+        if (!n) return;
+        const slot = lw / Math.max(n, 2);
+        ks.forEach((k, i) => {
+          const im = imgs['plat:' + k];
+          if (im) fkImgFit(doc, im, L + i * slot, y0 + 3.4, slot - 3, 5.6, 'left');
+          else fkType(doc, PLAT_MAP[k] ? PLAT_MAP[k].label : k, L + i * slot, y0 + 7.1, slot - 3, 8.8);
+        });
       });
+      r++;
     }
-  }
-  w = label('IMÈL', bx + LW + 2.5, rowBase(2));    fkType(doc, e.clientEmail, bx + LW + 2.5 + w + 2.5, rowBase(2), CW - LW - w - 7.5, 8);
-  label('MOTIF PÈMAN', bx + 2.5, rowBase(3));
-  fkBox(doc, bx + 36, by + hr * 3 + (hr - 4) / 2, 4, e.acha);    label('ACHA', bx + 42, rowBase(3), 8.5);
-  fkBox(doc, bx + 66, by + hr * 3 + (hr - 4) / 2, 4, e.ship);    label('SHIPPING', bx + 72, rowBase(3), 8.5);
+    if (ship) field(L, lw, rowY(r), 'LABEL KLIYAN', () => text(e.label, L, lw, rowY(r)));
+    field(rx, rwid, rowY(2), 'IMÈL', () => text(e.clientEmail, rx, rwid, rowY(2), 8.2));
+  } });
 
-  /* 3. MÒD PÈMAN (imaj) + MONTAN yo */
-  const py = by + hr * 4 + 2.6, ph = 22, lw2 = 70;
-  doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.5); doc.roundedRect(bx, py, lw2, ph, 2, 2, 'S');
-  doc.setLineWidth(0.3); doc.line(bx, py + 6.5, bx + lw2, py + 6.5);
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(15, 15, 15);
-  doc.text('MÒD PÈMAN', bx + lw2 / 2, py + 4.6, { align: 'center' });
-  if (imgs.pay) fkImgFit(doc, imgs.pay, bx + 2, py + 7.6, lw2 - 4, ph - 9, 'center');
-  const rx = bx + lw2 + 2.5, rw = CW - lw2 - 2.5, rh = ph / 3, vx = rx + 33;
-  doc.setLineWidth(0.5); doc.roundedRect(rx, py, rw, ph, 2, 2, 'S');
-  doc.setLineWidth(0.3); doc.line(rx, py + rh, rx + rw, py + rh); doc.line(rx, py + 2 * rh, rx + rw, py + 2 * rh); doc.line(vx, py, vx, py + ph);
-  [['MONTAN POU PEYE', e.totalPay], ['MONTAN M BAY', e.paid], ['BALANS M RETE', e.bal]].forEach(([t, v], i) => {
-    const yb = py + rh * i + rh / 2 + 1.1;
-    label(t, rx + 2, yb, 6.8);
-    fkHandText(doc, v, vx + 2.5, yb + 0.2, 10, { maxW: rx + rw - vx - 4 });
+  /* Dat (Acha sèlman) */
+  if (acha) blocks.push({ h: 10.5, draw: y => {
+    const cw = (CW - 8) / 3;
+    [['DAT KÒMAND IZÍN', e.dateCmd], ['DAT MACHANDIZ LAN LIVRE USA', e.dateUSA], ['DAT MACHANDIZ LAN DISPONIB AYITI', e.dateHT]].forEach(([t, v], i) => {
+      const x = L + i * (cw + 4);
+      let s = 5.8; doc.setFont('helvetica', 'bold'); doc.setFontSize(s);
+      while (s > 4.2 && doc.getTextWidth(t) > cw) { s -= 0.2; doc.setFontSize(s); }
+      lab(t, x, y + 2.6, s);
+      hair(x, x + cw, y + 9.3);
+      fkType(doc, fkFmtDate(v), x, y + 8.1, cw, 8.6);
+    });
+  } });
+
+  /* Tablo : PWA | DESKRIPSYON | PRI U. | TAUX | MONTAN US  +  TOTAL HTG (gras) */
+  const th = 8, totH = 10, dataBase = 18;
+  const tbl = { h: th + dataBase + totH, grow: 0, draw: (y, grow) => {
+    const dH = dataBase + grow;
+    const c = [L, L + 20, L + 72.5, L + 90.5, L + 106.5, RR];
+    doc.setFillColor(232, 232, 232); doc.rect(L, y, CW, th, 'F');
+    doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.4); doc.line(L, y, RR, y);
+    ['PWA', 'DESKRIPSYON', 'PRI U.', 'TAUX', 'MONTAN US'].forEach((t, i) => lab(t, (c[i] + c[i + 1]) / 2, y + 5.1, 6.8, { align: 'center' }));
+    const yd = y + th, ym = yd + dH / 2 + 1.2;
+    fkType(doc, fkFmtWeight(e.pwa), (c[0] + c[1]) / 2, ym, 17, 9, { align: 'center' });
+    fkType(doc, fkFmtUsd(e.pri), (c[2] + c[3]) / 2, ym, 16, 9, { align: 'center' });
+    fkType(doc, e.taux ? fkFmtHtg(e.taux) : '', (c[3] + c[4]) / 2, ym, 14, 9, { align: 'center' });
+    fkType(doc, fkFmtUsd(e.usd), (c[4] + c[5]) / 2, ym, 20, 9, { align: 'center' });
+    if (e.desc) {
+      let size = 8.6, lines, lh;
+      doc.setFont('courier', 'normal');
+      do { doc.setFontSize(size); lines = doc.splitTextToSize(e.desc, c[2] - c[1] - 4); lh = size * 0.47; size -= 0.4; }
+      while (lines.length * lh > dH - 2 && size > 5.5);
+      const y0 = yd + (dH - lines.length * lh) / 2 + lh * 0.78;
+      doc.setTextColor(15, 15, 15);
+      lines.forEach((ln, i) => doc.text(ln, c[1] + 2, y0 + i * lh));
+    }
+    hair(L, RR, yd + dH);
+    doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.4); doc.line(L, yd + dH + totH, RR, yd + dH + totH);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(15, 15, 15);
+    doc.text('TOTAL', c[1] + 2, yd + dH + totH / 2 + 1.3);
+    fkType(doc, fkFmtHtg(e.htg), RR - 2, yd + dH + totH / 2 + 1.7, 52, 11.5, { align: 'right', bold: true });
+  } };
+  blocks.push(tbl);
+
+  /* Rezime peman (Acha) + logo peman adwat anba total + Fèt pa */
+  blocks.push({ h: 21, draw: y => {
+    const sw = 62;
+    [['MONTAN POU PEYE', e.totalPay], ['MONTAN M BAY', e.paid], ['BALANS M RETE', e.bal]].forEach(([t, v], i) => {
+      const yb = y + 4 + i * 6.6;
+      lab(t, L, yb, 6.4);
+      hair(L, L + sw, yb + 1.5);
+      const shown = v ? fkFmtUsd(v) : (acha ? '' : '-');
+      fkType(doc, shown, L + sw - 1, yb, 28, 9, { align: 'right' });
+    });
+    const pw = 64, px = RR - pw;
+    if (imgs.pay) fkImgFit(doc, imgs.pay, px, y, pw, 8, 'right');
+    const cb = y + 13.5;
+    fkBox(doc, RR - 58, cb - 2.9, 3.4, e.net === 'peye');  lab('PEYE NÈT', RR - 53, cb, 6.8);
+    fkBox(doc, RR - 30, cb - 2.9, 3.4, e.net === 'pa');    lab('PA PEYE NÈT', RR - 25, cb, 6.8);
+    const fb = y + 20;
+    const w = lab('FÈT PA', px, fb, 6.4);
+    hair(px + w + 2, RR, fb + 1.5);
+    fkType(doc, e.faitPar, px + w + 3, fb, pw - w - 4, 8.8);
+  } });
+
+  /* Nòt */
+  if (e.note) blocks.push({ h: 8.5, draw: y => {
+    lab('NÒT', L, y + 3, 6.3);
+    doc.setFont('courier', 'normal'); doc.setFontSize(8);
+    const nl = doc.splitTextToSize(e.note, CW - 12).slice(0, 2);
+    nl.forEach((ln, i) => fkType(doc, ln, L + 10, y + 3 + i * 3.9, CW - 12, 8));
+  } });
+
+  /* Distribisyon espas : tablo a grandi ti kras, rès la ant blòk yo */
+  const TOP = 37, BOTTOM = 179, GAP = 4.5;
+  const natural = blocks.reduce((s, b) => s + b.h, 0) + GAP * (blocks.length - 1);
+  let extra = Math.max(0, (BOTTOM - TOP) - natural);
+  const grow = Math.min(extra * 0.4, 10);
+  extra -= grow;
+  const gap = GAP + Math.min(extra / (blocks.length - 1), 6);
+  let y = TOP;
+  blocks.forEach(b => {
+    const g = b === tbl ? grow : 0;
+    b.draw(y, g);
+    y += b.h + g + gap;
   });
 
-  /* 4. FÈT PA + PEYE NÈT / PA PEYE NÈT */
-  const fy = py + ph + 2.6, fh = 9;
-  doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.5); doc.roundedRect(bx, fy, CW, fh, 2, 2, 'S');
-  doc.setLineWidth(0.3); doc.line(bx + LW, fy, bx + LW, fy + fh);
-  const fb = fy + fh / 2 + 1.2;
-  w = label('FÈT PA', bx + 2.5, fb, 7.5);
-  doc.setDrawColor(110, 110, 110); doc.setLineWidth(0.25); doc.line(bx + 2.5 + w + 2, fb + 0.8, bx + LW - 3, fb + 0.8);
-  fkHandText(doc, e.faitPar, bx + 2.5 + w + 3.5, fb - 0.3, 9.5, { maxW: LW - w - 10 });
-  fkBox(doc, bx + LW + 3, fy + (fh - 3.8) / 2, 3.8, e.net === 'peye');   label('PEYE NÈT', bx + LW + 8.5, fb, 7);
-  fkBox(doc, bx + LW + 23, fy + (fh - 3.8) / 2, 3.8, e.net === 'pa');    label('PA PEYE NÈT', bx + LW + 28.5, fb, 7);
-
-  /* 5. DAT yo (toujou afiche, menm vid) */
-  const dy = fy + fh + 2.6, dh = 9.5, cw3 = CW / 3;
-  doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.5); doc.roundedRect(bx, dy, CW, dh, 2, 2, 'S');
-  doc.setLineWidth(0.3); doc.line(bx + cw3, dy, bx + cw3, dy + dh); doc.line(bx + 2 * cw3, dy, bx + 2 * cw3, dy + dh);
-  [['DAT KÒMAND IZÍN', e.dateCmd], ['DAT MACHANDIZ LAN LIVRE USA', e.dateUSA], ['DAT MACHANDIZ LAN DISPONIB AYITI', e.dateHT]].forEach(([t, v], i) => {
-    const cx = bx + cw3 * i + 2.5;
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(5.8); doc.setTextColor(15, 15, 15);
-    let s = 5.8; while (s > 4.2 && doc.getTextWidth(t) > cw3 - 4) { s -= 0.2; doc.setFontSize(s); }
-    doc.text(t, cx, dy + 3.4);
-    fkHandText(doc, fkFmtDate(v), cx, dy + 7.7, 9);
-  });
-
-  /* 6. TABLO : yon sèl liy — Pwa | Deskripsyon | Pri U. | Montan USD | HTG */
-  const ty = dy + dh + 2.6, th = 9, TBL_END = 157, totH = 8.5;
-  const dataH = TBL_END - (ty + th) - totH;
-  const x1 = bx + 17, x2 = bx + 75, x3 = bx + 92, x4 = bx + 112;
-  doc.setFillColor(85, 85, 85); doc.rect(bx, ty, CW, th, 'F');
-  doc.setDrawColor(255, 255, 255); doc.setLineWidth(0.3);
-  [x1, x2, x3].forEach(x => doc.line(x, ty, x, ty + th));
-  doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255); doc.setFontSize(7.5);
-  doc.text('PWA', (bx + x1) / 2, ty + 5.6, { align: 'center' });
-  doc.text('DESKRIPSYON', (x1 + x2) / 2, ty + 5.6, { align: 'center' });
-  doc.text('PRI U.', (x2 + x3) / 2, ty + 5.6, { align: 'center' });
-  doc.text('MONTAN', (x3 + bx + CW) / 2, ty + 3.9, { align: 'center' });
-  doc.setFontSize(6); doc.text('USD', (x3 + x4) / 2, ty + 7.5, { align: 'center' }); doc.text('HTG', (x4 + bx + CW) / 2, ty + 7.5, { align: 'center' });
-  doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.5); doc.rect(bx, ty, CW, th + dataH + totH, 'S');
-  doc.setLineWidth(0.3);
-  doc.line(bx, ty + th + dataH, bx + CW, ty + th + dataH);
-  [x1, x2, x3].forEach(x => doc.line(x, ty + th, x, ty + th + dataH));
-  doc.setLineDashPattern([1.2, 1.2], 0); doc.line(x4, ty + th, x4, ty + th + dataH + totH); doc.setLineDashPattern([], 0);
-
-  const midY = ty + th + dataH / 2 + 1.4;
-  fkHandText(doc, e.pwa, (bx + x1) / 2, midY, 10.5, { align: 'center', maxW: 15 });
-  fkHandText(doc, e.pri, (x2 + x3) / 2, midY, 10.5, { align: 'center', maxW: 15 });
-  fkHandText(doc, e.usd, (x3 + x4) / 2, midY, 10.5, { align: 'center', maxW: 18 });
-  fkHandText(doc, e.htg, (x4 + bx + CW) / 2, midY, 10.5, { align: 'center', maxW: 20.5 });
-  if (e.desc) {
-    let size = 9.5, lines, lh;
-    fkSetHand(doc, size);
-    do { doc.setFontSize(size); lines = doc.splitTextToSize(e.desc, x2 - x1 - 4); lh = size * 0.46; size -= 0.5; }
-    while (lines.length * lh > dataH - 1.5 && size > 6);
-    const y0 = ty + th + (dataH - lines.length * lh) / 2 + lh * 0.78;
-    lines.forEach((ln, i) => fkHandText(doc, ln, x1 + 2, y0 + i * lh, size + 0.5));
-  }
-  /* TOTAL — repete menm montan yo (pa gen kalkil) */
-  const tb = ty + th + dataH + totH / 2 + 1.3;
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(15, 15, 15);
-  doc.text('TOTAL', x3 - 3, tb, { align: 'right' });
-  fkHandText(doc, e.usd, (x3 + x4) / 2, tb, 10.5, { align: 'center', maxW: 18 });
-  fkHandText(doc, e.htg, (x4 + bx + CW) / 2, tb, 10.5, { align: 'center', maxW: 20.5 });
-
-  /* 7. NÒT */
-  if (e.note) {
-    const ny = TBL_END + 5.2;
-    label('NÒT:', bx, ny, 7);
-    fkSetHand(doc, 8.5);
-    const nl = doc.splitTextToSize(e.note, CW - 10).slice(0, 2);
-    nl.forEach((ln, i) => fkHandText(doc, ln, bx + 9, ny + i * 4.2, 8.5));
-  }
-
-  /* 8. MESAJ + SIYATI + PYE PAJ */
-  doc.setFont('helvetica', 'italic'); doc.setFontSize(7.2); doc.setTextColor(40, 40, 40);
-  drawLineWithArrows(doc, 'Nou se patnè fyab ou pou pwojè komès ak livrezon USA -> Ayiti.', X(W / 2), 174.3, [40, 40, 40], { align: 'center' });
-  doc.setFont('helvetica', 'italic'); doc.setFontSize(7.2); doc.setTextColor(40, 40, 40);
-  doc.text('Achte sou entènèt avè n ak konfyans.', X(W / 2), 178.3, { align: 'center' });
-
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(100, 100, 100);
-  doc.text('Siyati kliyan:', bx, 184);
-  doc.setDrawColor(130, 130, 130); doc.setLineWidth(0.3); doc.line(bx, 191.5, bx + 58, 191.5);
-  const sx1 = X(R) - 62, sx2 = X(R);
-  doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.4); doc.line(sx1, 191.5, sx2, 191.5);
-  doc.setFont('times', 'bolditalic'); doc.setFontSize(10.5); doc.setTextColor(15, 15, 15);
-  doc.text('Thomas Kabé (Responsab Sid)', (sx1 + sx2) / 2, 197, { align: 'center' });
-
-  doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.3); doc.line(X(M), 200.6, X(R), 200.6);
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(6.6); doc.setTextColor(40, 40, 40);
-  doc.text('Les Cayes Dropshipping  _  lescayesdropshipping@gmail.com  _  +509 35 60 88 69  _  Aux Cayes', X(W / 2), 204.3, { align: 'center' });
+  /* Anba : fraz + siyati imaj Thomas Kabé (pa gen pye paj) */
+  doc.setFont('helvetica', 'italic'); doc.setFontSize(7.1); doc.setTextColor(60, 60, 60);
+  doc.text('Nou se patnè fyab ou pou pwojè komès', L, 190);
+  drawLineWithArrows(doc, 'ak livrezon USA -> Ayiti.', L, 194.2, [60, 60, 60]);
+  doc.setFont('helvetica', 'italic'); doc.setFontSize(7.1); doc.setTextColor(60, 60, 60);
+  doc.text('Achte sou entènèt avè n ak konfyans.', L, 198.4);
+  if (imgs.sig) fkImgFit(doc, imgs.sig, RR - 46, 183.5, 46, 15, 'right');
 }
 
 async function buildFichesPdf(entries) {
@@ -861,18 +928,13 @@ async function buildFichesPdf(entries) {
   if (!entries.length) return false;
   const { jsPDF } = window.jspdf;
   const platKeys = [];
-  entries.forEach(e => (e.origins || []).forEach(p => { if (PLAT_MAP[p] && !platKeys.includes(p)) platKeys.push(p); }));
+  entries.forEach(e => { if (e.acha) (e.origins || []).forEach(p => { if (PLAT_MAP[p] && !platKeys.includes(p)) platKeys.push(p); }); });
 
-  const res = await Promise.all([loadImg('lescayesdropshipping.png', 400), loadPaiement(), loadHandFont(), ...platKeys.map(loadPlatFit)]);
-  const imgs = { logo: res[0], pay: res[1] };
+  const res = await Promise.all([loadImg('lescayesdropshipping.png', 400), loadPaiement(), loadSignatureImg(), ...platKeys.map(loadPlatFit)]);
+  const imgs = { logo: res[0], pay: res[1], sig: res[2] };
   platKeys.forEach((k, i) => { imgs['plat:' + k] = res[i + 3]; });
 
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-  FK_HAND.ok = false;
-  if (res[2]) {
-    try { doc.addFileToVFS('Hand.ttf', res[2]); doc.addFont('Hand.ttf', 'Hand', 'normal'); doc.setFont('Hand', 'normal'); FK_HAND.ok = true; }
-    catch (err) { FK_HAND.ok = false; }
-  }
   entries.forEach((e, i) => drawFakti(doc, e, imgs, i * 148.5));
 
   if (entries.length === 2) {
