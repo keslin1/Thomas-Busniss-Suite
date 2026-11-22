@@ -8,7 +8,7 @@
    • Tout ranpli = menm polis (Courier nwa) · siyati Thomas Kabé = imaj manuscrit.jpg
    • « Terminé pour X » : fakti a antre nan FILE D'ATTENTE (max 10), san PDF
    • Chwazi 2 fakti nan file a → PDF paysaj → yo kite file a, men rete nan istorik
-   • Chak peman (Montan m bay) antre otomatikman nan pwofil kliyan an (customers.js)
+   • Chak fakti : pri kliyan an peye (Montan US) antre otomatikman nan pwofil kliyan an (customers.js)
      → total ogmante, nivo kliyan rekalkile (Bronze / Argent / Platine / Or / Super Client)
    ══════════════════════════════════════════════ */
 
@@ -177,7 +177,7 @@ function fkLogPayment(e, stage, amount) {
 /* ══════════════════════════════════════════════
    FÒM : lekti / ranpli / efase
    ══════════════════════════════════════════════ */
-const FK_FIELDS = ['fkName','fkAddr','fkPhone','fkEmail','fkPlat1','fkPlat2','fkLabel','fkPwa','fkDesc','fkPriOther','fkTaux','fkUsd','fkHtg',
+const FK_FIELDS = ['fkName','fkAddr','fkPhone','fkEmail','fkPlat1','fkPlat2','fkPwa','fkDesc','fkPriOther','fkTaux','fkUsd','fkHtg',
                    'fkPay','fkPaid','fkBal','fkNet','fkDateCmd','fkDateUSA','fkDateHT','fkNote'];
 const FK_PRICES = ['3,99', '4,90'];
 const fkEl  = id => document.getElementById(id);
@@ -197,7 +197,7 @@ function fkRead() {
   const sel = fkVal('fkPriSel');
   return {
     clientName: fkVal('fkName'), clientAddr: fkVal('fkAddr'), clientPhone: fkVal('fkPhone'), clientEmail: fkVal('fkEmail'),
-    origins, label: lim('fkLabel', 30), acha: fkChk('fkAcha'), ship: fkChk('fkShip'),
+    origins, acha: fkChk('fkAcha'), ship: fkChk('fkShip'),
     pwa: lim('fkPwa', 6), desc: lim('fkDesc', 400), pri: sel === 'other' ? lim('fkPriOther', 6) : sel,
     taux: lim('fkTaux', 6), usd: lim('fkUsd', 6), htg: lim('fkHtg', 6),
     totalPay: lim('fkPay', 6), paid: lim('fkPaid', 6), bal: lim('fkBal', 6), net: fkVal('fkNet'),
@@ -209,7 +209,7 @@ function fkRead() {
 
 function fkFill(e) {
   const map = { fkName: e.clientName, fkAddr: e.clientAddr, fkPhone: e.clientPhone, fkEmail: e.clientEmail,
-    fkPlat1: (e.origins || [])[0] || '', fkPlat2: (e.origins || [])[1] || '', fkLabel: e.label, fkPwa: e.pwa, fkDesc: e.desc,
+    fkPlat1: (e.origins || [])[0] || '', fkPlat2: (e.origins || [])[1] || '', fkPwa: e.pwa, fkDesc: e.desc,
     fkTaux: e.taux, fkUsd: e.usd, fkHtg: e.htg, fkPay: e.totalPay, fkPaid: e.paid, fkBal: e.bal, fkNet: e.net || '',
     fkDateCmd: e.dateCmd, fkDateUSA: e.dateUSA, fkDateHT: e.dateHT, fkNote: e.note };
   FK_FIELDS.forEach(id => { if (fkEl(id)) fkEl(id).value = (map[id] == null ? '' : map[id]); });
@@ -228,33 +228,23 @@ function fkFill(e) {
   fkOnPri();
 }
 
-/* Montan ki antre nan pwofil kliyan an selon etap la :
-   Shipping → Montan US (oswa Total HTG ÷ taux) · Acha → Montan m bay · Acha + Shipping → Montan m bay, sinon Montan US */
-function fkPayAmount(e, stage) {
+/* Montan ki antre nan pwofil kliyan an = pri kliyan an peye selon livrezon an (kolòn Montan US,
+   oswa Total HTG ÷ taux si Montan US vid) — pou Acha kou Shipping. « Montan m bay » pa ale nan pwofil la. */
+function fkPayAmount(e) {
   const usd = fkNum(e.usd);
-  const fromHtg = (fkNum(e.taux) > 0 && fkNum(e.htg) > 0) ? Math.round(fkNum(e.htg) / fkNum(e.taux) * 100) / 100 : 0;
-  const ship = usd > 0 ? usd : fromHtg;
-  if (stage === 'ship') return ship;
-  const paid = fkNum(e.paid);
-  if (paid > 0) return paid;
-  return stage === 'acha+ship' ? ship : 0;
+  if (usd > 0) return usd;
+  return (fkNum(e.taux) > 0 && fkNum(e.htg) > 0) ? Math.round(fkNum(e.htg) / fkNum(e.taux) * 100) / 100 : 0;
 }
 
 function fkOnFlags() {
   const acha = fkChk('fkAcha'), ship = fkChk('fkShip');
   const show = (id, on) => { const el = fkEl(id); if (el) el.style.display = on ? '' : 'none'; };
-  show('fkRowOrigin', acha); show('fkRowLabel', ship); show('fkRowDates', acha); show('fkAchaBlock', acha);
+  show('fkRowDates', acha); show('fkAchaBlock', acha);
   const ns = fkStageFor(fkEditingId ? fkPrev : null, acha, ship);
-  if (ns !== fkFormStage && fkEl('fkPaid')) {
-    fkFormMemo[fkFormStage] = fkEl('fkPaid').value;
-    fkEl('fkPaid').value = fkFormMemo[ns] || '';
-    fkFormStage = ns;
-  }
+  fkFormStage = ns;
   const h = fkEl('fkStageHint');
-  if (h) {
-    if (!acha && !ship) h.textContent = 'Chwazi Acha oswa Shipping';
-    else h.textContent = 'Peman etap ' + STAGE_LABEL[ns] + ' = ' + (ns === 'ship' ? 'Montan US' : 'Montan m bay') + ' → ajoute nan pwofil kliyan an';
-  }
+  if (h) h.textContent = (!acha && !ship) ? 'Chwazi Acha oswa Shipping'
+    : 'Peman etap ' + STAGE_LABEL[ns] + ' = Montan US (pri kliyan an peye) → ajoute nan pwofil kliyan an';
 }
 
 function fkUpdateBtn() {
@@ -303,13 +293,16 @@ function fkFinish() {
   }
   const stage = fkStageFor(prev, e.acha, e.ship);
   e.stage = stage;
-  e.paidByStage = { ...(e.paidByStage || {}), [stage]: e.paid };
-  fkLogPayment(e, stage, fkPayAmount(e, stage));
+  const amt = fkPayAmount(e);
+  const pk = e.pays || [];
+  const warn = (amt > 0 && !pk.some(p => p.stage === stage) && pk.some(p => Math.abs((p.usd || 0) - amt) < 0.005))
+    ? ' · ⚠ menm montan ak peman anvan an — verifye Montan US' : '';
+  fkLogPayment(e, stage, amt);
   if (typeof savePosClient === 'function') savePosClient(e.clientName, e.clientAddr, e.clientPhone);
   fkSave(list);
 
   const q = fkGet().filter(h => !h.printed).length;
-  showToast('Fakti #lcd' + fkPad(e.invoiceNo) + (idx < 0 ? ' anrejistre' : ' mete ajou') + ' · file : ' + q);
+  showToast('Fakti #lcd' + fkPad(e.invoiceNo) + (idx < 0 ? ' anrejistre' : ' mete ajou') + ' · file : ' + q + warn);
   fkClear(true);
   fkRefresh();
   if (idx >= 0) switchPosTab('queue');
@@ -320,10 +313,8 @@ function fkEdit(id) {
   fkClear(true);
   fkEditingId = id;
   fkPrev = { acha: !!e.acha, ship: !!e.ship, stage: e.stage || fkStageFor(null, e.acha, e.ship) };
-  fkFormMemo = { ...(e.paidByStage || {}) };
   fkFormStage = fkPrev.stage;
   fkFill(e);
-  if (fkEl('fkPaid')) fkEl('fkPaid').value = fkFormMemo[fkFormStage] || '';
   const b = fkEl('fkEditBanner'); if (b) b.style.display = '';
   if (fkEl('fkEditNo')) fkEl('fkEditNo').textContent = 'lcd' + fkPad(e.invoiceNo);
   fkOnFlags(); fkUpdateBtn(); fkCount();
@@ -805,20 +796,25 @@ function drawFakti(doc, e, imgs, ox) {
   if (imgs.logo) doc.addImage(imgs.logo, 'PNG', L, 8, 20, 20);
   drawCompanyTitle(doc, L + 25, 14.5, [15, 15, 15], RR - (L + 25));
   doc.setFont('helvetica', 'normal'); doc.setFontSize(6.8); doc.setTextColor(70, 70, 70);
-  doc.text('USA: 9801 SW 3rd St, Pembroke Pines, FL 33025', L + 25, 19.6);
-  doc.text('Haiti: Les Cayes', L + 25, 23.6);
-  doc.text('+509 35 60 88 69  |  lescayesdropshipping@gmail.com', L + 25, 27.6);
+  doc.text('USA: 9801 SW 3rd St, Pembroke Pines, FL 33025', L + 25, 19.2);
+  doc.text('Haiti: Les Cayes', L + 25, 22.9);
+  doc.text('+509 35 60 88 69  |  lescayesdropshipping@gmail.com', L + 25, 26.6);
   doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(FK_RED[0], FK_RED[1], FK_RED[2]);
-  doc.text('No. lcd' + fkPad(e.invoiceNo), RR, 27.6, { align: 'right' });
-  doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.5); doc.line(L, 32.5, RR, 32.5);
+  doc.text('No. lcd' + fkPad(e.invoiceNo), RR, 26.6, { align: 'right' });
+  {   /* Fraz komèsyal yon sèl liy, anba enfo konpayi a */
+    const tag = 'Nou se patnè fyab ou pou pwojè komès ak livrezon USA -> Ayiti.  Achte sou entènèt avè n ak konfyans.';
+    let ts = 7.2;
+    doc.setFont('helvetica', 'italic'); doc.setFontSize(ts);
+    while (ts > 5.2 && doc.getTextWidth(tag) > CW) { ts -= 0.2; doc.setFontSize(ts); }
+    doc.setTextColor(60, 60, 60);
+    drawLineWithArrows(doc, tag, (L + RR) / 2, 31.2, [60, 60, 60], { align: 'center' });
+  }
+  doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.5); doc.line(L, 33.4, RR, 33.4);
 
   /* ── Blòk yo (flux vètikal : fakti a pa janm depase mwatye paj la) ── */
   const lw = 78, rgap = 4.5, rwid = CW - lw - rgap, rx = L + lw + rgap;
   const PITCH = 9.5;
-  const leftItems = ['NON', 'ADRÈS'];
-  if (acha) leftItems.push('ORIJIN');
-  if (ship) leftItems.push('LABEL');
-  const nRows = Math.max(leftItems.length, 3);
+  const nRows = 3;
 
   const field = (x, w, y0, title, draw) => {
     lab(title, x, y0 + 2.6);
@@ -844,9 +840,8 @@ function drawFakti(doc, e, imgs, ox) {
     field(rx, rwid, rowY(0), 'DAT', () => text(fkFmtDate(e.date), rx, rwid, rowY(0)));
     field(L, lw, rowY(1), 'ADRÈS', () => text(e.clientAddr, L, lw, rowY(1)));
     field(rx, rwid, rowY(1), 'TELEFÒN', () => text(e.clientPhone, rx, rwid, rowY(1)));
-    let r = 2;
-    if (acha) {
-      const y0 = rowY(r);
+    {
+      const y0 = rowY(2);
       field(L, lw, y0, 'ORIJIN MACHANDIZ', () => {
         const ks = e.origins || [], n = ks.length;
         if (!n) return;
@@ -857,9 +852,7 @@ function drawFakti(doc, e, imgs, ox) {
           else fkType(doc, PLAT_MAP[k] ? PLAT_MAP[k].label : k, L + i * slot, y0 + 7.1, slot - 3, 8.8);
         });
       });
-      r++;
     }
-    if (ship) field(L, lw, rowY(r), 'LABEL KLIYAN', () => text(e.label, L, lw, rowY(r)));
     field(rx, rwid, rowY(2), 'IMÈL', () => text(e.clientEmail, rx, rwid, rowY(2), 8.2));
   } });
 
@@ -914,10 +907,10 @@ function drawFakti(doc, e, imgs, ox) {
       fkType(doc, shown, L + sw - 1, yb, 28, 9, { align: 'right' });
     });
     const pw = 64, px = RR - pw;
-    if (imgs.pay) fkImgFit(doc, imgs.pay, px, y, pw, 8, 'right');
-    const cb = y + 14.5;
+    const cb = y + 3.8;
     fkBox(doc, RR - 58, cb - 2.9, 3.4, e.net === 'peye');  lab('PEYE NÈT', RR - 53, cb, 6.8);
     fkBox(doc, RR - 30, cb - 2.9, 3.4, e.net === 'pa');    lab('PA PEYE NÈT', RR - 25, cb, 6.8);
+    if (imgs.pay) fkImgFit(doc, imgs.pay, px, y + 8.2, pw, 8, 'right');
   } };
 
   /* Nòt : maks 3 liy, ti polis si l long */
@@ -936,7 +929,7 @@ function drawFakti(doc, e, imgs, ox) {
   if (noteLines.length) blocks.push(note);
 
   /* Distribisyon espas — deskripsyon (400 kar.) ak nòt rapetisse otomatikman pou fakti a rete nan mwatye paj la */
-  const TOP = 37, BOTTOM = 179, GAP = 4.5, MINGAP = 2.8;
+  const TOP = 37, BOTTOM = 182, GAP = 4.5, MINGAP = 2.8;
   const nGaps = blocks.length - 1;
   const otherH = blocks.filter(b => b !== tbl).reduce((s, b) => s + b.h, 0);
   const maxDH = (BOTTOM - TOP) - otherH - th - totH - MINGAP * nGaps;
@@ -975,15 +968,10 @@ function drawFakti(doc, e, imgs, ox) {
     y += b.h + g + gap;
   });
 
-  /* Anba : FÈT PA + siyati imaj manuscrit.jpg (agoch) · fraz fèmti (adwat) — pa gen pye paj */
+  /* Anba : FÈT PA + siyati manuscrit.jpg (pi piti, poze sou liy la) */
   lab('FÈT PA', L, 196, 6.4);
-  hair(L + 10, L + 54, 197);
-  if (imgs.sig) fkImgFit(doc, imgs.sig, L + 10, 183.5, 42, 13.2, 'left');
-  doc.setFont('helvetica', 'italic'); doc.setFontSize(7.1); doc.setTextColor(60, 60, 60);
-  doc.text('Nou se patnè fyab ou pou pwojè komès', RR, 190, { align: 'right' });
-  drawLineWithArrows(doc, 'ak livrezon USA -> Ayiti.', RR, 194.2, [60, 60, 60], { align: 'right' });
-  doc.setFont('helvetica', 'italic'); doc.setFontSize(7.1); doc.setTextColor(60, 60, 60);
-  doc.text('Achte sou entènèt avè n ak konfyans.', RR, 198.4, { align: 'right' });
+  hair(L + 10, L + 48, 197);
+  if (imgs.sig) fkImgFit(doc, imgs.sig, L + 12, 186.5, 31, 10.2, 'left');
 }
 
 async function buildFichesPdf(entries) {
@@ -992,7 +980,7 @@ async function buildFichesPdf(entries) {
   if (!entries.length) return false;
   const { jsPDF } = window.jspdf;
   const platKeys = [];
-  entries.forEach(e => { if (e.acha) (e.origins || []).forEach(p => { if (PLAT_MAP[p] && !platKeys.includes(p)) platKeys.push(p); }); });
+  entries.forEach(e => { (e.origins || []).forEach(p => { if (PLAT_MAP[p] && !platKeys.includes(p)) platKeys.push(p); }); });
 
   const res = await Promise.all([loadImg('lescayesdropshipping.png', 400), loadPaiement(), loadSignatureImg(), ...platKeys.map(loadPlatFit)]);
   const imgs = { logo: res[0], pay: res[1], sig: res[2] };
