@@ -74,19 +74,19 @@ function fkNextNo() {
     const base = h => ({
       id: h.id || fkUid(), invoiceNo: String(h.invoiceNo || '0'), date: h.date || Date.now(),
       clientName: h.clientName || '', clientAddr: h.clientAddr || '', clientPhone: h.clientPhone || '', clientEmail: '',
-      origins: [], pwa: '', pri: '', totalPay: '', paid: '', bal: '', net: '', faitPar: '',
+      origins: [], pwa: '', pri: '', totalPay: '', paid: '', bal: '', net: '', 
       dateCmd: '', dateUSA: '', dateHT: '', note: String(h.note || '').slice(0, 120),
       printed: true, pays: [], paidByStage: {}
     });
     (JSON.parse(localStorage.getItem(ACHA_KEY)) || []).forEach(h => {
       const ship = (h.shippingHT || 0) > 0, usd = ship ? h.grandTotal : h.achatUsine;
       out.push({ ...base(h), origins: [h.plateforme, h.plateforme2].filter(Boolean), acha: true, ship,
-        stage: ship ? 'acha+ship' : 'acha', desc: String(h.desc || '').slice(0, 100),
+        stage: ship ? 'acha+ship' : 'acha', desc: String(h.desc || '').slice(0, 400),
         usd: usd ? six(Number(usd).toFixed(2).replace(/\.00$/, '')) : '', htg: usd ? six(Math.round(usd * 135)) : '',
         dateCmd: h.dateCommande || '', dateUSA: h.dateLivreUSA || '', dateHT: h.dateDispoAyiti || '' });
     });
     (JSON.parse(localStorage.getItem(POS_KEY)) || []).forEach(h => {
-      out.push({ ...base(h), acha: false, ship: true, stage: 'ship', desc: String(h.desc || '').slice(0, 100),
+      out.push({ ...base(h), acha: false, ship: true, stage: 'ship', desc: String(h.desc || '').slice(0, 400),
         pwa: h.realWeight > 0 ? six(Number(h.realWeight).toFixed(2)) : '',
         usd: h.total ? six(Number(h.total).toFixed(2).replace(/\.00$/, '')) : '', htg: h.total ? six(Math.round(h.total * 135)) : '' });
     });
@@ -178,7 +178,7 @@ function fkLogPayment(e, stage, amount) {
    FÒM : lekti / ranpli / efase
    ══════════════════════════════════════════════ */
 const FK_FIELDS = ['fkName','fkAddr','fkPhone','fkEmail','fkPlat1','fkPlat2','fkLabel','fkPwa','fkDesc','fkPriOther','fkTaux','fkUsd','fkHtg',
-                   'fkPay','fkPaid','fkBal','fkNet','fkFaitPar','fkDateCmd','fkDateUSA','fkDateHT','fkNote'];
+                   'fkPay','fkPaid','fkBal','fkNet','fkDateCmd','fkDateUSA','fkDateHT','fkNote'];
 const FK_PRICES = ['3,99', '4,90'];
 const fkEl  = id => document.getElementById(id);
 const fkVal = id => ((fkEl(id) && fkEl(id).value) || '').trim();
@@ -198,11 +198,11 @@ function fkRead() {
   return {
     clientName: fkVal('fkName'), clientAddr: fkVal('fkAddr'), clientPhone: fkVal('fkPhone'), clientEmail: fkVal('fkEmail'),
     origins, label: lim('fkLabel', 30), acha: fkChk('fkAcha'), ship: fkChk('fkShip'),
-    pwa: lim('fkPwa', 6), desc: lim('fkDesc', 100), pri: sel === 'other' ? lim('fkPriOther', 6) : sel,
+    pwa: lim('fkPwa', 6), desc: lim('fkDesc', 400), pri: sel === 'other' ? lim('fkPriOther', 6) : sel,
     taux: lim('fkTaux', 6), usd: lim('fkUsd', 6), htg: lim('fkHtg', 6),
     totalPay: lim('fkPay', 6), paid: lim('fkPaid', 6), bal: lim('fkBal', 6), net: fkVal('fkNet'),
-    faitPar: lim('fkFaitPar', 30), dateCmd: fkVal('fkDateCmd'), dateUSA: fkVal('fkDateUSA'), dateHT: fkVal('fkDateHT'),
-    note: lim('fkNote', 120),
+    dateCmd: fkVal('fkDateCmd'), dateUSA: fkVal('fkDateUSA'), dateHT: fkVal('fkDateHT'),
+    note: lim('fkNote', 200),
     date: ds ? new Date(ds + 'T12:00:00').getTime() : Date.now()
   };
 }
@@ -211,7 +211,7 @@ function fkFill(e) {
   const map = { fkName: e.clientName, fkAddr: e.clientAddr, fkPhone: e.clientPhone, fkEmail: e.clientEmail,
     fkPlat1: (e.origins || [])[0] || '', fkPlat2: (e.origins || [])[1] || '', fkLabel: e.label, fkPwa: e.pwa, fkDesc: e.desc,
     fkTaux: e.taux, fkUsd: e.usd, fkHtg: e.htg, fkPay: e.totalPay, fkPaid: e.paid, fkBal: e.bal, fkNet: e.net || '',
-    fkFaitPar: e.faitPar, fkDateCmd: e.dateCmd, fkDateUSA: e.dateUSA, fkDateHT: e.dateHT, fkNote: e.note };
+    fkDateCmd: e.dateCmd, fkDateUSA: e.dateUSA, fkDateHT: e.dateHT, fkNote: e.note };
   FK_FIELDS.forEach(id => { if (fkEl(id)) fkEl(id).value = (map[id] == null ? '' : map[id]); });
   if (fkEl('fkPriSel')) {
     const p = e.pri || '';
@@ -277,7 +277,7 @@ function fkClear(silent) {
 }
 
 function fkCount() {
-  const d = fkEl('fkDescCount'); if (d) d.textContent = fkVal('fkDesc').length + ' / 100';
+  const d = fkEl('fkDescCount'); if (d) d.textContent = fkVal('fkDesc').length + ' / 400';
 }
 
 /* ══════════════════════════════════════════════
@@ -312,6 +312,7 @@ function fkFinish() {
   showToast('Fakti #lcd' + fkPad(e.invoiceNo) + (idx < 0 ? ' anrejistre' : ' mete ajou') + ' · file : ' + q);
   fkClear(true);
   fkRefresh();
+  if (idx >= 0) switchPosTab('queue');
 }
 
 function fkEdit(id) {
@@ -370,11 +371,12 @@ function fkRenderQueue() {
         <div style="min-width:0;">
           <div style="font-size:0.92rem;font-weight:600;color:#ddd8cc;">${esc(h.clientName)}</div>
           <div style="margin-top:3px;">${fkFlagChips(h)}</div>
-          <div style="font-size:0.72rem;color:rgba(200,190,175,0.45);margin-top:3px;">#lcd${fkPad(h.invoiceNo)} · ${fkFmtDate(h.date)}${h.usd ? ' · $' + esc(h.usd) : ''}</div>
+          <div style="font-size:0.72rem;color:rgba(200,190,175,0.45);margin-top:3px;">#lcd${fkPad(h.invoiceNo)} · ${fkFmtDate(h.date)}${h.usd ? ' · ' + esc(fkFmtUsd(h.usd)) : ''}</div>
         </div>
       </label>
       <div style="display:flex;gap:6px;flex-shrink:0;">
         <button onclick="fkEdit('${h.id}')" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:6px;color:#ddd8cc;font-size:0.8rem;padding:6px 9px;cursor:pointer;">✏️</button>
+        <button onclick="fkDuplicate('${h.id}')" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:6px;color:#ddd8cc;font-size:0.8rem;padding:6px 9px;cursor:pointer;">📑</button>
         <button onclick="fkDelete('${h.id}')" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:rgba(200,190,175,0.7);font-size:0.8rem;padding:6px 9px;cursor:pointer;">🗑</button>
       </div>
     </div>`).join('');
@@ -396,6 +398,21 @@ function fkDelete(id) {
   fkSave(fkGet().filter(h => h.id !== id));
   if (fkEditingId === id) fkClear(true);
   fkRefresh();
+}
+
+/* Duplike yon fakti nan file a : kopi rete nan file a (pa gen PDF), san peman — modifye l apre ak ✏️ */
+function fkDuplicate(id) {
+  const list = fkGet();
+  const i = list.findIndex(h => h.id === id);
+  if (i < 0) return;
+  if (list.filter(h => !h.printed).length >= FK_QUEUE_MAX) { showToast("File d'attente pleine (10)"); return; }
+  const src = list[i];
+  const copy = { ...src, id: fkUid(), invoiceNo: fkNextNo(), date: Date.now(), printed: false, printedAt: null,
+                 pays: [], paidByStage: {}, totalPay: '', paid: '', bal: '', net: '' };
+  list.splice(i, 0, copy);
+  fkSave(list);
+  fkRefresh();
+  showToast('Dupliqué → #lcd' + fkPad(copy.invoiceNo) + ' (nan file)');
 }
 
 function fkRequeue(id) {
@@ -454,9 +471,9 @@ function renderPosHistory() {
           <div style="font-size:0.72rem;color:rgba(200,190,175,0.4);margin-top:2px;">#lcd${fkPad(h.invoiceNo)} · ${fkFmtDate(h.date)}</div>
         </div>
         <div style="text-align:right;flex-shrink:0;">
-          <div style="font-family:'Space Mono',monospace;font-size:0.9rem;color:#d4af37;">${h.usd ? '$' + esc(h.usd) : ''}</div>
-          <div style="font-size:0.7rem;color:rgba(200,180,100,0.55);">${h.htg ? esc(h.htg) + ' HTG' : ''}</div>
-          <button onclick="fkEdit('${h.id}')" style="${btn}">✏️</button><button onclick="printOneFiche('${h.id}')" style="${btn}">PDF</button>${h.printed ? `<button onclick="fkRequeue('${h.id}')" style="${btn}">↩</button>` : ''}
+          <div style="font-family:'Space Mono',monospace;font-size:0.9rem;color:#d4af37;">${h.usd ? esc(fkFmtUsd(h.usd)) : ''}</div>
+          <div style="font-size:0.7rem;color:rgba(200,180,100,0.55);">${h.htg ? esc(fkFmtHtg(h.htg)) : ''}</div>
+          <button onclick="fkEdit('${h.id}')" style="${btn}">✏️</button><button onclick="fkDuplicate('${h.id}')" style="${btn}">📑</button><button onclick="printOneFiche('${h.id}')" style="${btn}">PDF</button>${h.printed ? `<button onclick="fkRequeue('${h.id}')" style="${btn}">↩</button>` : ''}
         </div>
       </div>
     </div>`;
@@ -669,7 +686,7 @@ function fkFmtWeight(s) {
 function fkFmtUsd(s) {
   s = String(s == null ? '' : s).trim();
   if (!s) return '';
-  const m = s.replace(',', '.').match(/^\$?\s*([0-9]*\.?[0-9]+)\s*\$?$/);
+  const m = s.replace(',', '.').replace(/\s*(usd|us|dollars?)$/i, '').match(/^\$?\s*([0-9]*\.?[0-9]+)\s*\$?$/);
   return m ? m[1].replace('.', ',') + '$' : s;
 }
 function fkFmtHtg(s) {
@@ -745,9 +762,28 @@ function fkImgFit(doc, img, x, y, maxW, maxH, alignX) {
   return w;
 }
 
+/* Koupe tèks nan liy (menm mo ki twò long) — pa depann de jsPDF pou fakti a pa janm depase */
+function fkWrap(doc, txt, maxW) {
+  const out = [];
+  let cur = '';
+  String(txt == null ? '' : txt).split(/\s+/).filter(Boolean).forEach(word => {
+    while (doc.getTextWidth(word) > maxW && word.length > 1) {
+      let k = word.length;
+      while (k > 1 && doc.getTextWidth(word.slice(0, k)) > maxW) k--;
+      if (cur) { out.push(cur); cur = ''; }
+      out.push(word.slice(0, k));
+      word = word.slice(k);
+    }
+    const t = cur ? cur + ' ' + word : word;
+    if (cur && doc.getTextWidth(t) > maxW) { out.push(cur); cur = word; } else cur = t;
+  });
+  if (cur) out.push(cur);
+  return out;
+}
+
 function drawFakti(doc, e, imgs, ox) {
   const W = 148.5, M = 10, R = W - M, CW = W - 2 * M;
-  const L = ox + M, RR = ox + R, MID = ox + W / 2;
+  const L = ox + M, RR = ox + R;
   const acha = !!e.acha, ship = !!e.ship;
   const hair = (x1, x2, y) => { doc.setDrawColor(175, 175, 175); doc.setLineWidth(0.15); doc.line(x1, y, x2, y); };
   const lab = (t, x, y, size, o) => {
@@ -776,7 +812,7 @@ function drawFakti(doc, e, imgs, ox) {
   doc.text('No. lcd' + fkPad(e.invoiceNo), RR, 27.6, { align: 'right' });
   doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.5); doc.line(L, 32.5, RR, 32.5);
 
-  /* ── Blòk yo (flux vètikal, espas distribye pou fakti a respire) ── */
+  /* ── Blòk yo (flux vètikal : fakti a pa janm depase mwatye paj la) ── */
   const lw = 78, rgap = 4.5, rwid = CW - lw - rgap, rx = L + lw + rgap;
   const PITCH = 9.5;
   const leftItems = ['NON', 'ADRÈS'];
@@ -842,25 +878,23 @@ function drawFakti(doc, e, imgs, ox) {
 
   /* Tablo : PWA | DESKRIPSYON | PRI U. | TAUX | MONTAN US  +  TOTAL HTG (gras) */
   const th = 8, totH = 10, dataBase = 18;
-  const tbl = { h: th + dataBase + totH, grow: 0, draw: (y, grow) => {
-    const dH = dataBase + grow;
-    const c = [L, L + 20, L + 72.5, L + 90.5, L + 106.5, RR];
+  const c = [L, L + 17, L + 80, L + 96, L + 112, RR];
+  const descW = c[2] - c[1] - 4;
+  const tbl = { h: 0, dH: dataBase, dl: null, draw: (y, grow) => {
+    const dH = tbl.dH + grow;
     doc.setFillColor(232, 232, 232); doc.rect(L, y, CW, th, 'F');
     doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.4); doc.line(L, y, RR, y);
-    ['PWA', 'DESKRIPSYON', 'PRI U.', 'TAUX', 'MONTAN US'].forEach((t, i) => lab(t, (c[i] + c[i + 1]) / 2, y + 5.1, 6.8, { align: 'center' }));
+    ['PWA', 'DESKRIPSYON', 'PRI U.', 'TAUX', 'MONTAN US'].forEach((t, i) => lab(t, (c[i] + c[i + 1]) / 2, y + 5.1, 6.6, { align: 'center' }));
     const yd = y + th, ym = yd + dH / 2 + 1.2;
-    fkType(doc, fkFmtWeight(e.pwa), (c[0] + c[1]) / 2, ym, 17, 9, { align: 'center' });
-    fkType(doc, fkFmtUsd(e.pri), (c[2] + c[3]) / 2, ym, 16, 9, { align: 'center' });
-    fkType(doc, e.taux ? fkFmtHtg(e.taux) : '', (c[3] + c[4]) / 2, ym, 14, 9, { align: 'center' });
-    fkType(doc, fkFmtUsd(e.usd), (c[4] + c[5]) / 2, ym, 20, 9, { align: 'center' });
-    if (e.desc) {
-      let size = 8.6, lines, lh;
-      doc.setFont('courier', 'normal');
-      do { doc.setFontSize(size); lines = doc.splitTextToSize(e.desc, c[2] - c[1] - 4); lh = size * 0.47; size -= 0.4; }
-      while (lines.length * lh > dH - 2 && size > 5.5);
-      const y0 = yd + (dH - lines.length * lh) / 2 + lh * 0.78;
-      doc.setTextColor(15, 15, 15);
-      lines.forEach((ln, i) => doc.text(ln, c[1] + 2, y0 + i * lh));
+    fkType(doc, fkFmtWeight(e.pwa), (c[0] + c[1]) / 2, ym, 15.5, 9, { align: 'center' });
+    fkType(doc, fkFmtUsd(e.pri), (c[2] + c[3]) / 2, ym, 14.5, 9, { align: 'center' });
+    fkType(doc, fkFmtHtg(e.taux), (c[3] + c[4]) / 2, ym, 14.5, 9, { align: 'center' });
+    fkType(doc, fkFmtUsd(e.usd), (c[4] + c[5]) / 2, ym, 15, 9, { align: 'center' });
+    if (tbl.dl) {
+      const dl = tbl.dl;
+      doc.setFont('courier', 'normal'); doc.setFontSize(dl.size); doc.setTextColor(15, 15, 15);
+      const y0 = yd + (dH - dl.lines.length * dl.lh) / 2 + dl.lh * 0.78;
+      dl.lines.forEach((ln, i) => doc.text(ln, c[1] + 2, y0 + i * dl.lh));
     }
     hair(L, RR, yd + dH);
     doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.4); doc.line(L, yd + dH + totH, RR, yd + dH + totH);
@@ -868,10 +902,9 @@ function drawFakti(doc, e, imgs, ox) {
     doc.text('TOTAL', c[1] + 2, yd + dH + totH / 2 + 1.3);
     fkType(doc, fkFmtHtg(e.htg), RR - 2, yd + dH + totH / 2 + 1.7, 52, 11.5, { align: 'right', bold: true });
   } };
-  blocks.push(tbl);
 
-  /* Rezime peman (Acha) + logo peman adwat anba total + Fèt pa */
-  blocks.push({ h: 21, draw: y => {
+  /* Rezime peman (Acha) + logo peman adwat anba total, san tit */
+  const summary = { h: 19.5, draw: y => {
     const sw = 62;
     [['MONTAN POU PEYE', e.totalPay], ['MONTAN M BAY', e.paid], ['BALANS M RETE', e.bal]].forEach(([t, v], i) => {
       const yb = y + 4 + i * 6.6;
@@ -882,30 +915,59 @@ function drawFakti(doc, e, imgs, ox) {
     });
     const pw = 64, px = RR - pw;
     if (imgs.pay) fkImgFit(doc, imgs.pay, px, y, pw, 8, 'right');
-    const cb = y + 13.5;
+    const cb = y + 14.5;
     fkBox(doc, RR - 58, cb - 2.9, 3.4, e.net === 'peye');  lab('PEYE NÈT', RR - 53, cb, 6.8);
     fkBox(doc, RR - 30, cb - 2.9, 3.4, e.net === 'pa');    lab('PA PEYE NÈT', RR - 25, cb, 6.8);
-    const fb = y + 20;
-    const w = lab('FÈT PA', px, fb, 6.4);
-    hair(px + w + 2, RR, fb + 1.5);
-    fkType(doc, e.faitPar, px + w + 3, fb, pw - w - 4, 8.8);
-  } });
+  } };
 
-  /* Nòt */
-  if (e.note) blocks.push({ h: 8.5, draw: y => {
+  /* Nòt : maks 3 liy, ti polis si l long */
+  let noteLines = [];
+  if (e.note) {
+    doc.setFont('courier', 'normal'); doc.setFontSize(7);
+    noteLines = fkWrap(doc, e.note, CW - 12);
+    if (noteLines.length > 3) { noteLines = noteLines.slice(0, 3); noteLines[2] = noteLines[2].slice(0, Math.max(0, noteLines[2].length - 3)) + '...'; }
+  }
+  const note = { h: 3 + noteLines.length * 3.4, draw: y => {
     lab('NÒT', L, y + 3, 6.3);
-    doc.setFont('courier', 'normal'); doc.setFontSize(8);
-    const nl = doc.splitTextToSize(e.note, CW - 12).slice(0, 2);
-    nl.forEach((ln, i) => fkType(doc, ln, L + 10, y + 3 + i * 3.9, CW - 12, 8));
-  } });
+    noteLines.forEach((ln, i) => fkType(doc, ln, L + 10, y + 3 + i * 3.4, CW - 12, 7));
+  } };
 
-  /* Distribisyon espas : tablo a grandi ti kras, rès la ant blòk yo */
-  const TOP = 37, BOTTOM = 179, GAP = 4.5;
-  const natural = blocks.reduce((s, b) => s + b.h, 0) + GAP * (blocks.length - 1);
-  let extra = Math.max(0, (BOTTOM - TOP) - natural);
-  const grow = Math.min(extra * 0.4, 10);
-  extra -= grow;
-  const gap = GAP + Math.min(extra / (blocks.length - 1), 6);
+  blocks.push(tbl, summary);
+  if (noteLines.length) blocks.push(note);
+
+  /* Distribisyon espas — deskripsyon (400 kar.) ak nòt rapetisse otomatikman pou fakti a rete nan mwatye paj la */
+  const TOP = 37, BOTTOM = 179, GAP = 4.5, MINGAP = 2.8;
+  const nGaps = blocks.length - 1;
+  const otherH = blocks.filter(b => b !== tbl).reduce((s, b) => s + b.h, 0);
+  const maxDH = (BOTTOM - TOP) - otherH - th - totH - MINGAP * nGaps;
+
+  let dH = Math.min(dataBase, maxDH);
+  if (e.desc) {
+    doc.setFont('courier', 'normal');
+    let size = 8.6, lines, lh, fit = false;
+    for (; size >= 4.8; size = Math.round((size - 0.2) * 10) / 10) {
+      doc.setFontSize(size);
+      lines = fkWrap(doc, e.desc, descW); lh = size * 0.47;
+      if (lines.length * lh + 2 <= maxDH) { fit = true; break; }
+    }
+    if (!fit) {                                   // dènye rekou : koupe nan fen pou pa janm depase paj la
+      size = 4.8; doc.setFontSize(size);
+      lines = fkWrap(doc, e.desc, descW); lh = size * 0.47;
+      const cap = Math.max(1, Math.floor((maxDH - 2) / lh));
+      if (lines.length > cap) { lines = lines.slice(0, cap); lines[cap - 1] = lines[cap - 1].slice(0, Math.max(0, lines[cap - 1].length - 3)) + '...'; }
+    }
+    tbl.dl = { size, lines, lh };
+    dH = Math.max(Math.min(dataBase, maxDH), Math.min(maxDH, lines.length * lh + 5));
+  }
+  tbl.dH = dH;
+  tbl.h = th + dH + totH;
+
+  const natural = blocks.reduce((s, b) => s + b.h, 0) + GAP * nGaps;
+  let extra = (BOTTOM - TOP) - natural, grow = 0, gap;
+  if (extra >= 0) {
+    grow = Math.min(extra * 0.4, 10); extra -= grow;
+    gap = GAP + Math.min(extra / nGaps, 6);
+  } else gap = Math.max(MINGAP, GAP + extra / nGaps);
   let y = TOP;
   blocks.forEach(b => {
     const g = b === tbl ? grow : 0;
@@ -913,13 +975,15 @@ function drawFakti(doc, e, imgs, ox) {
     y += b.h + g + gap;
   });
 
-  /* Anba : fraz + siyati imaj Thomas Kabé (pa gen pye paj) */
+  /* Anba : FÈT PA + siyati imaj manuscrit.jpg (agoch) · fraz fèmti (adwat) — pa gen pye paj */
+  lab('FÈT PA', L, 196, 6.4);
+  hair(L + 10, L + 54, 197);
+  if (imgs.sig) fkImgFit(doc, imgs.sig, L + 10, 183.5, 42, 13.2, 'left');
   doc.setFont('helvetica', 'italic'); doc.setFontSize(7.1); doc.setTextColor(60, 60, 60);
-  doc.text('Nou se patnè fyab ou pou pwojè komès', L, 190);
-  drawLineWithArrows(doc, 'ak livrezon USA -> Ayiti.', L, 194.2, [60, 60, 60]);
+  doc.text('Nou se patnè fyab ou pou pwojè komès', RR, 190, { align: 'right' });
+  drawLineWithArrows(doc, 'ak livrezon USA -> Ayiti.', RR, 194.2, [60, 60, 60], { align: 'right' });
   doc.setFont('helvetica', 'italic'); doc.setFontSize(7.1); doc.setTextColor(60, 60, 60);
-  doc.text('Achte sou entènèt avè n ak konfyans.', L, 198.4);
-  if (imgs.sig) fkImgFit(doc, imgs.sig, RR - 46, 183.5, 46, 15, 'right');
+  doc.text('Achte sou entènèt avè n ak konfyans.', RR, 198.4, { align: 'right' });
 }
 
 async function buildFichesPdf(entries) {
