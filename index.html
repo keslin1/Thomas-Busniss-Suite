@@ -185,13 +185,15 @@
     <div class="module-toolbar">
       <input type="search" id="customerSearch" placeholder="🔍  Chèche kliyan..." class="search-input" oninput="filterCustomers()" />
       <div class="sort-tabs">
-        <button class="sort-tab active" onclick="sortCustomers('name',this)">Non kliyan</button>
+        <button class="sort-tab active" onclick="sortCustomers('recent',this)">Dènye aktivite</button>
+        <button class="sort-tab" onclick="sortCustomers('name',this)">Non kliyan</button>
         <button class="sort-tab" onclick="sortCustomers('amount',this)">Total $</button>
         <button class="sort-tab" onclick="sortCustomers('bilan15',this)">Total</button>
       </div>
       <div class="action-bar">
         <button class="action-sm" onclick="emailAllCustomers()">📧 Email tout</button>
         <button class="action-sm" onclick="exportCustomersPDF()">📄 PDF</button>
+        <button class="action-sm" onclick="openTrash()">🗑 Corbeille <span class="trash-count"></span></button>
       </div>
     </div>
     <div id="customerList" class="list-container"></div>
@@ -450,14 +452,15 @@
 
     <!-- ══════════ FILE D'ATTENTE (jusqu'à 10 factures) ══════════ -->
     <div id="fkPaneQueue" class="module-body scrollable" style="display:none;">
-      <div id="fkQueueBar" style="position:sticky;top:0;z-index:2;background:#1a1520;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:space-between;gap:8px;"></div>
       <div id="fkQueueList"></div>
+      <div id="fkQueueBar" class="fk-bar"></div>
     </div>
 
     <!-- Historique POS -->
     <div id="posHistoryPanel" class="side-panel hidden">
       <div class="panel-header">
         <h3>Istorik fakti</h3>
+        <button onclick="openTrash()" title="Corbeille (30 jours)">🗑 <span class="trash-count"></span></button>
         <button onclick="togglePosHistory()">✕</button>
       </div>
       <div id="posHistoryList" class="list-container"></div>

@@ -3,6 +3,11 @@
    CRM · Gestion Kliyan
    ══════════════════════════════════════════════
 
+   NOUVÈLTÈ v3 :
+   • Kategori kliyan : AKTIF (an premye, klase pa dènye aktivite) / ANSYEN KLIYAN
+     (manyèl oswa otomatik apre CUSTOMER_INACTIVE_DAYS jou san aktivite)
+   • Badge pwofil : ✓ Complet / ⚠ Incomplet (+ sa ki manke)
+   • CORBEILLE : tout efasman (kliyan, tranzaksyon, fakti POS) rete 30 jou anvan efasman definitif
    NOUVÈLTÈ v2 :
    • Tranzaksyon tipaj : 'depans' (dépense client) | 'peman' (paiement reçu)
    • Klasman otomatik : pa montant total depans + frekans
@@ -10,7 +15,7 @@
    ══════════════════════════════════════════════ */
 
 const CUST_KEY = 'tbs_customers';
-let customerSortMode = 'name'; // tri par défaut = alphabétique
+let customerSortMode = 'recent'; // tri par défaut = dernière activité (actifs d'abord)
 let currentCustomerId = null;
 
 const AVATAR_PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%23222'/%3E%3Ccircle cx='32' cy='26' r='12' fill='%23555'/%3E%3Cellipse cx='32' cy='52' rx='18' ry='12' fill='%23555'/%3E%3C/svg%3E";
@@ -24,6 +29,190 @@ function getCustomers() {
 function saveCustomers(list) {
   localStorage.setItem(CUST_KEY, JSON.stringify(list));
 }
+
+/* ══════════════════════════════════════════════
+   KATEGORI KLIYAN : aktif / ansyen + pwofil konplè
+   ══════════════════════════════════════════════ */
+const CUSTOMER_INACTIVE_DAYS = 90;                       // san aktivite pandan 90 jou → ansyen kliyan (si pa fikse a men)
+const CUSTOMER_REQUIRED = [['phone', 'téléphone'], ['address', 'adresse']];   // + non (ajoute ['email','email'] si ou vle l obligatwa)
+let oldSectionCollapsed = false;
+
+/* Dènye aktivite = dènye modifikasyon pwofil la, dènye depans/modifikasyon depans, dènye chanjman kategori */
+function getCustLastActivity(c) {
+  let t = Math.max(c.updatedAt || 0, c.createdAt || 0, c.seniorityAt || 0);
+  (c.transactions || []).forEach(x => { t = Math.max(t, x.updatedAt || 0, x.date || 0); });
+  return t;
+}
+
+/* 'active' | 'old' — fikse a men (c.seniority) genyen sou otomatik */
+function getCustomerCategory(c) {
+  if (c.seniority === 'old')    return 'old';
+  if (c.seniority === 'active') return 'active';
+  return (Date.now() - getCustLastActivity(c)) > CUSTOMER_INACTIVE_DAYS * 86400000 ? 'old' : 'active';
+}
+
+function getProfileStatus(c) {
+  const missing = [];
+  if (!String(c.name || '').trim()) missing.push('nom');
+  CUSTOMER_REQUIRED.forEach(([k, label]) => { if (!String(c[k] || '').trim()) missing.push(label); });
+  return { complete: missing.length === 0, missing };
+}
+
+function profileBadgeHtml(c, clickable) {
+  const ps   = getProfileStatus(c);
+  const base = 'display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:0.65rem;font-weight:700;';
+  if (ps.complete) {
+    return `<span title="Profil complet" style="${base}background:rgba(46,158,107,0.16);color:#5fd39c;border:1px solid rgba(46,158,107,0.45);">✓ Complet</span>`;
+  }
+  const click = clickable ? ` onclick="event.stopPropagation();openCustomerForm('${c.id}');closeCustomerDetail();"` : '';
+  return `<span title="Manque : ${custEsc(ps.missing.join(', '))}"${click} style="${base}background:rgba(230,150,40,0.14);color:#f0b45a;border:1px solid rgba(230,150,40,0.45);${clickable ? 'cursor:pointer;' : ''}">⚠ Incomplet</span>`;
+}
+
+function categoryBadgeHtml(c) {
+  const base = 'display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:0.65rem;font-weight:700;';
+  if (getCustomerCategory(c) === 'old') {
+    const days = Math.floor((Date.now() - getCustLastActivity(c)) / 86400000);
+    return `<span style="${base}background:rgba(160,160,170,0.14);color:#b9b9c4;border:1px solid rgba(160,160,170,0.35);">🕰 Ansyen kliyan${days > 0 ? ' · ' + days + ' j' : ''}</span>`;
+  }
+  return `<span style="${base}background:rgba(80,160,255,0.12);color:#8bbcff;border:1px solid rgba(80,160,255,0.35);">🟢 Aktif</span>`;
+}
+
+/* Mete yon kliyan nan kategori « ansyen » oswa remete l aktif (chwa manyèl) */
+function setCustomerSeniority(id, mode) {
+  const list = getCustomers();
+  const c = list.find(x => x.id === id);
+  if (!c) return;
+  c.seniority   = mode === 'old' ? 'old' : 'active';
+  c.seniorityAt = Date.now();
+  saveCustomers(list);
+  openCustomerDetail(id);
+  renderCustomers();
+  showToast(mode === 'old' ? '🕰 Mete nan ansyen kliyan' : '🟢 Kliyan remete aktif');
+}
+
+function toggleOldClients() { oldSectionCollapsed = !oldSectionCollapsed; renderCustomers(); }
+
+/* Nouvo aktivite (depans) sou yon ansyen kliyan fikse a men → li tounen aktif otomatikman */
+function reactivateIfOld(c) {
+  if (c && c.seniority === 'old') { c.seniority = ''; c.seniorityAt = Date.now(); return true; }
+  return false;
+}
+
+/* ══════════════════════════════════════════════
+   CORBEILLE — tout efasman rete 30 jou, apre sa efase pou tout bon
+   Kalite : 'client' · 'txn' (tranzaksyon) · 'invoice' (fakti POS, anrejistre pa pos.js)
+   ══════════════════════════════════════════════ */
+const TRASH_KEY  = 'tbs_trash_v1';
+const TRASH_DAYS = 30;
+const TRASH_HANDLERS = {};      // kind → { restore(data, item) → true | 'mesaj erè' }
+
+function trashRegister(kind, handler) { TRASH_HANDLERS[kind] = handler; }
+function _trashId() { return (typeof uid === 'function') ? uid() : (Date.now().toString(36) + Math.random().toString(36).slice(2, 8)); }
+function trashGet() { try { return JSON.parse(localStorage.getItem(TRASH_KEY)) || []; } catch { return []; } }
+function trashSave(list) { localStorage.setItem(TRASH_KEY, JSON.stringify(list)); trashUpdateBadge(); }
+
+/* Retire sa ki fin pase 30 jou (rele nan chajman, chak louvèti corbeille ak chak 6 èdtan) */
+function trashPurge() {
+  const now = Date.now(), list = trashGet();
+  const keep = list.filter(x => (x.expiresAt || 0) > now);
+  if (keep.length !== list.length) { try { localStorage.setItem(TRASH_KEY, JSON.stringify(keep)); } catch (err) {} }
+  trashUpdateBadge();
+  return list.length - keep.length;
+}
+
+/* Retounen true si anrejistre. Si espas la plen, eseye san foto. */
+function trashAdd(kind, label, data, extra) {
+  try {
+    trashPurge();
+    const list = trashGet(), now = Date.now();
+    const item = { id: _trashId(), kind, label, data, deletedAt: now, expiresAt: now + TRASH_DAYS * 86400000, ...(extra || {}) };
+    list.unshift(item);
+    try { trashSave(list); }
+    catch (err) {
+      if (item.data && item.data.avatar) { item.data = { ...item.data, avatar: null }; trashSave(list); }
+      else throw err;
+    }
+    return true;
+  } catch (err) { return false; }
+}
+
+function trashDaysLeft(it) { return Math.max(0, Math.ceil(((it.expiresAt || 0) - Date.now()) / 86400000)); }
+function trashFmt(ts) {
+  const d = new Date(ts);
+  return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
+}
+function trashUpdateBadge() {
+  let n = 0; try { n = trashGet().length; } catch (err) {}
+  document.querySelectorAll('.trash-count').forEach(el => { el.textContent = n > 0 ? '(' + n + ')' : ''; });
+}
+
+function trashRestore(id) {
+  const list = trashGet();
+  const it = list.find(x => x.id === id);
+  if (!it) return;
+  const h = TRASH_HANDLERS[it.kind];
+  if (!h) { showToast('⚠️ Restorasyon pa posib isit la'); return; }
+  const res = h.restore(it.data, it);
+  if (res !== true) { showToast(typeof res === 'string' ? res : '⚠️ Restorasyon pa posib'); return; }
+  trashSave(list.filter(x => x.id !== id));
+  showToast('↩️ Restore : ' + it.label);
+  openTrash();
+}
+
+function openTrash() {
+  trashPurge();
+  document.getElementById('trashModal')?.remove();
+  const items = trashGet().sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
+  const icon  = { client: '👤', txn: '💵', invoice: '🧾' };
+  const rows  = items.length === 0
+    ? `<div style="text-align:center;color:rgba(200,190,175,0.5);padding:34px 10px;font-size:0.85rem;">Corbeille vide.</div>`
+    : items.map(it => `
+        <div style="display:flex;align-items:center;gap:10px;padding:11px 4px;border-bottom:1px solid rgba(255,255,255,0.06);">
+          <div style="font-size:1.25rem;">${icon[it.kind] || '📦'}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:0.88rem;font-weight:600;color:#ddd8cc;overflow:hidden;text-overflow:ellipsis;">${custEsc(it.label)}</div>
+            <div style="font-size:0.68rem;color:rgba(200,190,175,0.5);margin-top:2px;">Efase ${trashFmt(it.deletedAt)} · definitif nan ${trashDaysLeft(it)} j</div>
+          </div>
+          <button onclick="trashRestore('${it.id}')" style="flex-shrink:0;background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.4);border-radius:8px;color:#d4af37;font-size:0.76rem;font-weight:600;padding:6px 10px;cursor:pointer;">↩ Restore</button>
+        </div>`).join('');
+  const modal = document.createElement('div');
+  modal.id = 'trashModal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:9100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.72);backdrop-filter:blur(3px);';
+  modal.innerHTML = `
+    <div style="background:#1a1520;border:1px solid rgba(212,175,55,0.35);border-radius:16px;max-width:400px;width:92%;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 0 40px rgba(0,0,0,0.6);">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px 6px;">
+        <div style="font-family:'Rajdhani',sans-serif;font-size:1.05rem;font-weight:700;color:#ddd8cc;">🗑 Corbeille <span style="opacity:0.6;font-weight:500;">(${items.length})</span></div>
+        <button onclick="document.getElementById('trashModal').remove()" style="background:none;border:none;color:#aaa;font-size:1.1rem;cursor:pointer;">✕</button>
+      </div>
+      <div style="padding:0 18px 8px;font-size:0.7rem;color:rgba(200,190,175,0.5);">Tout ce qui est supprimé reste ici ${TRASH_DAYS} jours, puis il est effacé définitivement.</div>
+      <div style="overflow-y:auto;padding:0 18px 16px;">${rows}</div>
+    </div>`;
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
+}
+
+/* Restorasyon pou kliyan ak tranzaksyon */
+trashRegister('client', { restore(data) {
+  const list = getCustomers();
+  if (list.some(c => c.id === data.id)) return '⚠️ Kliyan sa a deja egziste';
+  list.unshift({ ...data, updatedAt: Date.now() });
+  saveCustomers(list);
+  if (typeof renderCustomers === 'function') renderCustomers();
+  return true;
+} });
+trashRegister('txn', { restore(data) {
+  const list = getCustomers();
+  const c = list.find(x => x.id === data.clientId);
+  if (!c) return '⚠️ Kliyan an pa la ankò — restore kliyan an dabò';
+  c.transactions = c.transactions || [];
+  if (c.transactions.some(t => t.id === data.txn.id)) return '⚠️ Tranzaksyon sa a deja la';
+  c.transactions.push(data.txn);
+  c.transactions.sort((a, b) => (a.date || 0) - (b.date || 0));
+  c.updatedAt = Date.now();
+  saveCustomers(list);
+  if (typeof renderCustomers === 'function') renderCustomers();
+  return true;
+} });
 
 /* ── Score d'activité (pour le classement) ── */
 function getActivityScore(c) {
@@ -156,32 +345,37 @@ function renderCustomers() {
     (c.email   || '').toLowerCase().includes(q)
   );
 
-  if (customerSortMode === 'name')     list.sort((a, b) => a.name.localeCompare(b.name));
-  else if (customerSortMode === 'amount') list.sort((a, b) => getTotalDepenses(b) - getTotalDepenses(a));
-  else if (customerSortMode === 'bilan15') list.sort((a, b) => a.name.localeCompare(b.name));
-  else if (customerSortMode === 'activity') list.sort((a, b) => getActivityScore(b) - getActivityScore(a));
-  else list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  const sorter = (a, b) => {
+    if (customerSortMode === 'name' || customerSortMode === 'bilan15') return (a.name || '').localeCompare(b.name || '');
+    if (customerSortMode === 'amount')   return getTotalDepenses(b) - getTotalDepenses(a);
+    if (customerSortMode === 'activity') return getActivityScore(b) - getActivityScore(a);
+    return getCustLastActivity(b) - getCustLastActivity(a);          // 'recent' : dènye aktivite an premye
+  };
+  const active = list.filter(c => getCustomerCategory(c) === 'active').sort(sorter);
+  const old    = list.filter(c => getCustomerCategory(c) === 'old').sort(sorter);
 
   const el = document.getElementById('customerList');
   if (!el) return;
+  trashUpdateBadge();
 
   if (list.length === 0) {
     el.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:48px 20px;font-size:0.9rem;">Okenn kliyan ankò.<br>Peze + pou ajoute premye a.</div>`;
     return;
   }
 
-  el.innerHTML = list.map(c => {
+  const card = (c, isOld) => {
     const total   = getTotalDepenses(c);
     const badge   = getClientBadge(c);
     const avatarHtml = c.avatar
       ? `<img class="cust-avatar" src="${c.avatar}" alt="${custEsc(c.name)}" />`
       : `<div class="cust-initials">${getInitials(c.name)}</div>`;
     return `
-      <div class="customer-card" onclick="openCustomerDetail('${c.id}')">
+      <div class="customer-card" onclick="openCustomerDetail('${c.id}')" ${isOld ? 'style="opacity:0.82;"' : ''}>
         ${avatarHtml}
         <div class="cust-info">
           <div class="cust-name">${custEsc(c.name)}</div>
           <div class="cust-meta">${custEsc(c.phone || c.email || c.address || '—')}</div>
+          <div style="margin-top:4px;">${profileBadgeHtml(c, false)}</div>
         </div>
         <div style="text-align:right;flex-shrink:0;">
           ${total > 0 ? `<div class="cust-total">${fmtCurrency(total)}</div>` : ''}
@@ -193,7 +387,20 @@ function renderCustomers() {
         </div>
       </div>
     `;
-  }).join('');
+  };
+  const head = (icon, title, n, onclick, chevron) => `
+    <div ${onclick ? `onclick="${onclick}"` : ''} style="display:flex;align-items:center;justify-content:space-between;padding:12px 6px 6px;font-family:'Rajdhani',sans-serif;font-size:0.8rem;font-weight:700;letter-spacing:0.08em;color:rgba(212,175,55,0.85);${onclick ? 'cursor:pointer;' : ''}">
+      <span>${icon} ${title}</span><span style="opacity:0.75;">${n}${chevron || ''}</span>
+    </div>`;
+
+  let html = head('🟢', 'KLIYAN AKTIF', active.length);
+  html += active.length ? active.map(c => card(c, false)).join('')
+                        : `<div style="color:var(--text-muted);font-size:0.8rem;padding:6px 8px 10px;">Okenn kliyan aktif.</div>`;
+  if (old.length) {
+    html += head('🕰', 'ANSYEN KLIYAN', old.length, 'toggleOldClients()', oldSectionCollapsed ? ' ▸' : ' ▾');
+    if (!oldSectionCollapsed) html += old.map(c => card(c, true)).join('');
+  }
+  el.innerHTML = html;
 }
 
 function filterCustomers() { renderCustomers(); }
@@ -463,6 +670,8 @@ function openCustomerDetail(id) {
   const badge      = getClientBadge(c);
   const txns       = (c.transactions || []).slice().reverse();
   const txCount    = txns.filter(t => t.txType === 'depans' || !t.txType).length;
+  const profileStatus = getProfileStatus(c);
+  const isOld      = getCustomerCategory(c) === 'old';
 
   const html = `
     <div class="cust-detail-header">
@@ -478,6 +687,8 @@ function openCustomerDetail(id) {
           font-size:0.72rem;font-weight:700;
           background:${badge.color};color:${badge.text};
         ">${badge.emoji} ${badge.label}</span>
+        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">${profileBadgeHtml(c, true)}${categoryBadgeHtml(c)}</div>
+        ${profileStatus.complete ? '' : `<div class="cust-detail-meta" style="color:#f0b45a;margin-top:4px;font-size:0.72rem;">Manque : ${custEsc(profileStatus.missing.join(', '))}</div>`}
       </div>
     </div>
 
@@ -496,6 +707,7 @@ function openCustomerDetail(id) {
     </div>
     <div class="cust-detail-btns">
       <button class="btn-outline-teal" onclick="openCustomerForm('${c.id}');closeCustomerDetail();">✏️ Modifye</button>
+      <button class="btn-outline-teal" onclick="setCustomerSeniority('${c.id}','${isOld ? 'active' : 'old'}')">${isOld ? '🟢 Remete aktif' : '🕰 Ansyen kliyan'}</button>
       <button class="btn-outline-red" onclick="deleteCustomer('${c.id}')">🗑</button>
     </div>
 
@@ -541,12 +753,16 @@ function closeCustomerDetail() {
 }
 
 function deleteCustomer(id) {
-  if (!confirm('Efase kliyan sa a?')) return;
-  const list = getCustomers().filter(c => c.id !== id);
-  saveCustomers(list);
+  const c = getCustomers().find(x => x.id === id);
+  if (!c) return;
+  if (!confirm('Efase kliyan sa a?\n(Li ap rete nan Corbeille ' + TRASH_DAYS + ' jou, ou ka restore l.)')) return;
+  if (!trashAdd('client', c.name || 'Kliyan', c)) {
+    if (!confirm('⚠️ Pa gen ase espas pou mete l nan Corbeille. Efase l kanmenm ?')) return;
+  }
+  saveCustomers(getCustomers().filter(x => x.id !== id));
   closeCustomerDetail();
   renderCustomers();
-  showToast('🗑️ Kliyan efase');
+  showToast('🗑️ Kliyan mete nan Corbeille (' + TRASH_DAYS + ' jou)');
 }
 
 /* ── Transactions ───────────────────────────── */
@@ -581,6 +797,7 @@ function saveTxn() {
 
   list[idx].transactions.push({ id: uid(), amount, desc, txType, date: Date.now() });
   list[idx].updatedAt = Date.now();
+  const wasOld = reactivateIfOld(list[idx]);
 
   const newTotal = getTotalDepenses(list[idx]);
   const newRank  = getTierRank(newTotal);
@@ -589,7 +806,7 @@ function saveTxn() {
   closeTxnOverlay();
   openCustomerDetail(currentCustomerId);
   renderCustomers();
-  showToast(txType === 'peman' ? '✅ Peman anrejistre' : '✅ Depans anrejistre');
+  showToast((txType === 'peman' ? '✅ Peman anrejistre' : '✅ Depans anrejistre') + (wasOld ? ' · 🟢 kliyan remete aktif' : ''));
 
   if (txType === 'depans' && newRank > prevRank) {
     const badge = getClientBadge(list[idx]);
@@ -869,7 +1086,9 @@ function saveEditTxn(clientId, txnId) {
 
   list[cIdx].transactions[tIdx].amount = newAmount;
   list[cIdx].transactions[tIdx].desc   = newDesc;
+  list[cIdx].transactions[tIdx].updatedAt = Date.now();
   list[cIdx].updatedAt = Date.now();
+  reactivateIfOld(list[cIdx]);
 
   const newRank = getTierRank(getTotalDepenses(list[cIdx]));
   saveCustomers(list);
@@ -887,11 +1106,18 @@ function saveEditTxn(clientId, txnId) {
 
 /* ── Efase yon tranzaksyon pa occasion ────────── */
 function deleteTxn(clientId, txnId) {
-  if (!confirm('Efase tranzaksyon sa a?')) return;
+  if (!confirm('Efase tranzaksyon sa a?\n(Li ap rete nan Corbeille ' + TRASH_DAYS + ' jou, ou ka restore l.)')) return;
 
   const list = getCustomers();
   const cIdx = list.findIndex(x => x.id === clientId);
   if (cIdx === -1) return;
+  const txn = (list[cIdx].transactions || []).find(t => t.id === txnId);
+  if (!txn) return;
+
+  const label = (txn.desc || 'Tranzaksyon') + ' · ' + fmtCurrency(txn.amount) + ' · ' + (list[cIdx].name || '');
+  if (!trashAdd('txn', label, { clientId, clientName: list[cIdx].name, txn })) {
+    if (!confirm('⚠️ Pa gen ase espas pou mete l nan Corbeille. Efase l kanmenm ?')) return;
+  }
 
   list[cIdx].transactions = (list[cIdx].transactions || []).filter(t => t.id !== txnId);
   list[cIdx].updatedAt = Date.now();
@@ -899,7 +1125,7 @@ function deleteTxn(clientId, txnId) {
   saveCustomers(list);
   openCustomerDetail(clientId);
   renderCustomers();
-  showToast('🗑️ Tranzaksyon efase');
+  showToast('🗑️ Tranzaksyon mete nan Corbeille (' + TRASH_DAYS + ' jou)');
 }
 
 
@@ -907,3 +1133,9 @@ function deleteTxn(clientId, txnId) {
 function custEsc(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+/* ── Purge automatique de la corbeille (30 jours) ── */
+trashPurge();
+document.addEventListener('DOMContentLoaded', () => { trashPurge(); renderCustomersSafe(); });
+setInterval(trashPurge, 6 * 3600 * 1000);
+function renderCustomersSafe() { try { trashUpdateBadge(); } catch (err) {} }

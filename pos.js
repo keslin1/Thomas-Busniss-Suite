@@ -46,10 +46,15 @@ function fkNum(s) { const n = parseFloat(String(s || '').replace(',', '.').repla
 
 /* ── Estokaj ─────────────────────────────────── */
 function fkGet() { try { return JSON.parse(localStorage.getItem(FK_KEY)) || []; } catch { return []; } }
-function fkSave(list) {
-  /* Fakti pa enprime pa janm efase · istorik = 20 dènye fakti enprime */
-  const printed = list.filter(e => e.printed).sort((a, b) => (b.date || 0) - (a.date || 0)).slice(0, FK_PRINTED_MAX);
+function fkSave(list, opts) {
+  /* Fakti pa enprime pa janm retire · istorik = 20 dènye fakti enprime.
+     Sa ki retire otomatikman ale nan Corbeille (30 jou) olye yo disparèt. */
+  const printed = list.filter(e => e.printed).sort((a, b) => (b.restoredAt || b.date || 0) - (a.restoredAt || a.date || 0)).slice(0, FK_PRINTED_MAX);
   const keep = new Set([...list.filter(e => !e.printed), ...printed].map(e => e.id));
+  const dropped = list.filter(e => !keep.has(e.id));
+  if (dropped.length && !(opts && opts.noTrash) && typeof trashAdd === 'function') {
+    dropped.forEach(e => trashAdd('invoice', 'Fakti lcd' + fkPad(e.invoiceNo) + ' · ' + (e.clientName || '') + ' (istorik > ' + FK_PRINTED_MAX + ')', e, { auto: true }));
+  }
   localStorage.setItem(FK_KEY, JSON.stringify(list.filter(e => keep.has(e.id))));
 }
 /* Kompatibilite ansyen non (lòt fichye ka rele yo) */
@@ -91,7 +96,7 @@ function fkNextNo() {
         usd: h.total ? six(Number(h.total).toFixed(2).replace(/\.00$/, '')) : '', htg: h.total ? six(Math.round(h.total * 135)) : '' });
     });
     out.sort((a, b) => (b.date || 0) - (a.date || 0));
-    fkSave(out);
+    fkSave(out, { noTrash: true });
     localStorage.setItem(FK_MIGRATED, '1');
   } catch (err) {}
 })();
@@ -103,22 +108,23 @@ function normTxt(s) {
   return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 }
 
-function fkEnsureCustomer(e) {
+function fkFindCustomer(e) {
+  if (typeof getCustomers !== 'function') return null;
+  const list = getCustomers();
+  return (e.custId && list.find(x => x.id === e.custId)) || list.find(x => normTxt(x.name) === normTxt(e.clientName)) || null;
+}
+/* Kreye kliyan an nan LCD Customers (rele sèlman lè itilizatè a klike « Enregistrer ce client ») */
+function fkCreateCustomer(e) {
   if (typeof getCustomers !== 'function' || typeof saveCustomers !== 'function') return null;
   const list = getCustomers();
-  let c = e.custId ? list.find(x => x.id === e.custId) : null;
-  if (!c) c = list.find(x => normTxt(x.name) === normTxt(e.clientName));
+  let c = list.find(x => normTxt(x.name) === normTxt(e.clientName));
   if (!c) {
     c = { id: fkUid(), name: e.clientName, address: e.clientAddr || '', phone: e.clientPhone || '', email: e.clientEmail || '',
           bio: '', avatar: null, transactions: [], createdAt: Date.now(), updatedAt: Date.now() };
     list.unshift(c);
-  } else {
-    if (!c.address && e.clientAddr)  c.address = e.clientAddr;
-    if (!c.phone   && e.clientPhone) c.phone   = e.clientPhone;
-    if (!c.email   && e.clientEmail) c.email   = e.clientEmail;
+    saveCustomers(list);
   }
-  saveCustomers(list);
-  return c.id;
+  return c;
 }
 
 /* Etap peman : dènye sèvis ki ajoute a. Acha → apre sa Shipping = 2yèm peman (pa doublon) */
@@ -135,13 +141,17 @@ function fkStageFor(prev, acha, ship) {
 
 /* Anrejistre (oswa korije) peman an nan pwofil kliyan an. Chak etap = yon sèl tranzaksyon. */
 function fkLogPayment(e, stage, amount) {
-  if (!(amount > 0) || typeof getCustomers !== 'function') return;
-  const custId = fkEnsureCustomer(e);
-  if (!custId) return;
+  if (!(amount > 0) || typeof getCustomers !== 'function') return null;
+  const found = fkFindCustomer(e);
+  if (!found) return 'nocust';                       // kliyan pa enskri → pa gen peman nan pwofil
+  const custId = found.id;
   const list = getCustomers();
   const c = list.find(x => x.id === custId);
-  if (!c) return;
+  if (!c) return 'nocust';
   if (!c.transactions) c.transactions = [];
+  if (!c.address && e.clientAddr)  c.address = e.clientAddr;
+  if (!c.phone   && e.clientPhone) c.phone   = e.clientPhone;
+  if (!c.email   && e.clientEmail) c.email   = e.clientEmail;
 
   const prevRank = getTierRank(getTotalDepenses(c));
   const origin = (e.origins || []).map(k => PLAT_MAP[k] ? PLAT_MAP[k].label : '').filter(Boolean).join(' + ');
@@ -165,6 +175,7 @@ function fkLogPayment(e, stage, amount) {
     e.pays.push({ stage, usd: amount, txId, custId, date: Date.now() });
   }
   c.updatedAt = Date.now();
+  if (typeof reactivateIfOld === 'function') reactivateIfOld(c);     // nouvo depans → ansyen kliyan tounen aktif
   e.custId = custId;
   saveCustomers(list);
 
@@ -172,6 +183,7 @@ function fkLogPayment(e, stage, amount) {
     showCelebrationModal(c.name, getClientBadge(c));
   }
   if (typeof renderCustomers === 'function') { try { renderCustomers(); } catch (err) {} }
+  return 'ok';
 }
 
 /* ══════════════════════════════════════════════
@@ -273,10 +285,12 @@ function fkCount() {
 /* ══════════════════════════════════════════════
    « TERMINÉ POUR X » — enrejistre fakti a + peman nan pwofil
    ══════════════════════════════════════════════ */
-function fkFinish() {
+function fkFinish(skipAsk) {
   const f = fkRead();
   if (!f.clientName) { showToast('Antre non kliyan an'); return; }
   if (!f.acha && !f.ship) { showToast('Chwazi Acha oswa Shipping'); return; }
+  /* Kliyan pa nan LCD Customers → mande si nou anrejistre l (menm depi ekran POS la) */
+  if (skipAsk !== true && typeof getCustomers === 'function' && !fkFindCustomer(f)) { fkAskRegisterClient(f); return; }
 
   const list = fkGet();
   const idx = fkEditingId ? list.findIndex(h => h.id === fkEditingId) : -1;
@@ -297,16 +311,59 @@ function fkFinish() {
   const pk = e.pays || [];
   const warn = (amt > 0 && !pk.some(p => p.stage === stage) && pk.some(p => Math.abs((p.usd || 0) - amt) < 0.005))
     ? ' · ⚠ menm montan ak peman anvan an — verifye Montan US' : '';
-  fkLogPayment(e, stage, amt);
+  const logged = fkLogPayment(e, stage, amt);
+  const nocust = (logged === 'nocust') ? ' · ⚠ kliyan pa enskri : peman pa nan pwofil' : '';
   if (typeof savePosClient === 'function') savePosClient(e.clientName, e.clientAddr, e.clientPhone);
   fkSave(list);
 
   const q = fkGet().filter(h => !h.printed).length;
-  showToast('Fakti #lcd' + fkPad(e.invoiceNo) + (idx < 0 ? ' anrejistre' : ' mete ajou') + ' · file : ' + q + warn);
+  showToast('Fakti #lcd' + fkPad(e.invoiceNo) + (idx < 0 ? ' anrejistre' : ' mete ajou') + ' · file : ' + q + warn + nocust);
   fkClear(true);
   fkRefresh();
   if (idx >= 0) switchPosTab('queue');
 }
+
+/* ── Modal : kliyan ki pa nan LCD Customers ── */
+let fkPendingClient = null;
+function fkAskRegisterClient(f) {
+  fkInjectStyles();
+  fkPendingClient = f;
+  const old = fkEl('fkClientModal'); if (old) old.remove();
+  const ps = (typeof getProfileStatus === 'function')
+    ? getProfileStatus({ name: f.clientName, phone: f.clientPhone, address: f.clientAddr, email: f.clientEmail }) : null;
+  const m = document.createElement('div');
+  m.id = 'fkClientModal';
+  m.className = 'fk-modal-bg';
+  m.innerHTML = `
+    <div class="fk-modal">
+      <div class="fk-modal-ico">👤</div>
+      <div class="fk-modal-title">Client non enregistré</div>
+      <div class="fk-modal-text"><b>${esc(f.clientName)}</b> n'existe pas encore dans LCD Customers.<br>Voulez-vous l'enregistrer maintenant ?</div>
+      <div class="fk-modal-box">
+        <div><span>Adrès</span><em>${esc(f.clientAddr) || '—'}</em></div>
+        <div><span>Telefòn</span><em>${esc(f.clientPhone) || '—'}</em></div>
+        <div><span>Imèl</span><em>${esc(f.clientEmail) || '—'}</em></div>
+      </div>
+      ${ps ? `<div class="fk-modal-status ${ps.complete ? 'ok' : 'warn'}">${ps.complete ? '✓ Profil complet' : '⚠ Profil incomplet — manque : ' + esc(ps.missing.join(', '))}</div>` : ''}
+      <button class="fk-btn-gold" onclick="fkRegisterClientNow()">✅ Enregistrer ce client et continuer</button>
+      <button class="fk-btn-ghost" onclick="fkSkipRegister()">Continuer sans l'enregistrer</button>
+      <button class="fk-btn-link" onclick="fkCloseClientModal()">Annuler</button>
+    </div>`;
+  document.body.appendChild(m);
+}
+function fkCloseClientModal() { const m = fkEl('fkClientModal'); if (m) m.remove(); fkPendingClient = null; }
+function fkRegisterClientNow() {
+  const f = fkPendingClient;
+  fkCloseClientModal();
+  if (!f) return;
+  const c = fkCreateCustomer(f);
+  if (c) {
+    showToast('✅ Kliyan anrejistre nan LCD Customers');
+    if (typeof renderCustomers === 'function') { try { renderCustomers(); } catch (err) {} }
+  }
+  fkFinish(true);
+}
+function fkSkipRegister() { fkCloseClientModal(); fkFinish(true); }
 
 function fkEdit(id) {
   const e = fkGet().find(h => h.id === id); if (!e) return;
@@ -343,34 +400,57 @@ function fkRefresh() {
 }
 
 function fkFlagChips(h) {
-  const chip = (t) => `<span style="font-size:0.62rem;background:rgba(255,255,255,0.1);color:#ddd8cc;border-radius:4px;padding:1px 5px;margin-right:4px;">${t}</span>`;
-  return (h.acha ? chip('ACHA') : '') + (h.ship ? chip('SHIPPING') : '');
+  return (h.acha ? '<span class="fk-chip">ACHA</span>' : '') + (h.ship ? '<span class="fk-chip">SHIPPING</span>' : '');
+}
+
+function fkRenderBar(q) {
+  const bar = fkEl('fkQueueBar'); if (!bar) return;
+  if (!q.length) { bar.style.display = 'none'; return; }
+  bar.style.display = '';
+  const sel = fkSelected.map(id => q.find(h => h.id === id)).filter(Boolean);
+  const slot = (i) => sel[i]
+    ? `<div class="fk-slot on"><span class="n">${i + 1}</span><span class="t">${esc(sel[i].clientName)}</span><button class="x" onclick="fkUnselect('${sel[i].id}')" title="Retirer">✕</button></div>`
+    : `<div class="fk-slot"><span class="n">${i + 1}</span><span class="t">Facture ${i + 1}</span></div>`;
+  const n = sel.length;
+  const icon = `<svg width="26" height="20" viewBox="0 0 26 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="1.5" y="1.5" width="23" height="17" rx="2.5"/><path d="M13 3.5v13" stroke-dasharray="2 2.2"/></svg>`;
+  bar.innerHTML = `
+    <div class="fk-bar-top"><span>PAGE A4 PAYSAGE</span><span>${n} / 2 · ${q.length} / ${FK_QUEUE_MAX} en file</span></div>
+    <div class="fk-page">${slot(0)}${slot(1)}</div>
+    <button class="fk-gen" onclick="fkPrintSelected()" ${n ? '' : 'disabled'}>
+      <span class="ico">${icon}</span>
+      <span class="txt"><b>${n ? 'Générer le PDF' : 'Choisissez 1 ou 2 factures'}</b><small>${n === 2 ? 'A4 paysage · 2 factures' : (n === 1 ? 'A4 paysage · 1 facture (demi-page)' : 'deux factures par feuille')}</small></span>
+      <span class="go">${n ? '→' : ''}</span>
+    </button>`;
+}
+
+function fkUnselect(id) {
+  fkSelected = fkSelected.filter(x => x !== id);
+  fkRenderQueue();
 }
 
 function fkRenderQueue() {
+  fkInjectStyles();
   const el = fkEl('fkQueueList'); if (!el) return;
   const q = fkGet().filter(h => !h.printed);
   fkSelected = fkSelected.filter(id => q.some(h => h.id === id));
-  const bar = fkEl('fkQueueBar');
-  if (bar) bar.innerHTML = `<span id="fkSelCount" style="font-size:0.74rem;color:rgba(200,190,175,0.6);">${fkSelected.length} / 2 chwazi · ${q.length} / ${FK_QUEUE_MAX} nan file</span>
-    <button onclick="fkPrintSelected()" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.3);border-radius:6px;color:#fff;font-size:0.78rem;padding:7px 12px;cursor:pointer;">📄 PDF paysaj (1-2 fakti)</button>`;
-  if (!q.length) { el.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:30px;font-size:0.85rem;">File d'attente vid.<br>Fè yon fakti epi klike « Terminé pour… ».</div>`; return; }
-  el.innerHTML = q.map(h => `
-    <div style="padding:12px 14px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;justify-content:space-between;align-items:center;gap:8px;">
-      <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;min-width:0;">
-        <input type="checkbox" ${fkSelected.includes(h.id) ? 'checked' : ''} onchange="fkToggleSel('${h.id}', this)" style="margin-top:3px;" />
-        <div style="min-width:0;">
-          <div style="font-size:0.92rem;font-weight:600;color:#ddd8cc;">${esc(h.clientName)}</div>
-          <div style="margin-top:3px;">${fkFlagChips(h)}</div>
-          <div style="font-size:0.72rem;color:rgba(200,190,175,0.45);margin-top:3px;">#lcd${fkPad(h.invoiceNo)} · ${fkFmtDate(h.date)}${h.usd ? ' · ' + esc(fkFmtUsd(h.usd)) : ''}</div>
+  fkRenderBar(q);
+  if (!q.length) { el.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:30px;font-size:0.85rem;">File d'attente vide.<br>Faites une facture puis cliquez « Terminé pour… ».</div>`; return; }
+  el.innerHTML = `<div class="fk-list">` + q.map(h => `
+    <div class="fk-card${fkSelected.includes(h.id) ? ' sel' : ''}">
+      <label class="fk-card-main">
+        <input type="checkbox" class="fk-check" ${fkSelected.includes(h.id) ? 'checked' : ''} onchange="fkToggleSel('${h.id}', this)" />
+        <div class="fk-card-txt">
+          <div class="fk-card-name">${esc(h.clientName)}</div>
+          <div>${fkFlagChips(h)}</div>
+          <div class="fk-card-sub">#lcd${fkPad(h.invoiceNo)} · ${fkFmtDate(h.date)}${h.usd ? ' · ' + esc(fkFmtUsd(h.usd)) : ''}</div>
         </div>
       </label>
-      <div style="display:flex;gap:6px;flex-shrink:0;">
-        <button onclick="fkEdit('${h.id}')" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:6px;color:#ddd8cc;font-size:0.8rem;padding:6px 9px;cursor:pointer;">✏️</button>
-        <button onclick="fkDuplicate('${h.id}')" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:6px;color:#ddd8cc;font-size:0.8rem;padding:6px 9px;cursor:pointer;">📑</button>
-        <button onclick="fkDelete('${h.id}')" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:rgba(200,190,175,0.7);font-size:0.8rem;padding:6px 9px;cursor:pointer;">🗑</button>
+      <div class="fk-card-act">
+        <button onclick="fkEdit('${h.id}')" title="Modifier">✏️</button>
+        <button onclick="fkDuplicate('${h.id}')" title="Dupliquer">📑</button>
+        <button onclick="fkDelete('${h.id}')" title="Supprimer (corbeille 30 jours)">🗑</button>
       </div>
-    </div>`).join('');
+    </div>`).join('') + `</div>`;
 }
 
 function fkToggleSel(id, cb) {
@@ -379,16 +459,19 @@ function fkToggleSel(id, cb) {
     if (fkSelected.length >= 2) { cb.checked = false; showToast('Maksimòm 2 fakti pa paj'); return; }
     if (i < 0) fkSelected.push(id);
   } else if (i >= 0) fkSelected.splice(i, 1);
-  const n = fkEl('fkSelCount');
-  if (n) n.textContent = fkSelected.length + ' / 2 chwazi · ' + fkGet().filter(h => !h.printed).length + ' / ' + FK_QUEUE_MAX + ' nan file';
+  fkRenderQueue();
 }
 
 function fkDelete(id) {
   const e = fkGet().find(h => h.id === id); if (!e) return;
-  if (!confirm('Efase fakti ' + e.clientName + ' ? (peman nan pwofil kliyan an rete)')) return;
-  fkSave(fkGet().filter(h => h.id !== id));
+  if (!confirm('Efase fakti ' + e.clientName + ' ?\n(Li ap rete nan Corbeille 30 jou · peman nan pwofil kliyan an rete)')) return;
+  if (typeof trashAdd === 'function' && !trashAdd('invoice', 'Fakti lcd' + fkPad(e.invoiceNo) + ' · ' + (e.clientName || ''), e)) {
+    if (!confirm('⚠️ Pa gen ase espas pou mete l nan Corbeille. Efase l kanmenm ?')) return;
+  }
+  fkSave(fkGet().filter(h => h.id !== id), { noTrash: true });
   if (fkEditingId === id) fkClear(true);
   fkRefresh();
+  showToast('🗑️ Fakti mete nan Corbeille (30 jou)');
 }
 
 /* Duplike yon fakti nan file a : kopi rete nan file a (pa gen PDF), san peman — modifye l apre ak ✏️ */
@@ -801,15 +884,15 @@ function drawFakti(doc, e, imgs, ox) {
   doc.text('+509 35 60 88 69  |  lescayesdropshipping@gmail.com', L + 25, 26.6);
   doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(FK_RED[0], FK_RED[1], FK_RED[2]);
   doc.text('No. lcd' + fkPad(e.invoiceNo), RR, 26.6, { align: 'right' });
-  {   /* Fraz komèsyal yon sèl liy, anba enfo konpayi a */
+  doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.5); doc.line(L, 30.8, RR, 30.8);
+  {   /* Fraz komèsyal yon sèl liy, anba gwo liy antèt la */
     const tag = 'Nou se patnè fyab ou pou pwojè komès ak livrezon USA -> Ayiti.  Achte sou entènèt avè n ak konfyans.';
     let ts = 7.2;
     doc.setFont('helvetica', 'italic'); doc.setFontSize(ts);
     while (ts > 5.2 && doc.getTextWidth(tag) > CW) { ts -= 0.2; doc.setFontSize(ts); }
     doc.setTextColor(60, 60, 60);
-    drawLineWithArrows(doc, tag, (L + RR) / 2, 31.2, [60, 60, 60], { align: 'center' });
+    drawLineWithArrows(doc, tag, (L + RR) / 2, 35.4, [60, 60, 60], { align: 'center' });
   }
-  doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.5); doc.line(L, 33.4, RR, 33.4);
 
   /* ── Blòk yo (flux vètikal : fakti a pa janm depase mwatye paj la) ── */
   const lw = 78, rgap = 4.5, rwid = CW - lw - rgap, rx = L + lw + rgap;
@@ -929,7 +1012,7 @@ function drawFakti(doc, e, imgs, ox) {
   if (noteLines.length) blocks.push(note);
 
   /* Distribisyon espas — deskripsyon (400 kar.) ak nòt rapetisse otomatikman pou fakti a rete nan mwatye paj la */
-  const TOP = 37, BOTTOM = 182, GAP = 4.5, MINGAP = 2.8;
+  const TOP = 39.5, BOTTOM = 182, GAP = 4.5, MINGAP = 2.8;
   const nGaps = blocks.length - 1;
   const otherH = blocks.filter(b => b !== tbl).reduce((s, b) => s + b.h, 0);
   const maxDH = (BOTTOM - TOP) - otherH - th - totH - MINGAP * nGaps;
@@ -1007,11 +1090,82 @@ function generatePOSInvoice() { fkFinish(); }
 function generateAchaInvoice() { fkFinish(); }
 function clearPosForm() { fkClear(); }
 
+/* ── Stil (enjekte yon sèl fwa) : bar PDF, kat file, modal kliyan ── */
+function fkInjectStyles() {
+  if (document.getElementById('fkStyles')) return;
+  const st = document.createElement('style');
+  st.id = 'fkStyles';
+  st.textContent = `
+  .fk-list{padding:8px 12px 4px;display:flex;flex-direction:column;gap:8px}
+  .fk-card{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 12px;border-radius:14px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08);transition:border-color .18s,background .18s,transform .18s}
+  .fk-card.sel{border-color:rgba(212,175,55,.65);background:rgba(212,175,55,.07);box-shadow:0 0 0 1px rgba(212,175,55,.15) inset}
+  .fk-card-main{display:flex;gap:11px;align-items:center;cursor:pointer;min-width:0;flex:1}
+  .fk-check{width:18px;height:18px;accent-color:#d4af37;flex-shrink:0}
+  .fk-card-txt{min-width:0}
+  .fk-card-name{font-size:.93rem;font-weight:600;color:#ddd8cc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fk-card-sub{font-size:.7rem;color:rgba(200,190,175,.5);margin-top:3px}
+  .fk-chip{display:inline-block;font-size:.58rem;font-weight:700;letter-spacing:.06em;padding:1px 6px;margin:3px 4px 0 0;border-radius:5px;background:rgba(255,255,255,.09);color:#cfc9bb}
+  .fk-card-act{display:flex;gap:6px;flex-shrink:0}
+  .fk-card-act button{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);border-radius:9px;color:#ddd8cc;font-size:.82rem;padding:6px 9px;cursor:pointer}
+  .fk-card-act button:active{transform:scale(.95)}
+  .fk-bar{position:sticky;bottom:0;z-index:3;margin-top:10px;padding:12px 14px 16px;background:linear-gradient(180deg,rgba(18,14,24,0) 0%,rgba(18,14,24,.94) 26%,#120e18 100%);border-top:1px solid rgba(212,175,55,.2);backdrop-filter:blur(6px)}
+  .fk-bar-top{display:flex;justify-content:space-between;align-items:center;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.68rem;letter-spacing:.12em;color:rgba(212,175,55,.75);margin-bottom:8px}
+  .fk-page{position:relative;display:grid;grid-template-columns:1fr 1fr;border:1px solid rgba(212,175,55,.38);border-radius:12px;background:rgba(255,255,255,.03);margin-bottom:11px}
+  .fk-page::after{content:'';position:absolute;top:9px;bottom:9px;left:50%;border-left:1px dashed rgba(212,175,55,.38)}
+  .fk-slot{min-height:46px;padding:8px 10px;display:flex;align-items:center;gap:8px;font-size:.78rem;color:rgba(200,190,175,.38);min-width:0}
+  .fk-slot .n{flex-shrink:0;width:19px;height:19px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:.66rem;font-weight:700;border:1px solid rgba(212,175,55,.45);color:#d4af37}
+  .fk-slot.on{color:#f3e6b8}
+  .fk-slot.on .n{background:#d4af37;color:#1a0e00;border-color:#d4af37}
+  .fk-slot .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .fk-slot .x{background:none;border:0;color:rgba(243,230,184,.65);font-size:.85rem;cursor:pointer;padding:0 2px}
+  .fk-gen{width:100%;display:flex;align-items:center;gap:12px;padding:12px 16px;border:0;border-radius:15px;cursor:pointer;color:#1d1200;background:linear-gradient(135deg,#f6dc8e 0%,#d9b440 48%,#b78a12 100%);box-shadow:0 8px 22px rgba(212,175,55,.26),inset 0 1px 0 rgba(255,255,255,.5);transition:transform .15s,box-shadow .15s,filter .15s;font-family:'Rajdhani',sans-serif}
+  .fk-gen:hover{filter:brightness(1.05);box-shadow:0 10px 26px rgba(212,175,55,.34),inset 0 1px 0 rgba(255,255,255,.55)}
+  .fk-gen:active{transform:translateY(1px) scale(.992)}
+  .fk-gen .ico{display:inline-flex;align-items:center;justify-content:center;width:42px;height:34px;border-radius:10px;background:rgba(29,18,0,.12)}
+  .fk-gen .txt{display:flex;flex-direction:column;align-items:flex-start;line-height:1.15;flex:1}
+  .fk-gen .txt b{font-size:1.02rem;font-weight:700;letter-spacing:.03em}
+  .fk-gen .txt small{font-size:.66rem;font-weight:600;letter-spacing:.07em;opacity:.7;text-transform:uppercase}
+  .fk-gen .go{font-size:1.25rem;font-weight:700;opacity:.8}
+  .fk-gen[disabled]{cursor:not-allowed;color:rgba(200,190,175,.42);background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,.09);filter:none}
+  .fk-gen[disabled] .ico{background:rgba(255,255,255,.05)}
+  .fk-modal-bg{position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.72);backdrop-filter:blur(3px)}
+  .fk-modal{width:90%;max-width:340px;padding:24px 22px 18px;border-radius:18px;background:#1a1520;border:1px solid rgba(212,175,55,.38);box-shadow:0 0 46px rgba(0,0,0,.65);text-align:center}
+  .fk-modal-ico{font-size:2rem;margin-bottom:4px}
+  .fk-modal-title{font-family:'Rajdhani',sans-serif;font-size:1.12rem;font-weight:700;color:#ddd8cc;margin-bottom:6px}
+  .fk-modal-text{font-size:.84rem;line-height:1.45;color:rgba(221,216,204,.78);margin-bottom:12px}
+  .fk-modal-text b{color:#f1e3b0}
+  .fk-modal-box{text-align:left;font-size:.76rem;padding:9px 12px;border-radius:11px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);margin-bottom:9px}
+  .fk-modal-box div{display:flex;gap:8px;padding:2px 0}
+  .fk-modal-box span{flex:0 0 58px;color:rgba(200,190,175,.5)}
+  .fk-modal-box em{font-style:normal;color:#ddd8cc;word-break:break-word}
+  .fk-modal-status{font-size:.72rem;font-weight:700;margin-bottom:12px}
+  .fk-modal-status.ok{color:#5fd39c}
+  .fk-modal-status.warn{color:#f0b45a}
+  .fk-btn-gold{width:100%;padding:12px;border:0;border-radius:12px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.95rem;color:#1d1200;background:linear-gradient(135deg,#f6dc8e,#d9b440 50%,#b78a12);box-shadow:0 6px 18px rgba(212,175,55,.25)}
+  .fk-btn-ghost{width:100%;margin-top:8px;padding:11px;border-radius:12px;cursor:pointer;font-size:.84rem;color:#ddd8cc;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.13)}
+  .fk-btn-link{margin-top:8px;padding:8px;background:none;border:0;color:rgba(200,190,175,.55);font-size:.8rem;cursor:pointer}
+  `;
+  document.head.appendChild(st);
+}
+
 /* ── Init ────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
+  fkInjectStyles();
   initFkAutocomplete();
   const d = fkEl('fkDesc'); if (d) d.addEventListener('input', fkCount);
   fkClear(true);
   switchPosTab('new');
   fkRefresh();
 });
+
+/* ── Corbeille (customers.js) : restorasyon fakti ── */
+if (typeof trashRegister === 'function') {
+  trashRegister('invoice', { restore(data) {
+    const list = fkGet();
+    if (list.some(h => h.id === data.id)) return '⚠️ Fakti sa a deja la';
+    list.unshift({ ...data, restoredAt: Date.now() });
+    fkSave(list);
+    fkRefresh();
+    return true;
+  } });
+}
