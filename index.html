@@ -347,22 +347,22 @@
         </div>
       </div>
 
-      <!-- C. Liy fakti a : manyèl · ekstansyon otomatik -->
-      <div style="padding:12px 14px 0;font-size:0.68rem;font-weight:800;color:rgba(212,175,55,0.7);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;">C. LIY FAKTI (manyèl)</div>
+      <!-- C. Liy fakti a : Montan US ak Total HTG kalkile otomatikman (ou ka pèsonalize yo) -->
+      <div style="padding:12px 14px 0;font-size:0.68rem;font-weight:800;color:rgba(212,175,55,0.7);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;">C. LIY FAKTI</div>
       <div class="two-col" style="padding:0 14px;">
         <div>
           <label class="pos-label">Pwa <span style="opacity:0.55;font-weight:400;">(23 → 23 LBS)</span></label>
-          <input type="text" id="fkPwa" maxlength="6" placeholder="Eks: 23" class="form-input" />
+          <input type="text" id="fkPwa" maxlength="6" placeholder="Eks: 23" class="form-input" oninput="fkRecalc()" />
         </div>
         <div>
           <label class="pos-label">Pri U.</label>
-          <select id="fkPriSel" class="form-input" style="cursor:pointer;" onchange="fkOnPri()">
+          <select id="fkPriSel" class="form-input" style="cursor:pointer;" onchange="fkOnPri();fkRecalc()">
             <option value="">— Chwazi —</option>
             <option value="3,99">3,99$</option>
             <option value="4,90">4,90$</option>
             <option value="other">Lòt pri…</option>
           </select>
-          <input type="text" id="fkPriOther" maxlength="6" placeholder="Eks: 5.50" class="form-input" style="display:none;margin-top:6px;" />
+          <input type="text" id="fkPriOther" maxlength="6" placeholder="Eks: 5.50" class="form-input" style="display:none;margin-top:6px;" oninput="fkRecalc()" />
         </div>
       </div>
       <div class="pos-field-group">
@@ -372,45 +372,51 @@
       <div class="two-col" style="padding:0 14px;">
         <div>
           <label class="pos-label">Taux <span style="opacity:0.55;font-weight:400;">(135 → 135 HTG)</span></label>
-          <input type="text" id="fkTaux" maxlength="6" placeholder="Eks: 135" class="form-input" />
+          <input type="text" id="fkTaux" maxlength="6" placeholder="Eks: 135" class="form-input" oninput="fkRecalc()" />
         </div>
         <div>
-          <label class="pos-label">Montan US <span style="opacity:0.55;font-weight:400;">(39 → 39$)</span></label>
-          <input type="text" id="fkUsd" maxlength="6" placeholder="Eks: 39" class="form-input" />
+          <label class="pos-label" style="display:flex;justify-content:space-between;align-items:center;">
+            <span>Montan US <span style="opacity:0.55;font-weight:400;">(pwa × pri U.)</span></span>
+            <button type="button" id="fkResetUsd" onclick="fkResetAuto('usd')" style="display:none;background:none;border:0;color:#d4af37;font-size:0.68rem;cursor:pointer;padding:0;">↺ Auto</button>
+          </label>
+          <input type="text" id="fkUsd" maxlength="8" placeholder="Otomatik" class="form-input" oninput="fkOnCustom('usd')" />
         </div>
       </div>
       <div class="pos-field-group">
-        <label class="pos-label">Total HTG <span style="opacity:0.55;font-weight:400;">(an gras sou fakti a)</span></label>
-        <input type="text" id="fkHtg" maxlength="6" placeholder="Eks: 5265" class="form-input" />
+        <label class="pos-label" style="display:flex;justify-content:space-between;align-items:center;">
+          <span>Total HTG <span style="opacity:0.55;font-weight:400;">((Montan US + balans) × taux · an gras)</span></span>
+          <button type="button" id="fkResetHtg" onclick="fkResetAuto('htg')" style="display:none;background:none;border:0;color:#d4af37;font-size:0.68rem;cursor:pointer;padding:0;">↺ Auto</button>
+        </label>
+        <input type="text" id="fkHtg" maxlength="8" placeholder="Otomatik — ou ka chanje l" class="form-input" oninput="fkOnCustom('htg')" />
+        <div id="fkCalcHint" style="margin-top:4px;font-size:0.68rem;color:rgba(200,190,175,0.55);"></div>
       </div>
 
-      <!-- D. Peman — Fich Acha sèlman (tiret si vid sou Shipping) -->
+      <!-- D. Peman -->
+      <div style="padding:12px 14px 0;font-size:0.68rem;font-weight:800;color:rgba(212,175,55,0.7);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;">D. PEMAN</div>
       <div id="fkAchaBlock" style="display:none;">
-        <div style="padding:12px 14px 0;font-size:0.68rem;font-weight:800;color:rgba(212,175,55,0.7);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;">D. PEMAN <span style="opacity:0.6;font-weight:600;">(Fich Acha sèlman)</span></div>
-        <div class="two-col" style="padding:0 14px;">
+        <div style="padding:2px 16px 0;font-size:0.66rem;color:rgba(200,190,175,0.5);">Fich Acha sèlman — balans la antre nan Total HTG</div>
+        <div class="two-col" style="padding:4px 14px 0;">
           <div>
-            <label class="pos-label">Montan pou peye</label>
+            <label class="pos-label">Montan acha vini</label>
             <input type="text" id="fkPay" maxlength="6" placeholder="6 kar." class="form-input" />
           </div>
           <div>
-            <label class="pos-label">Montan m bay <span style="opacity:0.55;font-weight:400;">(USD)</span></label>
+            <label class="pos-label">Montan m te bay</label>
             <input type="text" id="fkPaid" maxlength="6" placeholder="6 kar." class="form-input" />
           </div>
         </div>
-        <div class="two-col" style="padding:6px 14px 0;">
-          <div>
-            <label class="pos-label">Balans m rete</label>
-            <input type="text" id="fkBal" maxlength="6" placeholder="6 kar." class="form-input" />
-          </div>
-          <div>
-            <label class="pos-label">Peye nèt ?</label>
-            <select id="fkNet" class="form-input" style="cursor:pointer;">
-              <option value="">— (pa make) —</option>
-              <option value="peye">Peye nèt</option>
-              <option value="pa">Pa peye nèt</option>
-            </select>
-          </div>
+        <div class="pos-field-group">
+          <label class="pos-label">Balans m rete <span style="opacity:0.55;font-weight:400;">(USD)</span></label>
+          <input type="text" id="fkBal" maxlength="6" placeholder="6 kar." class="form-input" oninput="fkRecalc()" />
         </div>
+      </div>
+      <div class="pos-field-group">
+        <label class="pos-label">Peye nèt ?</label>
+        <select id="fkNet" class="form-input" style="cursor:pointer;">
+          <option value="">— (pa make) —</option>
+          <option value="peye">Peye nèt</option>
+          <option value="pa">Pa peye nèt</option>
+        </select>
       </div>
       <div id="fkStageHint" style="padding:6px 16px 0;font-size:0.68rem;color:rgba(200,190,175,0.5);"></div>
 

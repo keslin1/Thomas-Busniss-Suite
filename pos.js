@@ -211,7 +211,7 @@ function fkRead() {
     clientName: fkVal('fkName'), clientAddr: fkVal('fkAddr'), clientPhone: fkVal('fkPhone'), clientEmail: fkVal('fkEmail'),
     origins, acha: fkChk('fkAcha'), ship: fkChk('fkShip'),
     pwa: lim('fkPwa', 6), desc: lim('fkDesc', 400), pri: sel === 'other' ? lim('fkPriOther', 6) : sel,
-    taux: lim('fkTaux', 6), usd: lim('fkUsd', 6), htg: lim('fkHtg', 6),
+    taux: lim('fkTaux', 6), usd: lim('fkUsd', 8), htg: lim('fkHtg', 8), customUsd: fkCustomUsd, customHtg: fkCustomHtg,
     totalPay: lim('fkPay', 6), paid: lim('fkPaid', 6), bal: lim('fkBal', 6), net: fkVal('fkNet'),
     dateCmd: fkVal('fkDateCmd'), dateUSA: fkVal('fkDateUSA'), dateHT: fkVal('fkDateHT'),
     note: lim('fkNote', 200),
@@ -237,7 +237,10 @@ function fkFill(e) {
     const d = new Date(e.date || Date.now());
     fkEl('fkDate').value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
+  fkCustomUsd = e.customUsd != null ? !!e.customUsd : !!e.usd;
+  fkCustomHtg = e.customHtg != null ? !!e.customHtg : !!e.htg;
   fkOnPri();
+  fkRecalc();
 }
 
 /* Montan ki antre nan pwofil kliyan an = pri kliyan an peye selon livrezon an (kolòn Montan US,
@@ -245,7 +248,57 @@ function fkFill(e) {
 function fkPayAmount(e) {
   const usd = fkNum(e.usd);
   if (usd > 0) return usd;
-  return (fkNum(e.taux) > 0 && fkNum(e.htg) > 0) ? Math.round(fkNum(e.htg) / fkNum(e.taux) * 100) / 100 : 0;
+  const fromHtg = (fkNum(e.taux) > 0 && fkNum(e.htg) > 0) ? fkNum(e.htg) / fkNum(e.taux) : 0;
+  return Math.max(0, Math.round((fromHtg - (e.acha ? fkNum(e.bal) : 0)) * 100) / 100);   // balans anvan an pa kont kòm nouvo depans
+}
+
+/* ══════════════════════════════════════════════
+   KALKIL OTOMATIK (ou ka pèsonalize)
+   Montan US   = Pwa × Pri U.
+   Total HTG   = (Montan US + Balans m rete) × Taux
+   Si ou ekri nan Montan US oswa Total HTG, kalkil la kite chan sa a an repo (↺ Auto pou retounen).
+   ══════════════════════════════════════════════ */
+let fkCustomUsd = false, fkCustomHtg = false;
+const FK_TAUX_KEY = 'tbs_fakti_taux';
+function fkPriNum() { const sel = fkVal('fkPriSel'); return fkNum(sel === 'other' ? fkVal('fkPriOther') : sel); }
+function fkThousands(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
+function fkRecalc() {
+  const acha = fkChk('fkAcha');
+  const pwa = fkNum(fkVal('fkPwa')), pri = fkPriNum(), taux = fkNum(fkVal('fkTaux'));
+  const bal = acha ? fkNum(fkVal('fkBal')) : 0;
+  const r2 = v => Math.round(v * 100) / 100;
+  const lines = [];
+
+  if (!fkCustomUsd && fkEl('fkUsd')) {
+    if (pwa > 0 && pri > 0) fkEl('fkUsd').value = r2(pwa * pri).toFixed(2);
+    else fkEl('fkUsd').value = '';
+  }
+  const usd = fkNum(fkVal('fkUsd'));
+  if (pwa > 0 && pri > 0 && !fkCustomUsd) lines.push(pwa + ' × ' + pri.toFixed(2) + ' = ' + usd.toFixed(2) + '$');
+
+  if (!fkCustomHtg && fkEl('fkHtg')) {
+    if (taux > 0 && (usd + bal) > 0) {
+      const t = Math.round((usd + bal) * taux);
+      fkEl('fkHtg').value = String(t);
+      lines.push('(' + usd.toFixed(2) + '$' + (bal > 0 ? ' + ' + bal.toFixed(2) + '$ balans' : '') + ') × ' + taux + ' = ' + fkThousands(t) + ' HTG');
+    } else fkEl('fkHtg').value = '';
+  }
+  const h = fkEl('fkCalcHint');
+  if (h) h.textContent = lines.join('  ·  ');
+  const ru = fkEl('fkResetUsd'), rh = fkEl('fkResetHtg');
+  if (ru) ru.style.display = fkCustomUsd ? '' : 'none';
+  if (rh) rh.style.display = fkCustomHtg ? '' : 'none';
+}
+function fkOnCustom(which) {
+  if (which === 'usd') fkCustomUsd = fkVal('fkUsd') !== '';
+  else fkCustomHtg = fkVal('fkHtg') !== '';
+  fkRecalc();
+}
+function fkResetAuto(which) {
+  if (which === 'usd') { fkCustomUsd = false; if (fkEl('fkUsd')) fkEl('fkUsd').value = ''; }
+  else { fkCustomHtg = false; if (fkEl('fkHtg')) fkEl('fkHtg').value = ''; }
+  fkRecalc();
 }
 
 function fkOnFlags() {
@@ -257,6 +310,7 @@ function fkOnFlags() {
   const h = fkEl('fkStageHint');
   if (h) h.textContent = (!acha && !ship) ? 'Chwazi Acha oswa Shipping'
     : 'Peman etap ' + STAGE_LABEL[ns] + ' = Montan US (pri kliyan an peye) → ajoute nan pwofil kliyan an';
+  fkRecalc();
 }
 
 function fkUpdateBtn() {
@@ -271,6 +325,8 @@ function fkClear(silent) {
   if (fkEl('fkShip')) fkEl('fkShip').checked = false;
   if (fkEl('fkDate')) fkEl('fkDate').value = fkToday();
   if (fkEl('fkPriSel')) fkEl('fkPriSel').value = '';
+  fkCustomUsd = false; fkCustomHtg = false;
+  if (fkEl('fkTaux')) fkEl('fkTaux').value = localStorage.getItem(FK_TAUX_KEY) || '135';
   fkOnPri();
   fkEditingId = null; fkPrev = null; fkFormStage = 'ship'; fkFormMemo = {};
   const b = fkEl('fkEditBanner'); if (b) b.style.display = 'none';
@@ -314,6 +370,7 @@ function fkFinish(skipAsk) {
   const logged = fkLogPayment(e, stage, amt);
   const nocust = (logged === 'nocust') ? ' · ⚠ kliyan pa enskri : peman pa nan pwofil' : '';
   if (typeof savePosClient === 'function') savePosClient(e.clientName, e.clientAddr, e.clientPhone);
+  if (e.taux) { try { localStorage.setItem(FK_TAUX_KEY, e.taux); } catch (err) {} }
   fkSave(list);
 
   const q = fkGet().filter(h => !h.printed).length;
@@ -976,25 +1033,41 @@ function drawFakti(doc, e, imgs, ox) {
     doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.4); doc.line(L, yd + dH + totH, RR, yd + dH + totH);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(15, 15, 15);
     doc.text('TOTAL', c[1] + 2, yd + dH + totH / 2 + 1.3);
+    if (acha && fkNum(e.bal) > 0 && !e.customHtg) {            // rapèl : balans anvan an enkli nan total la
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(6); doc.setTextColor(110, 110, 110);
+      doc.text('(inclut balans ' + fkFmtUsd(e.bal) + ')', c[1] + 2 + doc.getTextWidth('TOTAL') * 1.5 + 2, yd + dH + totH / 2 + 1.3);
+    }
     fkType(doc, fkFmtHtg(e.htg), RR - 2, yd + dH + totH / 2 + 1.7, 52, 11.5, { align: 'right', bold: true });
   } };
 
   /* Rezime peman (Acha) + logo peman adwat anba total, san tit */
-  const summary = { h: 19.5, draw: y => {
-    const sw = 62;
-    [['MONTAN POU PEYE', e.totalPay], ['MONTAN M BAY', e.paid], ['BALANS M RETE', e.bal]].forEach(([t, v], i) => {
-      const yb = y + 4 + i * 6.6;
-      lab(t, L, yb, 6.4);
-      hair(L, L + sw, yb + 1.5);
-      const shown = v ? fkFmtUsd(v) : (acha ? '' : '-');
-      fkType(doc, shown, L + sw - 1, yb, 28, 9, { align: 'right' });
-    });
-    const pw = 64, px = RR - pw;
-    const cb = y + 3.8;
-    fkBox(doc, RR - 58, cb - 2.9, 3.4, e.net === 'peye');  lab('PEYE NÈT', RR - 53, cb, 6.8);
-    fkBox(doc, RR - 30, cb - 2.9, 3.4, e.net === 'pa');    lab('PA PEYE NÈT', RR - 25, cb, 6.8);
-    if (imgs.pay) fkImgFit(doc, imgs.pay, px, y + 8.2, pw, 8, 'right');
-  } };
+  const pw = 64, px = RR - pw, sw = 62;
+  const netRow = (cx, yb) => {             // PEYE NÈT / PA PEYE NÈT santre alantou cx
+    const sz = 3.4, gap = 1.8, between = 8;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(6.8);
+    const w1 = doc.getTextWidth('PEYE NÈT'), w2 = doc.getTextWidth('PA PEYE NÈT');
+    let x = cx - (sz + gap + w1 + between + sz + gap + w2) / 2;
+    fkBox(doc, x, yb - 2.9, sz, e.net === 'peye');  lab('PEYE NÈT', x + sz + gap, yb, 6.8);
+    x += sz + gap + w1 + between;
+    fkBox(doc, x, yb - 2.9, sz, e.net === 'pa');    lab('PA PEYE NÈT', x + sz + gap, yb, 6.8);
+  };
+  const summary = acha
+    /* ACHA : 3 liy montan agoch · Peye nèt + imaj peman santre youn sou lòt adwat */
+    ? { h: 19.5, draw: y => {
+        [['MONTAN ACHA VINI', e.totalPay], ['MONTAN M TE BAY', e.paid], ['BALANS M RETE', e.bal]].forEach(([t, v], i) => {
+          const yb = y + 4 + i * 6.6;
+          lab(t, L, yb, 6.4);
+          hair(L, L + sw, yb + 1.5);
+          fkType(doc, v ? fkFmtUsd(v) : '', L + sw - 1, yb, 28, 9, { align: 'right' });
+        });
+        netRow(px + pw / 2, y + 3.8);
+        if (imgs.pay) fkImgFit(doc, imgs.pay, px, y + 8.2, pw, 8, 'center');
+      } }
+    /* SHIPPING : pa gen 3 liy yo — Peye nèt / Pa peye nèt fè fas ak imaj peman */
+    : { h: 11.5, draw: y => {
+        netRow(L + sw / 2, y + 6.8);
+        if (imgs.pay) fkImgFit(doc, imgs.pay, px, y + 1.7, pw, 8, 'center');
+      } };
 
   /* Nòt : maks 3 liy, ti polis si l long */
   let noteLines = [];
