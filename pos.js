@@ -42,7 +42,12 @@ function esc(s) {
 }
 function fkUid() { return (typeof uid === 'function') ? uid() : (Date.now().toString(36) + Math.random().toString(36).slice(2, 8)); }
 function fkPad(no) { return String(no || '0').padStart(4, '0'); }
-function fkNum(s) { const n = parseFloat(String(s || '').replace(',', '.').replace(/[^0-9.]/g, '')); return isFinite(n) ? n : 0; }
+function fkNum(s) {
+  const t = String(s == null ? '' : s).replace(',', '.');
+  const neg = /^\s*(\$\s*)?-/.test(t);
+  const n = parseFloat(t.replace(/[^0-9.]/g, ''));
+  return isFinite(n) ? (neg ? -n : n) : 0;
+}
 
 /* ── Estokaj ─────────────────────────────────── */
 function fkGet() { try { return JSON.parse(localStorage.getItem(FK_KEY)) || []; } catch { return []; } }
@@ -255,19 +260,26 @@ function fkPayAmount(e) {
 /* ══════════════════════════════════════════════
    KALKIL OTOMATIK (ou ka pèsonalize)
    Montan US   = Pwa × Pri U.
-   Total HTG   = (Montan US + Balans m rete) × Taux
+   Total HTG   = Montan US × Taux  +  Balans m rete × 135
+   Taux : FIKS 135 pou Acha (pa pèsonalizab) · pèsonalizab sèlman pou Shipping (transpò)
+   Balans m rete : 35 = kliyan an rete peye 35$ (35 × 135) · -35 = nou dwe kliyan an 35$ (-35 × 135)
    Si ou ekri nan Montan US oswa Total HTG, kalkil la kite chan sa a an repo (↺ Auto pou retounen).
    ══════════════════════════════════════════════ */
 let fkCustomUsd = false, fkCustomHtg = false;
+let fkTauxLocked = false, fkTauxMemo = '';
 const FK_TAUX_KEY = 'tbs_fakti_taux';
+const FK_ACHA_RATE = 135;                       // taux fiks pou Acha ak pou balans m rete
 function fkPriNum() { const sel = fkVal('fkPriSel'); return fkNum(sel === 'other' ? fkVal('fkPriOther') : sel); }
 function fkThousands(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
 
 function fkRecalc() {
-  const acha = fkChk('fkAcha');
-  const pwa = fkNum(fkVal('fkPwa')), pri = fkPriNum(), taux = fkNum(fkVal('fkTaux'));
+  const acha = fkChk('fkAcha'), ship = fkChk('fkShip');
+  const lockTaux = acha && !ship;
+  const pwa = fkNum(fkVal('fkPwa')), pri = fkPriNum();
+  const taux = lockTaux ? FK_ACHA_RATE : fkNum(fkVal('fkTaux'));
   const bal = acha ? fkNum(fkVal('fkBal')) : 0;
   const r2 = v => Math.round(v * 100) / 100;
+  const sg = v => (v < 0 ? '-' : '') + Math.abs(v).toFixed(2) + '$';
   const lines = [];
 
   if (!fkCustomUsd && fkEl('fkUsd')) {
@@ -275,17 +287,25 @@ function fkRecalc() {
     else fkEl('fkUsd').value = '';
   }
   const usd = fkNum(fkVal('fkUsd'));
-  if (pwa > 0 && pri > 0 && !fkCustomUsd) lines.push(pwa + ' × ' + pri.toFixed(2) + ' = ' + usd.toFixed(2) + '$');
+  if (pwa > 0 && pri > 0 && !fkCustomUsd) lines.push('📦 ' + pwa + ' LBS × ' + pri.toFixed(2) + '$ = <b>' + usd.toFixed(2) + '$</b>');
 
-  if (!fkCustomHtg && fkEl('fkHtg')) {
-    if (taux > 0 && (usd + bal) > 0) {
-      const t = Math.round((usd + bal) * taux);
-      fkEl('fkHtg').value = String(t);
-      lines.push('(' + usd.toFixed(2) + '$' + (bal > 0 ? ' + ' + bal.toFixed(2) + '$ balans' : '') + ') × ' + taux + ' = ' + fkThousands(t) + ' HTG');
-    } else fkEl('fkHtg').value = '';
+  const partUsd = (usd !== 0 && taux > 0) ? usd * taux : 0;
+  const partBal = bal * FK_ACHA_RATE;
+  if (usd !== 0) lines.push('💱 ' + sg(usd) + ' × ' + taux + ' HTG' + (lockTaux ? ' (taux fiks Acha)' : (ship ? ' (taux transpò)' : '')) + ' = <b>' + fkThousands(Math.round(partUsd)) + ' HTG</b>');
+  if (bal !== 0) lines.push('⚖️ Balans ' + sg(bal) + ' × ' + FK_ACHA_RATE + ' = <b>' + fkThousands(Math.round(partBal)) + ' HTG</b> <span style="opacity:.65">(' + (bal > 0 ? 'kliyan an rete peye' : 'nou dwe kliyan an') + ')</span>');
+
+  const canCalc = (usd !== 0 || bal !== 0) && (usd === 0 || taux > 0);
+  const autoTotal = canCalc ? Math.round(partUsd + partBal) : null;
+  if (!fkCustomHtg && fkEl('fkHtg')) fkEl('fkHtg').value = autoTotal === null ? '' : String(autoTotal);
+  const total = fkNum(fkVal('fkHtg'));
+  if (fkCustomHtg) {
+    lines.push('✏️ <b>Total pèsonalize : ' + fkThousands(total) + ' HTG</b>' + (autoTotal !== null ? ' <span style="opacity:.65">(otomatik : ' + fkThousands(autoTotal) + ')</span>' : ''));
+  } else if (autoTotal !== null) {
+    lines.push('<span style="color:#d4af37;">➜ TOTAL <b>' + fkThousands(autoTotal) + ' HTG</b></span>');
   }
-  const h = fkEl('fkCalcHint');
-  if (h) h.textContent = lines.join('  ·  ');
+
+  const card = fkEl('fkCalcCard');
+  if (card) { card.style.display = lines.length ? '' : 'none'; card.innerHTML = lines.join('<br>'); }
   const ru = fkEl('fkResetUsd'), rh = fkEl('fkResetHtg');
   if (ru) ru.style.display = fkCustomUsd ? '' : 'none';
   if (rh) rh.style.display = fkCustomHtg ? '' : 'none';
@@ -305,6 +325,17 @@ function fkOnFlags() {
   const acha = fkChk('fkAcha'), ship = fkChk('fkShip');
   const show = (id, on) => { const el = fkEl(id); if (el) el.style.display = on ? '' : 'none'; };
   show('fkRowDates', acha); show('fkAchaBlock', acha);
+  /* Taux : fiks 135 pou Acha (pa pèsonalizab) · pèsonalizab sèlman lè Shipping koche */
+  const tauxEl = fkEl('fkTaux');
+  if (tauxEl) {
+    if (acha && !ship) {
+      if (!fkTauxLocked) fkTauxMemo = tauxEl.value;
+      tauxEl.value = String(FK_ACHA_RATE); tauxEl.disabled = true; fkTauxLocked = true;
+    } else {
+      if (fkTauxLocked) tauxEl.value = fkTauxMemo || localStorage.getItem(FK_TAUX_KEY) || '135';
+      tauxEl.disabled = false; fkTauxLocked = false;
+    }
+  }
   const ns = fkStageFor(fkEditingId ? fkPrev : null, acha, ship);
   fkFormStage = ns;
   const h = fkEl('fkStageHint');
@@ -326,7 +357,8 @@ function fkClear(silent) {
   if (fkEl('fkDate')) fkEl('fkDate').value = fkToday();
   if (fkEl('fkPriSel')) fkEl('fkPriSel').value = '';
   fkCustomUsd = false; fkCustomHtg = false;
-  if (fkEl('fkTaux')) fkEl('fkTaux').value = localStorage.getItem(FK_TAUX_KEY) || '135';
+  fkTauxLocked = false; fkTauxMemo = '';
+  if (fkEl('fkTaux')) { fkEl('fkTaux').value = localStorage.getItem(FK_TAUX_KEY) || '135'; fkEl('fkTaux').disabled = false; }
   fkOnPri();
   fkEditingId = null; fkPrev = null; fkFormStage = 'ship'; fkFormMemo = {};
   const b = fkEl('fkEditBanner'); if (b) b.style.display = 'none';
@@ -370,7 +402,7 @@ function fkFinish(skipAsk) {
   const logged = fkLogPayment(e, stage, amt);
   const nocust = (logged === 'nocust') ? ' · ⚠ kliyan pa enskri : peman pa nan pwofil' : '';
   if (typeof savePosClient === 'function') savePosClient(e.clientName, e.clientAddr, e.clientPhone);
-  if (e.taux) { try { localStorage.setItem(FK_TAUX_KEY, e.taux); } catch (err) {} }
+  if (e.taux && e.ship) { try { localStorage.setItem(FK_TAUX_KEY, e.taux); } catch (err) {} }
   fkSave(list);
 
   const q = fkGet().filter(h => !h.printed).length;
@@ -817,15 +849,15 @@ function fkFmtWeight(s) {
 function fkFmtUsd(s) {
   s = String(s == null ? '' : s).trim();
   if (!s) return '';
-  const m = s.replace(',', '.').replace(/\s*(usd|us|dollars?)$/i, '').match(/^\$?\s*([0-9]*\.?[0-9]+)\s*\$?$/);
-  return m ? m[1].replace('.', ',') + '$' : s;
+  const m = s.replace(',', '.').replace(/\s*(usd|us|dollars?)$/i, '').match(/^(-?)\s*\$?\s*(-?)\s*([0-9]*\.?[0-9]+)\s*\$?$/);
+  return m ? ((m[1] || m[2]) + m[3].replace('.', ',') + '$') : s;
 }
 function fkFmtHtg(s) {
   s = String(s == null ? '' : s).trim();
   if (!s) return '';
-  const m = s.replace(/[\s,]/g, '').replace(/(htg|gdes|g)$/i, '').match(/^([0-9]+)(\.[0-9]+)?$/);
+  const m = s.replace(/[\s,]/g, '').replace(/(htg|gdes|g)$/i, '').match(/^(-?)([0-9]+)(\.[0-9]+)?$/);
   if (!m) return s;
-  return m[1].replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (m[2] ? m[2].replace('.', ',') : '') + ' HTG';
+  return m[1] + m[2].replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (m[3] ? m[3].replace('.', ',') : '') + ' HTG';
 }
 
 function drawCompanyTitle(doc, x, y, rgb, maxW) {
@@ -873,7 +905,8 @@ function fkType(doc, txt, x, y, maxW, size, o) {
   txt = String(txt == null ? '' : txt);
   if (!txt) return;
   o = o || {};
-  doc.setFont('courier', o.bold ? 'bold' : 'normal'); doc.setTextColor(15, 15, 15);
+  doc.setFont('courier', o.bold ? 'bold' : 'normal');
+  const col = o.color || [15, 15, 15]; doc.setTextColor(col[0], col[1], col[2]);
   let s = size; doc.setFontSize(s);
   while (s > 5.5 && doc.getTextWidth(txt) > maxW) { s -= 0.3; doc.setFontSize(s); }
   doc.text(txt, x, y, o.align ? { align: o.align } : undefined);
@@ -1033,9 +1066,9 @@ function drawFakti(doc, e, imgs, ox) {
     doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.4); doc.line(L, yd + dH + totH, RR, yd + dH + totH);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(15, 15, 15);
     doc.text('TOTAL', c[1] + 2, yd + dH + totH / 2 + 1.3);
-    if (acha && fkNum(e.bal) > 0 && !e.customHtg) {            // rapèl : balans anvan an enkli nan total la
+    if (acha && fkNum(e.bal) !== 0 && !e.customHtg) {            // rapèl : balans lan enkli nan total la
       doc.setFont('helvetica', 'italic'); doc.setFontSize(6); doc.setTextColor(110, 110, 110);
-      doc.text('(inclut balans ' + fkFmtUsd(e.bal) + ')', c[1] + 2 + doc.getTextWidth('TOTAL') * 1.5 + 2, yd + dH + totH / 2 + 1.3);
+      doc.text('(balans ' + fkFmtUsd(e.bal) + ' enkli)', c[1] + 2 + doc.getTextWidth('TOTAL') * 1.5 + 2, yd + dH + totH / 2 + 1.3);
     }
     fkType(doc, fkFmtHtg(e.htg), RR - 2, yd + dH + totH / 2 + 1.7, 52, 11.5, { align: 'right', bold: true });
   } };
@@ -1058,7 +1091,7 @@ function drawFakti(doc, e, imgs, ox) {
           const yb = y + 4 + i * 6.6;
           lab(t, L, yb, 6.4);
           hair(L, L + sw, yb + 1.5);
-          fkType(doc, v ? fkFmtUsd(v) : '', L + sw - 1, yb, 28, 9, { align: 'right' });
+          fkType(doc, v ? fkFmtUsd(v) : '', L + sw - 1, yb, 28, 9, { align: 'right', color: (i === 2 && fkNum(v) < 0) ? FK_RED : null });
         });
         netRow(px + pw / 2, y + 3.8);
         if (imgs.pay) fkImgFit(doc, imgs.pay, px, y + 8.2, pw, 8, 'center');
@@ -1124,10 +1157,14 @@ function drawFakti(doc, e, imgs, ox) {
     y += b.h + g + gap;
   });
 
-  /* Anba : FÈT PA + siyati manuscrit.jpg (pi piti, poze sou liy la) */
-  lab('FÈT PA', L, 196, 6.4);
-  hair(L + 10, L + 48, 197);
-  if (imgs.sig) fkImgFit(doc, imgs.sig, L + 12, 186.5, 31, 10.2, 'left');
+  /* Anba : SIYATI KLIYAN (agoch) · FÈT PA + siyati manuscrit.jpg Thomas Kabé (adwat) */
+  const sigLine = (x1, x2, y) => { doc.setDrawColor(120, 120, 120); doc.setLineWidth(0.25); doc.line(x1, y, x2, y); };
+  lab('SIYATI KLIYAN', L, 196, 6.4);
+  sigLine(L + 20, L + 66, 197);
+  const sx = RR - 52;
+  lab('FÈT PA', sx, 196, 6.4);
+  sigLine(sx + 10, RR, 197);
+  if (imgs.sig) fkImgFit(doc, imgs.sig, sx + 12, 186.5, 31, 10.2, 'left');
 }
 
 async function buildFichesPdf(entries) {
