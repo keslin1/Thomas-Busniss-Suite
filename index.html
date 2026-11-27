@@ -184,16 +184,16 @@
     </div>
     <div class="module-toolbar">
       <input type="search" id="customerSearch" placeholder="🔍  Chèche kliyan..." class="search-input" oninput="filterCustomers()" />
-      <div class="sort-tabs">
-        <button class="sort-tab active" onclick="sortCustomers('recent',this)">Dènye aktivite</button>
-        <button class="sort-tab" onclick="sortCustomers('name',this)">Non kliyan</button>
-        <button class="sort-tab" onclick="sortCustomers('amount',this)">Total $</button>
-        <button class="sort-tab" onclick="sortCustomers('bilan15',this)">Total</button>
+      <div class="cm-tabs">
+        <button class="cm-tab active" data-sort="recent" onclick="sortCustomers('recent',this)">🕑 Dènye aktivite</button>
+        <button class="cm-tab" data-sort="name" onclick="sortCustomers('name',this)">🔤 Non kliyan</button>
+        <button class="cm-tab cm-tab-bilan" onclick="showBilanModal()">📊 Bilan</button>
       </div>
-      <div class="action-bar">
-        <button class="action-sm" onclick="emailAllCustomers()">📧 Email tout</button>
-        <button class="action-sm" onclick="exportCustomersPDF()">📄 PDF</button>
-        <button class="action-sm" onclick="openTrash()">🗑 Corbeille <span class="trash-count"></span></button>
+      <div class="cm-actions">
+        <button class="cm-act" onclick="emailAllCustomers()"><span class="ico">📧</span><span>Email tout</span></button>
+        <button class="cm-act" onclick="exportCustomersPDF()"><span class="ico">📄</span><span>PDF</span></button>
+        <button class="cm-act" onclick="showProfitModal()"><span class="ico">💹</span><span>Benefis</span></button>
+        <button class="cm-act" onclick="openTrash()"><span class="ico">🗑</span><span>Corbeille <span class="trash-count"></span></span></button>
       </div>
     </div>
     <div id="customerList" class="list-container"></div>
@@ -286,7 +286,7 @@
     <div id="fkPaneNew" class="module-body scrollable">
 
       <div id="fkEditBanner" style="display:none;margin:8px 14px 0;padding:8px 12px;background:rgba(255,255,255,0.07);border-left:3px solid rgba(255,255,255,0.4);border-radius:8px;font-size:0.78rem;color:#ddd8cc;">
-        ✏️ Modification de la facture <span id="fkEditNo"></span> — ajoutez le paiement du transport (cochez Shipping), puis « Mettre à jour ». (🗑 pour annuler)
+        ✏️ Modification de la facture <span id="fkEditNo"></span> — ajoutez le paiement du transport en cochant Shipping, puis « Mettre à jour ». Utilisez 🗑 pour annuler.
       </div>
 
       <!-- A. Kliyan -->
@@ -305,7 +305,7 @@
           <input type="tel" id="fkPhone" placeholder="+509 xx xx xx xx" class="form-input" />
         </div>
         <div>
-          <label class="pos-label">Imèl <span style="opacity:0.55;font-weight:400;">(opsyonèl)</span></label>
+          <label class="pos-label">Imèl</label>
           <input type="email" id="fkEmail" placeholder="nom@email.com" class="form-input" />
         </div>
       </div>
@@ -324,7 +324,7 @@
       <!-- Acha : orijin machandiz (logo) -->
       <div id="fkRowOrigin">
         <div class="pos-field-group">
-          <label class="pos-label">🛒 Orijin machandiz <span style="opacity:0.55;font-weight:400;">(logo sou PDF)</span></label>
+          <label class="pos-label">🛒 Orijin machandiz</label>
           <select id="fkPlat1" class="form-input" style="cursor:pointer;">
             <option value="">— Chwazi platefòm —</option>
             <option value="alibaba">Alibaba</option>
@@ -335,7 +335,7 @@
           </select>
         </div>
         <div class="pos-field-group">
-          <label class="pos-label">🛒 2yèm platefòm <span style="opacity:0.55;font-weight:400;">(opsyonèl)</span></label>
+          <label class="pos-label">🛒 2yèm platefòm</label>
           <select id="fkPlat2" class="form-input" style="cursor:pointer;">
             <option value="">— Chwazi platefòm —</option>
             <option value="alibaba">Alibaba</option>
@@ -351,7 +351,7 @@
       <div style="padding:12px 14px 0;font-size:0.68rem;font-weight:800;color:rgba(212,175,55,0.7);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;">C. LIY FAKTI</div>
       <div class="two-col" style="padding:0 14px;">
         <div>
-          <label class="pos-label">Pwa <span style="opacity:0.55;font-weight:400;">(23 → 23 LBS)</span></label>
+          <label class="pos-label">Pwa</label>
           <input type="text" id="fkPwa" maxlength="6" placeholder="Eks: 23" class="form-input" oninput="fkRecalc()" />
         </div>
         <div>
@@ -371,12 +371,12 @@
       </div>
       <div class="two-col" style="padding:0 14px;">
         <div>
-          <label class="pos-label">Taux <span style="opacity:0.55;font-weight:400;">(Acha : fiks 135 · Shipping : ou ka chanje)</span></label>
-          <input type="text" id="fkTaux" maxlength="6" placeholder="Eks: 135" class="form-input" oninput="fkRecalc()" />
+          <label class="pos-label">Taux</label>
+          <input type="text" id="fkTaux" maxlength="6" placeholder="Eks: 133" class="form-input" oninput="fkRecalc()" />
         </div>
         <div>
           <label class="pos-label" style="display:flex;justify-content:space-between;align-items:center;">
-            <span>Montan US <span style="opacity:0.55;font-weight:400;">(pwa × pri U.)</span></span>
+            <span>Montan US</span>
             <button type="button" id="fkResetUsd" onclick="fkResetAuto('usd')" style="display:none;background:none;border:0;color:#d4af37;font-size:0.68rem;cursor:pointer;padding:0;">↺ Auto</button>
           </label>
           <input type="text" id="fkUsd" maxlength="8" placeholder="Otomatik" class="form-input" oninput="fkOnCustom('usd')" />
@@ -384,7 +384,7 @@
       </div>
       <div class="pos-field-group">
         <label class="pos-label" style="display:flex;justify-content:space-between;align-items:center;">
-          <span>Total HTG <span style="opacity:0.55;font-weight:400;">((Montan US + balans) × taux · an gras)</span></span>
+          <span>Total HTG</span>
           <button type="button" id="fkResetHtg" onclick="fkResetAuto('htg')" style="display:none;background:none;border:0;color:#d4af37;font-size:0.68rem;cursor:pointer;padding:0;">↺ Auto</button>
         </label>
         <input type="text" id="fkHtg" maxlength="8" placeholder="Otomatik — ou ka chanje l" class="form-input" oninput="fkOnCustom('htg')" />
@@ -397,16 +397,16 @@
         <div style="padding:2px 16px 0;font-size:0.66rem;color:rgba(200,190,175,0.5);">Fich Acha sèlman — balans × 135 antre nan Total HTG</div>
         <div class="two-col" style="padding:4px 14px 0;">
           <div>
-            <label class="pos-label">Montan acha vini</label>
+            <label class="pos-label">Montan acha a vini</label>
             <input type="text" id="fkPay" maxlength="6" placeholder="6 kar." class="form-input" />
           </div>
           <div>
-            <label class="pos-label">Montan m te bay</label>
+            <label class="pos-label">Montan m bay</label>
             <input type="text" id="fkPaid" maxlength="6" placeholder="6 kar." class="form-input" />
           </div>
         </div>
         <div class="pos-field-group">
-          <label class="pos-label">Balans m rete <span style="opacity:0.55;font-weight:400;">(USD · 35 = kliyan an rete peye · -35 = nou dwe l)</span></label>
+          <label class="pos-label">Balans mwen genyen</label>
           <input type="text" id="fkBal" maxlength="6" placeholder="Eks: 35 oswa -35" class="form-input" oninput="fkRecalc()" />
         </div>
       </div>
@@ -418,11 +418,17 @@
           <option value="pa">Pa peye nèt</option>
         </select>
       </div>
+      <div style="padding:10px 14px 0;">
+        <label class="fk-sw">
+          <span>👤 Ajouter ce montant au profil du client</span>
+          <input type="checkbox" id="fkToProfile" checked onchange="fkOnFlags()" />
+        </label>
+      </div>
       <div id="fkStageHint" style="padding:6px 16px 0;font-size:0.68rem;color:rgba(200,190,175,0.5);"></div>
 
       <!-- E. Dat — Fich Acha sèlman -->
       <div id="fkRowDates" style="display:none;">
-        <div style="padding:12px 14px 0;font-size:0.68rem;font-weight:800;color:rgba(212,175,55,0.7);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;">E. SIVI KÒMAND <span style="opacity:0.6;font-weight:600;">(opsyonèl)</span></div>
+        <div style="padding:12px 14px 0;font-size:0.68rem;font-weight:800;color:rgba(212,175,55,0.7);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;">E. SIVI KÒMAND</div>
         <div class="pos-field-group">
           <label class="pos-label">Dat kòmand izín</label>
           <input type="date" id="fkDateCmd" class="form-input" />
@@ -446,7 +452,7 @@
         <input type="date" id="fkDate" class="form-input" />
       </div>
       <div class="pos-field-group">
-        <label class="pos-label">Nòt <span style="opacity:0.55;font-weight:400;">(opsyonèl, 200 kar.)</span></label>
+        <label class="pos-label">Nòt</label>
         <input type="text" id="fkNote" maxlength="200" placeholder="Eks: Balans pou machandiz ki poko livre..." class="form-input" />
       </div>
 

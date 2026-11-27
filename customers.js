@@ -346,7 +346,7 @@ function renderCustomers() {
   );
 
   const sorter = (a, b) => {
-    if (customerSortMode === 'name' || customerSortMode === 'bilan15') return (a.name || '').localeCompare(b.name || '');
+    if (customerSortMode === 'name') return (a.name || '').localeCompare(b.name || '');
     if (customerSortMode === 'amount')   return getTotalDepenses(b) - getTotalDepenses(a);
     if (customerSortMode === 'activity') return getActivityScore(b) - getActivityScore(a);
     return getCustLastActivity(b) - getCustLastActivity(a);          // 'recent' : dènye aktivite an premye
@@ -407,171 +407,294 @@ function filterCustomers() { renderCustomers(); }
 
 function sortCustomers(mode, btn) {
   customerSortMode = mode;
-  document.querySelectorAll('#customersScreen .sort-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('#customersScreen .cm-tab[data-sort]').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
-  if (mode === 'bilan15') {
-    showBilan15Modal();
-  } else {
-    renderCustomers();
-  }
+  renderCustomers();
 }
 
 /* ══════════════════════════════════════════════
-   TOTAL — Bilan 15 jours + Historique mensuel
+   BILAN MANSYÈL — Rantre kliyan − Soti = Benefis
+   Rantre = depans kliyan nan mwa a · Soti = soti manyèl + kou kliyan nan mwa a
+   Soti manyèl : non oswa motif + montan ($ oswa HTG) · HTG konvèti ak taux benefis la
    ══════════════════════════════════════════════ */
-const BILAN_KEY = 'tbs_bilan_history';
+const SORTIES_KEY = 'tbs_sorties_v1';
+const MOIS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+let bilanMonthKey = null;
 
-function getBilanHistory() {
-  try { return JSON.parse(localStorage.getItem(BILAN_KEY)) || []; }
-  catch { return []; }
+function getSorties() { try { return JSON.parse(localStorage.getItem(SORTIES_KEY)) || []; } catch { return []; } }
+function saveSorties(list) { localStorage.setItem(SORTIES_KEY, JSON.stringify(list)); }
+function bilanKeyOf(ts) { const d = new Date(ts); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
+function bilanLabel(key) { const p = key.split('-'); return MOIS_FR[(+p[1]) - 1] + ' ' + p[0]; }
+function bilanShiftKey(key, delta) { const p = key.split('-').map(Number); return bilanKeyOf(new Date(p[0], p[1] - 1 + delta, 1).getTime()); }
+function bilanDefaultDate(key) {
+  if (key === bilanKeyOf(Date.now())) { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  return key + '-01';
 }
 
-function saveBilanHistory(list) {
-  localStorage.setItem(BILAN_KEY, JSON.stringify(list));
-}
-
-function getDepenses15Jours(c) {
-  const now   = Date.now();
-  const limit = now - (15 * 24 * 60 * 60 * 1000); // 15 jours en ms
-  return (c.transactions || [])
-    .filter(t => (t.txType === 'depans' || !t.txType) && t.date >= limit)
-    .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
-}
-
-function showBilan15Modal() {
-  const old = document.getElementById('bilan15Modal');
-  if (old) old.remove();
-
-  const list       = getCustomers();
-  const now        = Date.now();
-  const limit15    = now - (15 * 24 * 60 * 60 * 1000);
-  const mois       = new Date().toLocaleDateString('fr-HT', { month: 'long', year: 'numeric' });
-
-  /* Calcul total 15 jours */
-  let total15 = 0;
-  const rows  = list.map(c => {
-    const dep = getDepenses15Jours(c);
-    total15  += dep;
-    return { name: c.name, dep };
-  }).filter(r => r.dep > 0).sort((a, b) => b.dep - a.dep);
-
-  /* Historique mensuel */
-  const history = getBilanHistory();
-
-  /* Vérifier si un bilan ce mois existe déjà */
-  const moisKey = new Date().toISOString().slice(0, 7); // "2026-06"
-  const alreadySaved = history.find(h => h.moisKey === moisKey);
-
-  const rowsHtml = rows.length === 0
-    ? `<div style="color:rgba(200,190,175,0.5);font-size:0.85rem;padding:12px 0;text-align:center;">Okenn depans nan 15 dènye jou yo.</div>`
-    : rows.map(r => `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
-          <span style="font-family:'Rajdhani',sans-serif;font-size:0.9rem;color:#ddd8cc;">${custEsc(r.name)}</span>
-          <span style="font-family:'Space Mono',monospace;font-size:0.85rem;color:#d4af37;font-weight:700;">${fmtCurrency(r.dep)}</span>
-        </div>`).join('');
-
-  const historyHtml = history.length === 0
-    ? `<div style="color:rgba(200,190,175,0.4);font-size:0.8rem;text-align:center;padding:8px 0;">Okenn istorik sove ankò.</div>`
-    : [...history].reverse().map(h => `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
-          <span style="font-size:0.8rem;color:rgba(200,190,175,0.65);font-family:'Rajdhani',sans-serif;">${custEsc(h.mois)}</span>
-          <span style="font-family:'Space Mono',monospace;font-size:0.82rem;color:#4caf97;font-weight:700;">${fmtCurrency(h.total)}</span>
-        </div>`).join('');
-
-  const modal = document.createElement('div');
-  modal.id = 'bilan15Modal';
-  modal.style.cssText = `
-    position:fixed;inset:0;z-index:8888;
-    display:flex;align-items:flex-end;justify-content:center;
-    background:rgba(0,0,0,0.75);backdrop-filter:blur(4px);
-  `;
-
-  modal.innerHTML = `
-    <div style="
-      background:#13111a;border-radius:18px 18px 0 0;
-      border-top:2px solid #0e7490;
-      width:100%;max-width:520px;
-      padding:20px 18px 36px;
-      max-height:88vh;overflow-y:auto;
-      display:flex;flex-direction:column;gap:16px;
-    ">
-      <!-- En-tête -->
-      <div style="display:flex;align-items:center;justify-content:space-between;">
-        <div>
-          <div style="font-family:'Rajdhani',sans-serif;font-size:1rem;font-weight:700;color:#fff;letter-spacing:0.05em;">
-            💰 TOTAL — 15 Dènye Jou
-          </div>
-          <div style="font-size:0.72rem;color:rgba(200,190,175,0.5);margin-top:2px;">${custEsc(mois)}</div>
-        </div>
-        <button onclick="document.getElementById('bilan15Modal').remove()" style="
-          background:rgba(255,255,255,0.1);border:none;border-radius:8px;
-          color:#fff;width:32px;height:32px;cursor:pointer;font-size:0.9rem;">✕</button>
-      </div>
-
-      <!-- Total 15j highlight -->
-      <div style="
-        background:rgba(14,116,144,0.15);border:1px solid rgba(14,116,144,0.4);
-        border-radius:14px;padding:16px 18px;text-align:center;
-      ">
-        <div style="font-size:0.72rem;color:rgba(200,190,175,0.55);letter-spacing:0.08em;font-family:'Rajdhani',sans-serif;text-transform:uppercase;margin-bottom:6px;">
-          Total antré (15 jou)
-        </div>
-        <div style="font-family:'Space Mono',monospace;font-size:1.8rem;font-weight:700;color:#d4af37;">
-          ${fmtCurrency(total15)}
-        </div>
-      </div>
-
-      <!-- Détail kliyan yo -->
-      <div>
-        <div style="font-size:0.7rem;font-weight:700;color:rgba(200,190,175,0.5);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;margin-bottom:6px;text-transform:uppercase;">Detay pa kliyan</div>
-        ${rowsHtml}
-      </div>
-
-      <!-- Bouton sauvegarder bilan mensuel -->
-      <button onclick="saveBilanMensuel(${total15})" style="
-        width:100%;padding:11px;border-radius:12px;
-        background:${alreadySaved ? 'rgba(255,255,255,0.06)' : 'linear-gradient(135deg,#0e7490,#0a5568)'};
-        border:1px solid ${alreadySaved ? 'rgba(255,255,255,0.12)' : '#0e7490'};
-        color:${alreadySaved ? 'rgba(200,190,175,0.4)' : '#fff'};
-        font-family:'Rajdhani',sans-serif;font-size:0.9rem;font-weight:600;
-        letter-spacing:0.05em;cursor:${alreadySaved ? 'default' : 'pointer'};
-      " ${alreadySaved ? 'disabled' : ''}>
-        ${alreadySaved ? '✔ Bilan mwa sa a deja sove' : '💾 Sove bilan mwa ' + custEsc(mois)}
-      </button>
-
-      <!-- Historique mensuel -->
-      <div>
-        <div style="font-size:0.7rem;font-weight:700;color:rgba(200,190,175,0.5);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;margin-bottom:6px;text-transform:uppercase;">📁 Istorik Mansyèl</div>
-        ${historyHtml}
-      </div>
-    </div>
-  `;
-
-  document.body.appendChild(modal);
-  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
-}
-
-function saveBilanMensuel(total) {
-  const moisKey = new Date().toISOString().slice(0, 7);
-  const mois    = new Date().toLocaleDateString('fr-HT', { month: 'long', year: 'numeric' });
-  const history = getBilanHistory();
-
-  if (history.find(h => h.moisKey === moisKey)) {
-    showToast('⚠️ Bilan mwa sa a deja sove');
-    return;
-  }
-
-  history.push({
-    moisKey,
-    mois,
-    total,
-    savedAt: Date.now(),
+function bilanData(key) {
+  const p = key.split('-').map(Number);
+  const start = new Date(p[0], p[1] - 1, 1).getTime(), end = new Date(p[0], p[1], 1).getTime();
+  const inR = t => t >= start && t < end;
+  const tx = getProfitTaux();
+  const rentrees = [], perClient = {};
+  const customers = getCustomers();
+  customers.forEach(c => {
+    (c.transactions || []).forEach(t => {
+      if ((t.txType === 'depans' || !t.txType) && inR(t.date || 0)) {
+        const a = parseFloat(t.amount) || 0;
+        rentrees.push({ date: t.date, client: c.name || '', desc: t.desc || '', amount: a });
+        perClient[c.name || ''] = (perClient[c.name || ''] || 0) + a;
+      }
+    });
   });
-  saveBilanHistory(history);
-  showToast('✅ Bilan ' + mois + ' sove');
-  /* Recharger le modal pour refléter le nouveau statut */
-  showBilan15Modal();
+  rentrees.sort((a, b) => a.date - b.date);
+  const manual = getSorties().filter(x => inR(x.date || 0)).map(x => ({
+    id: x.id, date: x.date, label: x.label || 'Soti', amount: parseFloat(x.amount) || 0, cur: x.cur === 'HTG' ? 'HTG' : 'USD',
+    usd: x.cur === 'HTG' ? (parseFloat(x.amount) || 0) / tx : (parseFloat(x.amount) || 0)
+  })).sort((a, b) => a.date - b.date);
+  const kou = [];
+  customers.forEach(c => (c.costs || []).forEach(k => {
+    if (inR(k.date || 0)) kou.push({ date: k.date, client: c.name || '', label: k.desc || 'Kou', usd: parseFloat(k.amount) || 0 });
+  }));
+  kou.sort((a, b) => a.date - b.date);
+  const totalIn = rentrees.reduce((sum, r) => sum + r.amount, 0);
+  const totalManual = manual.reduce((sum, r) => sum + r.usd, 0);
+  const totalKou = kou.reduce((sum, r) => sum + r.usd, 0);
+  return { key, tx, rentrees, perClient, manual, kou, totalIn, totalManual, totalKou, totalOut: totalManual + totalKou, profit: totalIn - totalManual - totalKou };
 }
+
+function bilanGoMonth(delta) { bilanMonthKey = bilanShiftKey(bilanMonthKey || bilanKeyOf(Date.now()), delta); showBilanModal(); }
+
+function addSortie() {
+  const label = (document.getElementById('bilanSLabel')?.value || '').trim();
+  const amount = parseFloat(String(document.getElementById('bilanSAmount')?.value || '').replace(',', '.'));
+  const cur = document.getElementById('bilanSCur')?.value === 'HTG' ? 'HTG' : 'USD';
+  const ds = document.getElementById('bilanSDate')?.value || bilanDefaultDate(bilanMonthKey || bilanKeyOf(Date.now()));
+  if (!label) { showToast('⚠️ Antre non oswa motif soti a'); return; }
+  if (!(amount > 0)) { showToast('⚠️ Montan obligatwa'); return; }
+  const date = new Date(ds + 'T12:00:00').getTime();
+  const list = getSorties();
+  list.push({ id: uid(), label, amount, cur, date });
+  saveSorties(list);
+  bilanMonthKey = bilanKeyOf(date);
+  showBilanModal();
+  showToast('✅ Soti anrejistre');
+}
+
+function deleteSortie(id) {
+  if (!confirm('Efase soti sa a ?')) return;
+  saveSorties(getSorties().filter(x => x.id !== id));
+  showBilanModal();
+  showToast('🗑️ Soti efase');
+}
+
+function showBilanModal() {
+  custInjectMenuStyles();
+  const oldM = document.getElementById('bilanModal');
+  const oldPanel = document.getElementById('bilanPanel');
+  const keepScroll = oldPanel ? oldPanel.scrollTop : 0;
+  if (oldM) oldM.remove();
+  if (!bilanMonthKey) bilanMonthKey = bilanKeyOf(Date.now());
+  const d = bilanData(bilanMonthKey);
+  const col = d.profit >= 0 ? '#4caf97' : '#e07070';
+  const lbl = "font-size:0.68rem;font-weight:700;letter-spacing:0.08em;color:rgba(200,190,175,0.55);font-family:'Rajdhani',sans-serif;text-transform:uppercase;";
+  const inp = 'width:100%;box-sizing:border-box;background:#111;border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:#ddd8cc;padding:9px 10px;font-size:0.88rem;';
+  const delBtn = id => `<button onclick="deleteSortie('${id}')" title="Efase" style="background:none;border:1px solid rgba(220,80,80,0.3);border-radius:6px;color:#e07070;font-size:0.75rem;padding:3px 7px;cursor:pointer;flex-shrink:0;">🗑</button>`;
+  const row = (left, sub, right, extra) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
+      <div style="flex:1;min-width:0;"><div style="font-size:0.86rem;color:#ddd8cc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${left}</div>${sub ? `<div style="font-size:0.68rem;color:rgba(200,190,175,0.45);">${sub}</div>` : ''}</div>
+      <div style="text-align:right;flex-shrink:0;font-family:'Space Mono',monospace;font-size:0.82rem;font-weight:700;">${right}</div>${extra || ''}
+    </div>`;
+  const clients = Object.keys(d.perClient).sort((a, b) => d.perClient[b] - d.perClient[a]);
+  const inHtml = clients.length ? clients.map(n => row(custEsc(n), '', `<span style="color:#d4af37;">${fmtUsdP(d.perClient[n])}</span>`)).join('')
+    : `<div style="color:rgba(200,190,175,0.45);font-size:0.82rem;padding:8px 0;text-align:center;">Okenn rantre nan mwa sa a.</div>`;
+  const outManual = d.manual.map(x => row(custEsc(x.label), fmtDate(x.date) + (x.cur === 'HTG' ? ' · ' + fmtHtgP(x.amount) : ''), `<span style="color:#e07070;">-${fmtUsdP(x.usd)}</span>`, delBtn(x.id))).join('');
+  const outKou = d.kou.map(x => row(custEsc(x.label), fmtDate(x.date) + ' · kou kliyan ' + custEsc(x.client), `<span style="color:#e07070;">-${fmtUsdP(x.usd)}</span>`)).join('');
+  const outHtml = (outManual + outKou) || `<div style="color:rgba(200,190,175,0.45);font-size:0.82rem;padding:8px 0;text-align:center;">Okenn soti nan mwa sa a.</div>`;
+  const stat = (t, v, c) => `<div class="bl-stat"><div style="${lbl}">${t}</div><div style="font-family:'Space Mono',monospace;font-size:1.05rem;font-weight:700;color:${c};margin-top:3px;">${v}</div></div>`;
+
+  const m = document.createElement('div');
+  m.id = 'bilanModal';
+  m.style.cssText = 'position:fixed;inset:0;z-index:8888;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,0.75);backdrop-filter:blur(4px);';
+  m.innerHTML = `
+    <div id="bilanPanel" style="background:#13111a;border-radius:18px 18px 0 0;border-top:2px solid #d4af37;width:100%;max-width:520px;padding:18px 16px 32px;max-height:90vh;overflow-y:auto;display:flex;flex-direction:column;gap:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div style="font-family:'Rajdhani',sans-serif;font-size:1.05rem;font-weight:700;color:#fff;letter-spacing:0.06em;">📊 BILAN</div>
+        <button onclick="document.getElementById('bilanModal').remove()" style="background:rgba(255,255,255,0.1);border:none;border-radius:8px;color:#fff;width:32px;height:32px;cursor:pointer;">✕</button>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <button class="bl-nav" onclick="bilanGoMonth(-1)">‹</button>
+        <div style="font-family:'Rajdhani',sans-serif;font-size:1rem;font-weight:700;color:#d4af37;text-transform:capitalize;">${bilanLabel(d.key)}</div>
+        <button class="bl-nav" onclick="bilanGoMonth(1)">›</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        ${stat('Rantre kliyan', fmtUsdP(d.totalIn), '#d4af37')}
+        ${stat('Soti total', fmtOutP(d.totalOut), '#e07070')}
+      </div>
+      <div style="padding:14px;border-radius:14px;text-align:center;background:${d.profit >= 0 ? 'rgba(76,175,151,0.1)' : 'rgba(224,112,112,0.1)'};border:1px solid ${d.profit >= 0 ? 'rgba(76,175,151,0.4)' : 'rgba(224,112,112,0.4)'};">
+        <div style="${lbl}">Benefis</div>
+        <div style="font-family:'Space Mono',monospace;font-size:1.7rem;font-weight:700;color:${col};">${fmtUsdP(d.profit)}</div>
+        <div style="font-family:'Space Mono',monospace;font-size:1rem;font-weight:700;color:${col};">${fmtHtgP(d.profit * d.tx)}</div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:8px;font-size:0.72rem;color:rgba(200,190,175,0.55);">
+          <span>Taux HTG</span>
+          <input type="text" inputmode="decimal" value="${d.tx}" onchange="setProfitTaux(this.value)" style="width:70px;background:#111;border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:#ddd8cc;padding:4px 8px;font-size:0.8rem;" />
+        </div>
+      </div>
+      <button class="bl-pdf" onclick="exportBilanPDF()">📄 Ekspòte bilan ${bilanLabel(d.key)} an PDF</button>
+
+      <div><div style="${lbl}margin-bottom:4px;">Rantre pa kliyan</div>${inHtml}</div>
+
+      <div>
+        <div style="${lbl}margin-bottom:4px;">Soti</div>
+        ${outHtml}
+        <div style="margin-top:10px;padding:12px;border-radius:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);">
+          <div style="${lbl}margin-bottom:8px;">+ Nouvo soti</div>
+          <input id="bilanSLabel" type="text" placeholder="Non oswa motif soti a" style="${inp}margin-bottom:8px;" />
+          <div style="display:grid;grid-template-columns:1fr 84px;gap:8px;margin-bottom:8px;">
+            <input id="bilanSAmount" type="number" step="0.01" min="0" placeholder="Montan" style="${inp}" />
+            <select id="bilanSCur" style="${inp}"><option value="USD">$</option><option value="HTG">HTG</option></select>
+          </div>
+          <input id="bilanSDate" type="date" value="${bilanDefaultDate(d.key)}" style="${inp}margin-bottom:10px;" />
+          <button class="bl-pdf" style="margin:0;" onclick="addSortie()">✔ Anrejistre soti a</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  m.addEventListener('click', e => { if (e.target === m) m.remove(); });
+  const np = document.getElementById('bilanPanel'); if (np && keepScroll) np.scrollTop = keepScroll;
+}
+
+/* PDF bilan mansyèl : antèt òdinè konpayi a, rantre, soti, benefis */
+async function exportBilanPDF() {
+  if (!window.jspdf) { showToast('⚠️ jsPDF pa chaje'); return; }
+  const key = bilanMonthKey || bilanKeyOf(Date.now());
+  const d = bilanData(key);
+  const { jsPDF } = window.jspdf;
+  let logo = null;
+  if (typeof loadImg === 'function') { try { logo = await loadImg('lescayesdropshipping.png', 400); } catch (err) {} }
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const W = 210, M = 14, R = W - M;
+  const GREEN = [20, 120, 70], RED = [190, 40, 40];
+
+  /* Antèt konpayi */
+  if (logo) doc.addImage(logo, 'PNG', M, 9, 22, 22);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(15, 15, 15);
+  doc.text('LES CAYES DROPSHIPPING CO., LTD.', M + 27, 15);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(70, 70, 70);
+  doc.text('USA: 9801 SW 3rd St, Pembroke Pines, FL 33025', M + 27, 20.5);
+  doc.text('Haiti: Les Cayes', M + 27, 25);
+  doc.text('+509 35 60 88 69  |  lescayesdropshipping@gmail.com', M + 27, 29.5);
+  doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.5); doc.line(M, 34, R, 34);
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(15, 15, 15);
+  doc.text('BILAN MANSYÈL', M, 43);
+  doc.setFontSize(11); doc.text(bilanLabel(key).toUpperCase(), R, 43, { align: 'right' });
+
+  /* Rezime */
+  let y = 49;
+  const bw = (R - M - 8) / 3;
+  const box = (i, title, val, rgb) => {
+    const x = M + i * (bw + 4);
+    doc.setDrawColor(180, 180, 180); doc.setLineWidth(0.25); doc.rect(x, y, bw, 17);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(95, 95, 95); doc.text(title, x + 3, y + 5);
+    doc.setFontSize(12); doc.setTextColor(rgb[0], rgb[1], rgb[2]); doc.text(val, x + 3, y + 12.5);
+  };
+  const pc = d.profit >= 0 ? GREEN : RED;
+  box(0, 'RANTRE KLIYAN', fmtUsdP(d.totalIn), [15, 15, 15]);
+  box(1, 'SOTI TOTAL', fmtOutP(d.totalOut), RED);
+  box(2, 'BENEFIS', fmtUsdP(d.profit), pc);
+  y += 22;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(pc[0], pc[1], pc[2]);
+  doc.text('Benefis an HTG : ' + fmtHtgP(d.profit * d.tx) + '   |   taux ' + d.tx + ' HTG', M, y);
+  y += 8;
+
+  const ensure = h => { if (y + h > 278) { doc.addPage(); y = 18; } };
+  const fit = (t, w) => { t = String(t == null ? '' : t); while (t.length > 1 && doc.getTextWidth(t) > w) t = t.slice(0, -1); return t; };
+  const table = (title, heads, rows, totalLabel, totalVal, totalRgb) => {
+    ensure(24);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(15, 15, 15); doc.text(title, M, y);
+    y += 3;
+    doc.setFillColor(232, 232, 232); doc.rect(M, y, R - M, 6.5, 'F');
+    doc.setFontSize(7.5); doc.setTextColor(60, 60, 60);
+    heads.forEach(h => doc.text(h.t, h.right ? h.x : h.x, y + 4.4, h.right ? { align: 'right' } : undefined));
+    y += 6.5;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(25, 25, 25);
+    if (!rows.length) { doc.setTextColor(120, 120, 120); doc.text('Okenn done.', M + 2, y + 5); y += 8; }
+    rows.forEach(r => {
+      ensure(7);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(25, 25, 25);
+      heads.forEach((h, i) => {
+        const v = r[i];
+        if (h.right) doc.text(String(v), h.x, y + 4.6, { align: 'right' });
+        else doc.text(fit(v, h.w), h.x, y + 4.6);
+      });
+      doc.setDrawColor(215, 215, 215); doc.setLineWidth(0.15); doc.line(M, y + 6.5, R, y + 6.5);
+      y += 6.5;
+    });
+    ensure(9);
+    doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.4); doc.line(M, y + 1, R, y + 1);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(15, 15, 15);
+    doc.text(totalLabel, M + 2, y + 6.5);
+    doc.setTextColor(totalRgb[0], totalRgb[1], totalRgb[2]);
+    doc.text(totalVal, R - 2, y + 6.5, { align: 'right' });
+    y += 14;
+  };
+
+  table('RANTRE KLIYAN', [
+    { t: 'DAT', x: M + 2, w: 22 }, { t: 'KLIYAN', x: M + 26, w: 50 }, { t: 'DESKRIPSYON', x: M + 78, w: 78 }, { t: 'MONTAN', x: R - 2, right: true }
+  ], d.rentrees.map(r => [fmtDate(r.date), r.client, r.desc, fmtUsdP(r.amount)]), 'TOTAL RANTRE', fmtUsdP(d.totalIn), [15, 15, 15]);
+
+  const sRows = d.manual.map(x => [fmtDate(x.date), x.label + (x.cur === 'HTG' ? ' · ' + fmtHtgP(x.amount) : ''), 'Manyèl', '-' + fmtUsdP(x.usd)])
+    .concat(d.kou.map(x => [fmtDate(x.date), x.label, 'Kou kliyan ' + x.client, '-' + fmtUsdP(x.usd)]));
+  table('SOTI', [
+    { t: 'DAT', x: M + 2, w: 22 }, { t: 'NON OSWA MOTIF', x: M + 26, w: 78 }, { t: 'TIP', x: M + 106, w: 50 }, { t: 'MONTAN', x: R - 2, right: true }
+  ], sRows, 'TOTAL SOTI', fmtOutP(d.totalOut), RED);
+
+  ensure(26);
+  doc.setFillColor(245, 245, 245); doc.setDrawColor(15, 15, 15); doc.setLineWidth(0.4); doc.rect(M, y, R - M, 20, 'FD');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(15, 15, 15);
+  doc.text('BENEFIS = RANTRE - SOTI', M + 4, y + 7);
+  doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(70, 70, 70);
+  doc.text(fmtUsdP(d.totalIn) + ' - ' + fmtUsdP(d.totalOut), M + 4, y + 14);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(pc[0], pc[1], pc[2]);
+  doc.text(fmtUsdP(d.profit), R - 4, y + 8, { align: 'right' });
+  doc.setFontSize(10); doc.text(fmtHtgP(d.profit * d.tx), R - 4, y + 15, { align: 'right' });
+
+  const n = doc.getNumberOfPages();
+  for (let p = 1; p <= n; p++) {
+    doc.setPage(p);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(150, 150, 150);
+    doc.text('Jenere pa Thomas Kabé · Les Cayes Dropshipping · ' + fmtDate(Date.now()), W / 2, 289, { align: 'center' });
+    doc.text('Paj ' + p + ' / ' + n, R, 289, { align: 'right' });
+  }
+  doc.save('LCD-Bilan-' + key + '.pdf');
+  showToast('📄 PDF bilan jenere');
+}
+
+/* ── Stil meni kliyan + bilan (enjekte yon sèl fwa) ── */
+function custInjectMenuStyles() {
+  if (!document.head || document.getElementById('cmStyles')) return;
+  const st = document.createElement('style');
+  st.id = 'cmStyles';
+  st.textContent = `
+  .cm-tabs{display:flex;gap:6px;padding:4px;margin:10px 0 8px;border-radius:15px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
+  .cm-tab{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;gap:5px;padding:10px 6px;border:0;border-radius:11px;background:transparent;color:rgba(200,190,175,.68);font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.82rem;letter-spacing:.04em;white-space:nowrap;cursor:pointer;transition:background .18s,color .18s,transform .12s}
+  .cm-tab.active{background:linear-gradient(135deg,#0e7490,#0a5568);color:#fff;box-shadow:0 4px 12px rgba(14,116,144,.38)}
+  .cm-tab.cm-tab-bilan{flex:0 0 auto;padding:10px 16px;background:linear-gradient(135deg,#f6dc8e 0%,#d9b440 52%,#b78a12 100%);color:#1d1200;box-shadow:0 4px 14px rgba(212,175,55,.3)}
+  .cm-tab:active{transform:scale(.96)}
+  .cm-actions{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:6px}
+  .cm-act{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:10px 4px 9px;border-radius:13px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.09);color:#ddd8cc;font-family:'Rajdhani',sans-serif;font-size:.72rem;font-weight:700;letter-spacing:.03em;cursor:pointer;transition:background .18s,border-color .18s,transform .12s}
+  .cm-act .ico{font-size:1.2rem;line-height:1}
+  .cm-act:hover{background:rgba(14,116,144,.16);border-color:rgba(14,116,144,.5)}
+  .cm-act:active{transform:scale(.95)}
+  .bl-stat{padding:12px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
+  .bl-nav{width:38px;height:34px;border-radius:10px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);color:#ddd8cc;font-size:1.2rem;cursor:pointer}
+  .bl-pdf{width:100%;padding:12px;border:0;border-radius:12px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.92rem;letter-spacing:.03em;color:#1d1200;background:linear-gradient(135deg,#f6dc8e,#d9b440 52%,#b78a12);box-shadow:0 6px 16px rgba(212,175,55,.22)}
+  .bl-pdf:active{transform:translateY(1px)}
+  `;
+  document.head.appendChild(st);
+}
+custInjectMenuStyles();
 
 /* ── Customer Form ──────────────────────────── */
 let pendingCustAvatar = null;
@@ -698,6 +821,7 @@ function openCustomerDetail(id) {
         <span style="font-size:0.7rem;opacity:0.65;">${txCount} sèvis</span>
       </div>
     </div>
+    ${profitBlockHtml(c)}
 
     <div class="cust-detail-actions">
       <button onclick="openTxnOverlay()">💵<span>Depans</span></button>
@@ -1128,6 +1252,163 @@ function deleteTxn(clientId, txnId) {
   showToast('🗑️ Tranzaksyon mete nan Corbeille (' + TRASH_DAYS + ' jou)');
 }
 
+
+
+/* ══════════════════════════════════════════════
+   BENEFIS — Total depans kliyan − kou (founisè kolis, lòt)
+   Kou yo antre an $ pa kliyan (c.costs) · HTG = $ × taux (133 pa defo, pèsonalizab)
+   ══════════════════════════════════════════════ */
+const PROFIT_TAUX_KEY = 'tbs_profit_taux';
+const PROFIT_DEF_TAUX = 133;
+function getProfitTaux() {
+  const n = parseFloat(String(localStorage.getItem(PROFIT_TAUX_KEY) || '').replace(',', '.'));
+  return n > 0 ? n : PROFIT_DEF_TAUX;
+}
+function getTotalCosts(c) { return (c.costs || []).reduce((sum, k) => sum + (parseFloat(k.amount) || 0), 0); }
+function getProfit(c) { return getTotalDepenses(c) - getTotalCosts(c); }
+function fmtHtgP(n) {
+  const r = Math.round(Math.abs(n));
+  return (n < 0 && r > 0 ? '-' : '') + String(r).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + ' HTG';
+}
+function fmtOutP(n) { return n > 0 ? '-' + fmtUsdP(n) : fmtUsdP(0); }
+function fmtUsdP(n) { return (n < 0 ? '-' : '') + '$' + Math.abs(n).toFixed(2); }
+
+function setProfitTaux(v) {
+  const n = parseFloat(String(v || '').replace(',', '.'));
+  if (n > 0) localStorage.setItem(PROFIT_TAUX_KEY, String(n)); else localStorage.removeItem(PROFIT_TAUX_KEY);
+  if (document.getElementById('profitModal')) showProfitModal();
+  if (document.getElementById('bilanModal')) showBilanModal();
+  const ov = document.getElementById('customerDetailOverlay');
+  if (currentCustomerId && ov && !ov.classList.contains('hidden')) openCustomerDetail(currentCustomerId);
+}
+
+function profitBlockHtml(c) {
+  const dep = getTotalDepenses(c), cost = getTotalCosts(c), pr = dep - cost, tx = getProfitTaux();
+  const col = pr >= 0 ? '#4caf97' : '#e07070';
+  const lbl = 'font-size:0.68rem;font-weight:700;letter-spacing:0.08em;color:rgba(200,190,175,0.55);font-family:\'Rajdhani\',sans-serif;';
+  const rows = (c.costs || []).slice().reverse().map(k => `
+    <div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-top:1px solid rgba(255,255,255,0.06);">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:0.82rem;color:#ddd8cc;">${custEsc(k.desc || 'Kou')}</div>
+        <div style="font-size:0.68rem;color:rgba(200,190,175,0.45);">${fmtDate(k.date)}</div>
+      </div>
+      <div style="color:#e07070;font-size:0.85rem;flex-shrink:0;">-${fmtUsdP(parseFloat(k.amount) || 0)}</div>
+      <button onclick="deleteCost('${c.id}','${k.id}')" title="Efase" style="background:none;border:1px solid rgba(220,80,80,0.3);border-radius:6px;color:#e07070;font-size:0.75rem;padding:3px 7px;cursor:pointer;flex-shrink:0;">🗑</button>
+    </div>`).join('');
+  return `
+    <div style="margin:6px 0 10px;padding:12px;border-radius:12px;background:rgba(76,175,151,0.07);border:1px solid rgba(76,175,151,0.3);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="${lbl}">BENEFIS</span>
+        <button onclick="openCostModal('${c.id}')" style="background:rgba(76,175,151,0.15);border:1px solid rgba(76,175,151,0.45);border-radius:8px;color:#4caf97;font-size:0.76rem;padding:5px 10px;cursor:pointer;">+ Kou</button>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:#ddd8cc;padding:2px 0;"><span>Total depans</span><span>${fmtUsdP(dep)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:#ddd8cc;padding:2px 0;"><span>Kou founisè ak lòt</span><span style="color:#e07070;">-${fmtUsdP(cost)}</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid rgba(255,255,255,0.12);margin-top:6px;padding-top:8px;">
+        <span style="font-weight:700;color:#ddd8cc;">Benefis</span>
+        <span style="text-align:right;"><b style="color:${col};font-size:1.05rem;">${fmtUsdP(pr)}</b><br><b style="color:${col};font-size:0.9rem;">${fmtHtgP(pr * tx)}</b></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:0.72rem;color:rgba(200,190,175,0.55);">
+        <span>Taux HTG</span>
+        <input type="text" inputmode="decimal" value="${tx}" onchange="setProfitTaux(this.value)" style="width:70px;background:#111;border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:#ddd8cc;padding:4px 8px;font-size:0.8rem;" />
+      </div>
+      ${rows ? `<div style="margin-top:8px;">${rows}</div>` : ''}
+    </div>`;
+}
+
+function openCostModal(clientId) {
+  const old = document.getElementById('costModal'); if (old) old.remove();
+  const m = document.createElement('div');
+  m.id = 'costModal';
+  m.style.cssText = 'position:fixed;inset:0;z-index:8888;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);backdrop-filter:blur(3px);';
+  const inp = 'width:100%;box-sizing:border-box;background:#111;border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:#ddd8cc;padding:9px 11px;font-size:0.95rem;margin-bottom:12px;';
+  const lb = 'font-size:0.78rem;color:rgba(200,190,175,0.6);display:block;margin-bottom:4px;';
+  m.innerHTML = `
+    <div style="background:#1a1520;border:1px solid rgba(76,175,151,0.4);border-radius:16px;padding:24px 22px;max-width:320px;width:90%;box-shadow:0 0 40px rgba(0,0,0,0.6);">
+      <div style="font-family:'Rajdhani',sans-serif;font-size:1rem;font-weight:700;color:#ddd8cc;margin-bottom:14px;">💸 Ajoute yon kou</div>
+      <label style="${lb}">Montan peye an $</label>
+      <input id="costAmount" type="number" min="0.01" step="0.01" placeholder="0.00" style="${inp}" />
+      <label style="${lb}">Deskripsyon</label>
+      <input id="costDesc" type="text" placeholder="Eks: Founisè kolis" style="${inp}margin-bottom:18px;" />
+      <div style="display:flex;gap:10px;">
+        <button onclick="saveCost('${clientId}')" style="flex:1;background:rgba(76,175,151,0.15);border:1px solid rgba(76,175,151,0.45);border-radius:10px;color:#4caf97;padding:10px;font-size:0.9rem;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:600;">✔ Anrejistre</button>
+        <button onclick="document.getElementById('costModal').remove()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:10px;color:#aaa;padding:10px 16px;font-size:0.9rem;cursor:pointer;">Anile</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const a = document.getElementById('costAmount'); if (a) a.focus();
+}
+
+function saveCost(clientId) {
+  const amount = parseFloat(String(document.getElementById('costAmount')?.value || '').replace(',', '.'));
+  if (!(amount > 0)) { showToast('⚠️ Montan obligatwa'); return; }
+  const desc = (document.getElementById('costDesc')?.value || '').trim() || 'Kou';
+  const list = getCustomers();
+  const c = list.find(x => x.id === clientId);
+  if (!c) return;
+  if (!c.costs) c.costs = [];
+  c.costs.push({ id: uid(), amount, desc, date: Date.now() });
+  c.updatedAt = Date.now();
+  saveCustomers(list);
+  document.getElementById('costModal')?.remove();
+  openCustomerDetail(clientId);
+  showToast('✅ Kou anrejistre');
+}
+
+function deleteCost(clientId, costId) {
+  if (!confirm('Efase kou sa a ?')) return;
+  const list = getCustomers();
+  const c = list.find(x => x.id === clientId);
+  if (!c) return;
+  c.costs = (c.costs || []).filter(k => k.id !== costId);
+  c.updatedAt = Date.now();
+  saveCustomers(list);
+  openCustomerDetail(clientId);
+  showToast('🗑️ Kou efase');
+}
+
+/* Benefis total — tout kliyan */
+function showProfitModal() {
+  const old = document.getElementById('profitModal'); if (old) old.remove();
+  const list = getCustomers();
+  const tx = getProfitTaux();
+  let dep = 0, cost = 0;
+  const rows = list.map(c => {
+    const d = getTotalDepenses(c), k = getTotalCosts(c);
+    dep += d; cost += k;
+    return { name: c.name, d, k, p: d - k };
+  }).filter(r => r.d > 0 || r.k > 0).sort((a, b) => b.p - a.p);
+  const pr = dep - cost, col = pr >= 0 ? '#4caf97' : '#e07070';
+  const rowsHtml = rows.length ? rows.map(r => `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-top:1px solid rgba(255,255,255,0.06);">
+      <div style="min-width:0;flex:1;"><div style="font-size:0.84rem;color:#ddd8cc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${custEsc(r.name)}</div>
+        <div style="font-size:0.68rem;color:rgba(200,190,175,0.45);">${fmtUsdP(r.d)} − ${fmtUsdP(r.k)}</div></div>
+      <div style="text-align:right;flex-shrink:0;color:${r.p >= 0 ? '#4caf97' : '#e07070'};font-size:0.84rem;font-weight:700;">${fmtUsdP(r.p)}<br><span style="font-size:0.72rem;font-weight:600;">${fmtHtgP(r.p * tx)}</span></div>
+    </div>`).join('') : `<div style="color:rgba(200,190,175,0.5);font-size:0.85rem;padding:10px 0;text-align:center;">Okenn done ankò.</div>`;
+  const m = document.createElement('div');
+  m.id = 'profitModal';
+  m.style.cssText = 'position:fixed;inset:0;z-index:8800;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.75);backdrop-filter:blur(3px);';
+  m.innerHTML = `
+    <div style="background:#1a1520;border:1px solid rgba(76,175,151,0.4);border-radius:16px;padding:20px 18px;max-width:380px;width:92%;max-height:86vh;overflow-y:auto;box-shadow:0 0 40px rgba(0,0,0,0.6);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div style="font-family:'Rajdhani',sans-serif;font-size:1.05rem;font-weight:700;color:#ddd8cc;">💹 Benefis total</div>
+        <button onclick="document.getElementById('profitModal').remove()" style="background:none;border:0;color:#aaa;font-size:1rem;cursor:pointer;">✕</button>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:0.88rem;color:#ddd8cc;padding:2px 0;"><span>Total depans kliyan</span><span>${fmtUsdP(dep)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:0.88rem;color:#ddd8cc;padding:2px 0;"><span>Total kou</span><span style="color:#e07070;">-${fmtUsdP(cost)}</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid rgba(255,255,255,0.12);margin-top:6px;padding-top:8px;">
+        <span style="font-weight:700;color:#ddd8cc;">Benefis</span>
+        <span style="text-align:right;"><b style="color:${col};font-size:1.15rem;">${fmtUsdP(pr)}</b><br><b style="color:${col};font-size:0.95rem;">${fmtHtgP(pr * tx)}</b></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin:10px 0 12px;font-size:0.74rem;color:rgba(200,190,175,0.55);">
+        <span>Taux HTG</span>
+        <input type="text" inputmode="decimal" value="${tx}" onchange="setProfitTaux(this.value)" style="width:70px;background:#111;border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:#ddd8cc;padding:4px 8px;font-size:0.8rem;" />
+      </div>
+      <div style="font-size:0.68rem;font-weight:700;letter-spacing:0.08em;color:rgba(200,190,175,0.5);font-family:'Rajdhani',sans-serif;">PA KLIYAN</div>
+      ${rowsHtml}
+    </div>`;
+  document.body.appendChild(m);
+  m.addEventListener('click', e => { if (e.target === m) m.remove(); });
+}
 
 /* ── Helpers locaux ─────────────────────────── */
 function custEsc(s) {

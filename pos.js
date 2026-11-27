@@ -4,7 +4,7 @@
 
    • Yon sèl fòm : kaz ACHA / SHIPPING (koche an wouj sou PDF la)
    • Yon sèl liy nan tablo a : Pwa | Deskripsyon (100 kar.) | Pri U. | Montan USD | HTG
-     (chak chan sof deskripsyon : 6 karaktè maksimòm) · ekstansyon otomatik (LBS, $, HTG) — OKENN kalkil otomatik
+     (chak chan sof deskripsyon : 6 karaktè maksimòm) · ekstansyon otomatik (LBS, $, HTG) · Montan US ak Total HTG kalkile otomatikman
    • Tout ranpli = menm polis (Courier nwa) · siyati Thomas Kabé = imaj manuscrit.jpg
    • « Terminé pour X » : fakti a antre nan FILE D'ATTENTE (max 10), san PDF
    • Chwazi 2 fakti nan file a → PDF paysaj → yo kite file a, men rete nan istorik
@@ -191,6 +191,24 @@ function fkLogPayment(e, stage, amount) {
   return 'ok';
 }
 
+/* Retire peman etap sa a nan pwofil kliyan an (entèriptè fèmen) */
+function fkUnlogPayment(e, stage) {
+  if (typeof getCustomers !== 'function' || typeof saveCustomers !== 'function') return false;
+  const pk = e.pays || [];
+  const p = pk.find(x => x.stage === stage);
+  if (!p) return false;
+  const list = getCustomers();
+  const c = list.find(x => x.id === p.custId);
+  if (c && p.txId) {
+    c.transactions = (c.transactions || []).filter(t => t.id !== p.txId);
+    c.updatedAt = Date.now();
+    saveCustomers(list);
+  }
+  e.pays = pk.filter(x => x !== p);
+  if (typeof renderCustomers === 'function') { try { renderCustomers(); } catch (err) {} }
+  return true;
+}
+
 /* ══════════════════════════════════════════════
    FÒM : lekti / ranpli / efase
    ══════════════════════════════════════════════ */
@@ -214,7 +232,7 @@ function fkRead() {
   const sel = fkVal('fkPriSel');
   return {
     clientName: fkVal('fkName'), clientAddr: fkVal('fkAddr'), clientPhone: fkVal('fkPhone'), clientEmail: fkVal('fkEmail'),
-    origins, acha: fkChk('fkAcha'), ship: fkChk('fkShip'),
+    origins, acha: fkChk('fkAcha'), ship: fkChk('fkShip'), toProfile: fkChk('fkToProfile'),
     pwa: lim('fkPwa', 6), desc: lim('fkDesc', 400), pri: sel === 'other' ? lim('fkPriOther', 6) : sel,
     taux: lim('fkTaux', 6), usd: lim('fkUsd', 8), htg: lim('fkHtg', 8), customUsd: fkCustomUsd, customHtg: fkCustomHtg,
     totalPay: lim('fkPay', 6), paid: lim('fkPaid', 6), bal: lim('fkBal', 6), net: fkVal('fkNet'),
@@ -227,7 +245,7 @@ function fkRead() {
 function fkFill(e) {
   const map = { fkName: e.clientName, fkAddr: e.clientAddr, fkPhone: e.clientPhone, fkEmail: e.clientEmail,
     fkPlat1: (e.origins || [])[0] || '', fkPlat2: (e.origins || [])[1] || '', fkPwa: e.pwa, fkDesc: e.desc,
-    fkTaux: e.taux, fkUsd: e.usd, fkHtg: e.htg, fkPay: e.totalPay, fkPaid: e.paid, fkBal: e.bal, fkNet: e.net || '',
+    fkTaux: (e.taux == null || e.taux === '') ? String(FK_DEF_TAUX) : e.taux, fkUsd: e.usd, fkHtg: e.htg, fkPay: e.totalPay, fkPaid: e.paid, fkBal: e.bal, fkNet: e.net || '',
     fkDateCmd: e.dateCmd, fkDateUSA: e.dateUSA, fkDateHT: e.dateHT, fkNote: e.note };
   FK_FIELDS.forEach(id => { if (fkEl(id)) fkEl(id).value = (map[id] == null ? '' : map[id]); });
   if (fkEl('fkPriSel')) {
@@ -238,6 +256,7 @@ function fkFill(e) {
   }
   if (fkEl('fkAcha')) fkEl('fkAcha').checked = !!e.acha;
   if (fkEl('fkShip')) fkEl('fkShip').checked = !!e.ship;
+  if (fkEl('fkToProfile')) fkEl('fkToProfile').checked = e.toProfile !== false;
   if (fkEl('fkDate')) {
     const d = new Date(e.date || Date.now());
     fkEl('fkDate').value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -260,23 +279,21 @@ function fkPayAmount(e) {
 /* ══════════════════════════════════════════════
    KALKIL OTOMATIK (ou ka pèsonalize)
    Montan US   = Pwa × Pri U.
-   Total HTG   = Montan US × Taux  +  Balans m rete × 135
-   Taux : FIKS 135 pou Acha (pa pèsonalizab) · pèsonalizab sèlman pou Shipping (transpò)
-   Balans m rete : 35 = kliyan an rete peye 35$ (35 × 135) · -35 = nou dwe kliyan an 35$ (-35 × 135)
+   Total HTG   = Montan US × Taux  +  Balans mwen genyen × 135
+   Taux : 133 pa defo pou Montan US ak tout rès · pèsonalizab
+   Balans mwen genyen : toujou × 135 (fiks) · 35 = kliyan an rete peye 35$ (35 × 135) · -35 = nou dwe kliyan an 35$ (-35 × 135) → total a diminye
    Si ou ekri nan Montan US oswa Total HTG, kalkil la kite chan sa a an repo (↺ Auto pou retounen).
    ══════════════════════════════════════════════ */
 let fkCustomUsd = false, fkCustomHtg = false;
-let fkTauxLocked = false, fkTauxMemo = '';
-const FK_TAUX_KEY = 'tbs_fakti_taux';
-const FK_ACHA_RATE = 135;                       // taux fiks pou Acha ak pou balans m rete
+const FK_BAL_RATE = 135;                        // taux fiks sèlman pou balans m rete
+const FK_DEF_TAUX = 133;                        // taux pa defo pou Montan US ak tout rès · pèsonalizab
 function fkPriNum() { const sel = fkVal('fkPriSel'); return fkNum(sel === 'other' ? fkVal('fkPriOther') : sel); }
 function fkThousands(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
 
 function fkRecalc() {
-  const acha = fkChk('fkAcha'), ship = fkChk('fkShip');
-  const lockTaux = acha && !ship;
+  const acha = fkChk('fkAcha');
   const pwa = fkNum(fkVal('fkPwa')), pri = fkPriNum();
-  const taux = lockTaux ? FK_ACHA_RATE : fkNum(fkVal('fkTaux'));
+  const taux = fkNum(fkVal('fkTaux'));
   const bal = acha ? fkNum(fkVal('fkBal')) : 0;
   const r2 = v => Math.round(v * 100) / 100;
   const sg = v => (v < 0 ? '-' : '') + Math.abs(v).toFixed(2) + '$';
@@ -290,16 +307,16 @@ function fkRecalc() {
   if (pwa > 0 && pri > 0 && !fkCustomUsd) lines.push('📦 ' + pwa + ' LBS × ' + pri.toFixed(2) + '$ = <b>' + usd.toFixed(2) + '$</b>');
 
   const partUsd = (usd !== 0 && taux > 0) ? usd * taux : 0;
-  const partBal = bal * FK_ACHA_RATE;
-  if (usd !== 0) lines.push('💱 ' + sg(usd) + ' × ' + taux + ' HTG' + (lockTaux ? ' (taux fiks Acha)' : (ship ? ' (taux transpò)' : '')) + ' = <b>' + fkThousands(Math.round(partUsd)) + ' HTG</b>');
-  if (bal !== 0) lines.push('⚖️ Balans ' + sg(bal) + ' × ' + FK_ACHA_RATE + ' = <b>' + fkThousands(Math.round(partBal)) + ' HTG</b> <span style="opacity:.65">(' + (bal > 0 ? 'kliyan an rete peye' : 'nou dwe kliyan an') + ')</span>');
+  const partBal = bal * FK_BAL_RATE;
+  if (usd !== 0) lines.push('💱 ' + sg(usd) + ' × ' + taux + ' HTG = <b>' + fkThousands(Math.round(partUsd)) + ' HTG</b>');
+  if (bal !== 0) lines.push('⚖️ Balans ' + sg(bal) + ' × ' + FK_BAL_RATE + ' = <b>' + fkThousands(Math.round(partBal)) + ' HTG</b> <span style="opacity:.65">· ' + (bal > 0 ? 'kliyan an rete peye' : 'nou dwe kliyan an') + '</span>');
 
   const canCalc = (usd !== 0 || bal !== 0) && (usd === 0 || taux > 0);
   const autoTotal = canCalc ? Math.round(partUsd + partBal) : null;
   if (!fkCustomHtg && fkEl('fkHtg')) fkEl('fkHtg').value = autoTotal === null ? '' : String(autoTotal);
   const total = fkNum(fkVal('fkHtg'));
   if (fkCustomHtg) {
-    lines.push('✏️ <b>Total pèsonalize : ' + fkThousands(total) + ' HTG</b>' + (autoTotal !== null ? ' <span style="opacity:.65">(otomatik : ' + fkThousands(autoTotal) + ')</span>' : ''));
+    lines.push('✏️ <b>Total pèsonalize : ' + fkThousands(total) + ' HTG</b>' + (autoTotal !== null ? ' <span style="opacity:.65">· otomatik : ' + fkThousands(autoTotal) + '</span>' : ''));
   } else if (autoTotal !== null) {
     lines.push('<span style="color:#d4af37;">➜ TOTAL <b>' + fkThousands(autoTotal) + ' HTG</b></span>');
   }
@@ -325,22 +342,13 @@ function fkOnFlags() {
   const acha = fkChk('fkAcha'), ship = fkChk('fkShip');
   const show = (id, on) => { const el = fkEl(id); if (el) el.style.display = on ? '' : 'none'; };
   show('fkRowDates', acha); show('fkAchaBlock', acha);
-  /* Taux : fiks 135 pou Acha (pa pèsonalizab) · pèsonalizab sèlman lè Shipping koche */
-  const tauxEl = fkEl('fkTaux');
-  if (tauxEl) {
-    if (acha && !ship) {
-      if (!fkTauxLocked) fkTauxMemo = tauxEl.value;
-      tauxEl.value = String(FK_ACHA_RATE); tauxEl.disabled = true; fkTauxLocked = true;
-    } else {
-      if (fkTauxLocked) tauxEl.value = fkTauxMemo || localStorage.getItem(FK_TAUX_KEY) || '135';
-      tauxEl.disabled = false; fkTauxLocked = false;
-    }
-  }
   const ns = fkStageFor(fkEditingId ? fkPrev : null, acha, ship);
   fkFormStage = ns;
   const h = fkEl('fkStageHint');
   if (h) h.textContent = (!acha && !ship) ? 'Chwazi Acha oswa Shipping'
-    : 'Peman etap ' + STAGE_LABEL[ns] + ' = Montan US (pri kliyan an peye) → ajoute nan pwofil kliyan an';
+    : (fkChk('fkToProfile')
+        ? 'Peman etap ' + STAGE_LABEL[ns] + ' = Montan US pri kliyan an peye, li ap ajoute nan pwofil kliyan an'
+        : 'Peman etap ' + STAGE_LABEL[ns] + ' pa ap ajoute nan pwofil kliyan an');
   fkRecalc();
 }
 
@@ -354,11 +362,11 @@ function fkClear(silent) {
   FK_FIELDS.forEach(id => { if (fkEl(id)) fkEl(id).value = ''; });
   if (fkEl('fkAcha')) fkEl('fkAcha').checked = false;
   if (fkEl('fkShip')) fkEl('fkShip').checked = false;
+  if (fkEl('fkToProfile')) fkEl('fkToProfile').checked = true;
   if (fkEl('fkDate')) fkEl('fkDate').value = fkToday();
   if (fkEl('fkPriSel')) fkEl('fkPriSel').value = '';
   fkCustomUsd = false; fkCustomHtg = false;
-  fkTauxLocked = false; fkTauxMemo = '';
-  if (fkEl('fkTaux')) { fkEl('fkTaux').value = localStorage.getItem(FK_TAUX_KEY) || '135'; fkEl('fkTaux').disabled = false; }
+  if (fkEl('fkTaux')) { fkEl('fkTaux').value = String(FK_DEF_TAUX); fkEl('fkTaux').disabled = false; }
   fkOnPri();
   fkEditingId = null; fkPrev = null; fkFormStage = 'ship'; fkFormMemo = {};
   const b = fkEl('fkEditBanner'); if (b) b.style.display = 'none';
@@ -378,7 +386,7 @@ function fkFinish(skipAsk) {
   if (!f.clientName) { showToast('Antre non kliyan an'); return; }
   if (!f.acha && !f.ship) { showToast('Chwazi Acha oswa Shipping'); return; }
   /* Kliyan pa nan LCD Customers → mande si nou anrejistre l (menm depi ekran POS la) */
-  if (skipAsk !== true && typeof getCustomers === 'function' && !fkFindCustomer(f)) { fkAskRegisterClient(f); return; }
+  if (skipAsk !== true && f.toProfile && typeof getCustomers === 'function' && !fkFindCustomer(f)) { fkAskRegisterClient(f); return; }
 
   const list = fkGet();
   const idx = fkEditingId ? list.findIndex(h => h.id === fkEditingId) : -1;
@@ -397,16 +405,21 @@ function fkFinish(skipAsk) {
   e.stage = stage;
   const amt = fkPayAmount(e);
   const pk = e.pays || [];
-  const warn = (amt > 0 && !pk.some(p => p.stage === stage) && pk.some(p => Math.abs((p.usd || 0) - amt) < 0.005))
-    ? ' · ⚠ menm montan ak peman anvan an — verifye Montan US' : '';
-  const logged = fkLogPayment(e, stage, amt);
-  const nocust = (logged === 'nocust') ? ' · ⚠ kliyan pa enskri : peman pa nan pwofil' : '';
+  let warn = '', nocust = '', skipped = '';
+  if (e.toProfile) {
+    warn = (amt > 0 && !pk.some(p => p.stage === stage) && pk.some(p => Math.abs((p.usd || 0) - amt) < 0.005))
+      ? ' · ⚠ menm montan ak peman anvan an — verifye Montan US' : '';
+    const logged = fkLogPayment(e, stage, amt);
+    nocust = (logged === 'nocust') ? ' · ⚠ kliyan pa enskri : peman pa nan pwofil' : '';
+  } else {
+    fkUnlogPayment(e, stage);
+    skipped = ' · pa nan pwofil kliyan an';
+  }
   if (typeof savePosClient === 'function') savePosClient(e.clientName, e.clientAddr, e.clientPhone);
-  if (e.taux && e.ship) { try { localStorage.setItem(FK_TAUX_KEY, e.taux); } catch (err) {} }
   fkSave(list);
 
   const q = fkGet().filter(h => !h.printed).length;
-  showToast('Fakti #lcd' + fkPad(e.invoiceNo) + (idx < 0 ? ' anrejistre' : ' mete ajou') + ' · file : ' + q + warn + nocust);
+  showToast('Fakti #lcd' + fkPad(e.invoiceNo) + (idx < 0 ? ' anrejistre' : ' mete ajou') + ' · file : ' + q + warn + nocust + skipped);
   fkClear(true);
   fkRefresh();
   if (idx >= 0) switchPosTab('queue');
@@ -1087,7 +1100,7 @@ function drawFakti(doc, e, imgs, ox) {
   const summary = acha
     /* ACHA : 3 liy montan agoch · Peye nèt + imaj peman santre youn sou lòt adwat */
     ? { h: 19.5, draw: y => {
-        [['MONTAN ACHA VINI', e.totalPay], ['MONTAN M TE BAY', e.paid], ['BALANS M RETE', e.bal]].forEach(([t, v], i) => {
+        [['MONTAN ACHA A VINI', e.totalPay], ['MONTAN M BAY', e.paid], ['BALANS MWEN GENYEN', e.bal]].forEach(([t, v], i) => {
           const yb = y + 4 + i * 6.6;
           lab(t, L, yb, 6.4);
           hair(L, L + sw, yb + 1.5);
@@ -1206,6 +1219,11 @@ function fkInjectStyles() {
   const st = document.createElement('style');
   st.id = 'fkStyles';
   st.textContent = `
+  .fk-sw{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid rgba(212,175,55,.35);border-radius:8px;padding:11px 12px;cursor:pointer;color:#ddd8cc;font-size:.88rem}
+  .fk-sw input{appearance:none;-webkit-appearance:none;position:relative;flex-shrink:0;width:42px;height:24px;margin:0;border-radius:12px;background:rgba(255,255,255,.18);cursor:pointer;transition:background .2s}
+  .fk-sw input::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .2s}
+  .fk-sw input:checked{background:#d4af37}
+  .fk-sw input:checked::after{transform:translateX(18px)}
   .fk-list{padding:8px 12px 4px;display:flex;flex-direction:column;gap:8px}
   .fk-card{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 12px;border-radius:14px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08);transition:border-color .18s,background .18s,transform .18s}
   .fk-card.sel{border-color:rgba(212,175,55,.65);background:rgba(212,175,55,.07);box-shadow:0 0 0 1px rgba(212,175,55,.15) inset}
