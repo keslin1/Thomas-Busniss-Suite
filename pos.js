@@ -268,7 +268,7 @@ function fkFill(e) {
 }
 
 /* Montan ki antre nan pwofil kliyan an = pri kliyan an peye selon livrezon an (kolòn Montan US,
-   oswa Total HTG ÷ taux si Montan US vid) — pou Acha kou Shipping. « Montan m bay » pa ale nan pwofil la. */
+   oswa Total HTG ÷ taux si Montan US vid) — pou Acha kou Shipping. « Vèsman » pa ale nan pwofil la. */
 function fkPayAmount(e) {
   const usd = fkNum(e.usd);
   if (usd > 0) return usd;
@@ -279,9 +279,9 @@ function fkPayAmount(e) {
 /* ══════════════════════════════════════════════
    KALKIL OTOMATIK (ou ka pèsonalize)
    Montan US   = Pwa × Pri U.
-   Total HTG   = Montan US × Taux  +  Balans mwen genyen × 135
+   Total HTG   = Montan US × Taux  +  Balans m' te genyen × 135
    Taux : 133 pa defo pou Montan US ak tout rès · pèsonalizab
-   Balans mwen genyen : toujou × 135 (fiks) · 35 = kliyan an rete peye 35$ (35 × 135) · -35 = nou dwe kliyan an 35$ (-35 × 135) → total a diminye
+   Balans m' te genyen : toujou × 135 (fiks) · 35 = kliyan an rete peye 35$ (35 × 135) · -35 = nou dwe kliyan an 35$ (-35 × 135) → total a diminye
    Si ou ekri nan Montan US oswa Total HTG, kalkil la kite chan sa a an repo (↺ Auto pou retounen).
    ══════════════════════════════════════════════ */
 let fkCustomUsd = false, fkCustomHtg = false;
@@ -289,6 +289,16 @@ const FK_BAL_RATE = 135;                        // taux fiks sèlman pou balans 
 const FK_DEF_TAUX = 133;                        // taux pa defo pou Montan US ak tout rès · pèsonalizab
 function fkPriNum() { const sel = fkVal('fkPriSel'); return fkNum(sel === 'other' ? fkVal('fkPriOther') : sel); }
 function fkThousands(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
+/* Balans m' te genyen = Montan acha a − Vèsman : 10 − 8 = 2 (kliyan an rete peye) · 10 − 14 = -4 (nou dwe kliyan an) */
+function fkAutoBal() {
+  const a = fkVal('fkPay'), v = fkVal('fkPaid');
+  if (fkEl('fkBal')) {
+    if (a === '' && v === '') fkEl('fkBal').value = '';
+    else fkEl('fkBal').value = String(Math.round((fkNum(a) - fkNum(v)) * 100) / 100);
+  }
+  fkRecalc();
+}
 
 function fkRecalc() {
   const acha = fkChk('fkAcha');
@@ -1100,7 +1110,7 @@ function drawFakti(doc, e, imgs, ox) {
   const summary = acha
     /* ACHA : 3 liy montan agoch · Peye nèt + imaj peman santre youn sou lòt adwat */
     ? { h: 19.5, draw: y => {
-        [['MONTAN ACHA A VINI', e.totalPay], ['MONTAN M BAY', e.paid], ['BALANS MWEN GENYEN', e.bal]].forEach(([t, v], i) => {
+        [['MONTAN ACHA A', e.totalPay], ['VÈSMAN', e.paid], ["BALANS M' TE GENYEN", e.bal]].forEach(([t, v], i) => {
           const yb = y + 4 + i * 6.6;
           lab(t, L, yb, 6.4);
           hair(L, L + sw, yb + 1.5);

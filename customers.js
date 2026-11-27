@@ -414,7 +414,7 @@ function sortCustomers(mode, btn) {
 
 /* ══════════════════════════════════════════════
    BILAN MANSYÈL — Rantre kliyan − Soti = Benefis
-   Rantre = depans kliyan nan mwa a · Soti = soti manyèl + kou kliyan nan mwa a
+   Rantre = depans kliyan nan mwa a · Soti = soti manyèl nan mwa a
    Soti manyèl : non oswa motif + montan ($ oswa HTG) · HTG konvèti ak taux benefis la
    ══════════════════════════════════════════════ */
 const SORTIES_KEY = 'tbs_sorties_v1';
@@ -452,15 +452,9 @@ function bilanData(key) {
     id: x.id, date: x.date, label: x.label || 'Soti', amount: parseFloat(x.amount) || 0, cur: x.cur === 'HTG' ? 'HTG' : 'USD',
     usd: x.cur === 'HTG' ? (parseFloat(x.amount) || 0) / tx : (parseFloat(x.amount) || 0)
   })).sort((a, b) => a.date - b.date);
-  const kou = [];
-  customers.forEach(c => (c.costs || []).forEach(k => {
-    if (inR(k.date || 0)) kou.push({ date: k.date, client: c.name || '', label: k.desc || 'Kou', usd: parseFloat(k.amount) || 0 });
-  }));
-  kou.sort((a, b) => a.date - b.date);
   const totalIn = rentrees.reduce((sum, r) => sum + r.amount, 0);
   const totalManual = manual.reduce((sum, r) => sum + r.usd, 0);
-  const totalKou = kou.reduce((sum, r) => sum + r.usd, 0);
-  return { key, tx, rentrees, perClient, manual, kou, totalIn, totalManual, totalKou, totalOut: totalManual + totalKou, profit: totalIn - totalManual - totalKou };
+  return { key, tx, rentrees, perClient, manual, totalIn, totalManual, totalOut: totalManual, profit: totalIn - totalManual };
 }
 
 function bilanGoMonth(delta) { bilanMonthKey = bilanShiftKey(bilanMonthKey || bilanKeyOf(Date.now()), delta); showBilanModal(); }
@@ -509,8 +503,7 @@ function showBilanModal() {
   const inHtml = clients.length ? clients.map(n => row(custEsc(n), '', `<span style="color:#d4af37;">${fmtUsdP(d.perClient[n])}</span>`)).join('')
     : `<div style="color:rgba(200,190,175,0.45);font-size:0.82rem;padding:8px 0;text-align:center;">Okenn rantre nan mwa sa a.</div>`;
   const outManual = d.manual.map(x => row(custEsc(x.label), fmtDate(x.date) + (x.cur === 'HTG' ? ' · ' + fmtHtgP(x.amount) : ''), `<span style="color:#e07070;">-${fmtUsdP(x.usd)}</span>`, delBtn(x.id))).join('');
-  const outKou = d.kou.map(x => row(custEsc(x.label), fmtDate(x.date) + ' · kou kliyan ' + custEsc(x.client), `<span style="color:#e07070;">-${fmtUsdP(x.usd)}</span>`)).join('');
-  const outHtml = (outManual + outKou) || `<div style="color:rgba(200,190,175,0.45);font-size:0.82rem;padding:8px 0;text-align:center;">Okenn soti nan mwa sa a.</div>`;
+  const outHtml = outManual || `<div style="color:rgba(200,190,175,0.45);font-size:0.82rem;padding:8px 0;text-align:center;">Okenn soti nan mwa sa a.</div>`;
   const stat = (t, v, c) => `<div class="bl-stat"><div style="${lbl}">${t}</div><div style="font-family:'Space Mono',monospace;font-size:1.05rem;font-weight:700;color:${c};margin-top:3px;">${v}</div></div>`;
 
   const m = document.createElement('div');
@@ -644,10 +637,9 @@ async function exportBilanPDF() {
     { t: 'DAT', x: M + 2, w: 22 }, { t: 'KLIYAN', x: M + 26, w: 50 }, { t: 'DESKRIPSYON', x: M + 78, w: 78 }, { t: 'MONTAN', x: R - 2, right: true }
   ], d.rentrees.map(r => [fmtDate(r.date), r.client, r.desc, fmtUsdP(r.amount)]), 'TOTAL RANTRE', fmtUsdP(d.totalIn), [15, 15, 15]);
 
-  const sRows = d.manual.map(x => [fmtDate(x.date), x.label + (x.cur === 'HTG' ? ' · ' + fmtHtgP(x.amount) : ''), 'Manyèl', '-' + fmtUsdP(x.usd)])
-    .concat(d.kou.map(x => [fmtDate(x.date), x.label, 'Kou kliyan ' + x.client, '-' + fmtUsdP(x.usd)]));
+  const sRows = d.manual.map(x => [fmtDate(x.date), x.label + (x.cur === 'HTG' ? ' · ' + fmtHtgP(x.amount) : ''), '-' + fmtUsdP(x.usd)]);
   table('SOTI', [
-    { t: 'DAT', x: M + 2, w: 22 }, { t: 'NON OSWA MOTIF', x: M + 26, w: 78 }, { t: 'TIP', x: M + 106, w: 50 }, { t: 'MONTAN', x: R - 2, right: true }
+    { t: 'DAT', x: M + 2, w: 22 }, { t: 'NON OSWA MOTIF', x: M + 26, w: 130 }, { t: 'MONTAN', x: R - 2, right: true }
   ], sRows, 'TOTAL SOTI', fmtOutP(d.totalOut), RED);
 
   ensure(26);
@@ -680,11 +672,13 @@ function custInjectMenuStyles() {
   .cm-tabs{display:flex;gap:6px;padding:4px;margin:10px 0 8px;border-radius:15px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
   .cm-tab{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;gap:5px;padding:10px 6px;border:0;border-radius:11px;background:transparent;color:rgba(200,190,175,.68);font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.82rem;letter-spacing:.04em;white-space:nowrap;cursor:pointer;transition:background .18s,color .18s,transform .12s}
   .cm-tab.active{background:linear-gradient(135deg,#0e7490,#0a5568);color:#fff;box-shadow:0 4px 12px rgba(14,116,144,.38)}
-  .cm-tab.cm-tab-bilan{flex:0 0 auto;padding:10px 16px;background:linear-gradient(135deg,#f6dc8e 0%,#d9b440 52%,#b78a12 100%);color:#1d1200;box-shadow:0 4px 14px rgba(212,175,55,.3)}
   .cm-tab:active{transform:scale(.96)}
   .cm-actions{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:6px}
   .cm-act{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:10px 4px 9px;border-radius:13px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.09);color:#ddd8cc;font-family:'Rajdhani',sans-serif;font-size:.72rem;font-weight:700;letter-spacing:.03em;cursor:pointer;transition:background .18s,border-color .18s,transform .12s}
+  .cm-act span:last-child{text-align:center;line-height:1.15}
   .cm-act .ico{font-size:1.2rem;line-height:1}
+  .cm-act.cm-act-bilan{background:linear-gradient(135deg,#f6dc8e 0%,#d9b440 52%,#b78a12 100%);border-color:rgba(212,175,55,.7);color:#1d1200;box-shadow:0 4px 14px rgba(212,175,55,.28)}
+  .cm-act.cm-act-bilan:hover{background:linear-gradient(135deg,#f6dc8e 0%,#d9b440 52%,#b78a12 100%)}
   .cm-act:hover{background:rgba(14,116,144,.16);border-color:rgba(14,116,144,.5)}
   .cm-act:active{transform:scale(.95)}
   .bl-stat{padding:12px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
@@ -821,7 +815,6 @@ function openCustomerDetail(id) {
         <span style="font-size:0.7rem;opacity:0.65;">${txCount} sèvis</span>
       </div>
     </div>
-    ${profitBlockHtml(c)}
 
     <div class="cust-detail-actions">
       <button onclick="openTxnOverlay()">💵<span>Depans</span></button>
@@ -1255,8 +1248,7 @@ function deleteTxn(clientId, txnId) {
 
 
 /* ══════════════════════════════════════════════
-   BENEFIS — Total depans kliyan − kou (founisè kolis, lòt)
-   Kou yo antre an $ pa kliyan (c.costs) · HTG = $ × taux (133 pa defo, pèsonalizab)
+   TAUX HTG + FÒMA MONTAN — itilize pa Bilan mansyèl (133 pa defo, pèsonalizab)
    ══════════════════════════════════════════════ */
 const PROFIT_TAUX_KEY = 'tbs_profit_taux';
 const PROFIT_DEF_TAUX = 133;
@@ -1264,8 +1256,6 @@ function getProfitTaux() {
   const n = parseFloat(String(localStorage.getItem(PROFIT_TAUX_KEY) || '').replace(',', '.'));
   return n > 0 ? n : PROFIT_DEF_TAUX;
 }
-function getTotalCosts(c) { return (c.costs || []).reduce((sum, k) => sum + (parseFloat(k.amount) || 0), 0); }
-function getProfit(c) { return getTotalDepenses(c) - getTotalCosts(c); }
 function fmtHtgP(n) {
   const r = Math.round(Math.abs(n));
   return (n < 0 && r > 0 ? '-' : '') + String(r).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + ' HTG';
@@ -1276,138 +1266,7 @@ function fmtUsdP(n) { return (n < 0 ? '-' : '') + '$' + Math.abs(n).toFixed(2); 
 function setProfitTaux(v) {
   const n = parseFloat(String(v || '').replace(',', '.'));
   if (n > 0) localStorage.setItem(PROFIT_TAUX_KEY, String(n)); else localStorage.removeItem(PROFIT_TAUX_KEY);
-  if (document.getElementById('profitModal')) showProfitModal();
   if (document.getElementById('bilanModal')) showBilanModal();
-  const ov = document.getElementById('customerDetailOverlay');
-  if (currentCustomerId && ov && !ov.classList.contains('hidden')) openCustomerDetail(currentCustomerId);
-}
-
-function profitBlockHtml(c) {
-  const dep = getTotalDepenses(c), cost = getTotalCosts(c), pr = dep - cost, tx = getProfitTaux();
-  const col = pr >= 0 ? '#4caf97' : '#e07070';
-  const lbl = 'font-size:0.68rem;font-weight:700;letter-spacing:0.08em;color:rgba(200,190,175,0.55);font-family:\'Rajdhani\',sans-serif;';
-  const rows = (c.costs || []).slice().reverse().map(k => `
-    <div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-top:1px solid rgba(255,255,255,0.06);">
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:0.82rem;color:#ddd8cc;">${custEsc(k.desc || 'Kou')}</div>
-        <div style="font-size:0.68rem;color:rgba(200,190,175,0.45);">${fmtDate(k.date)}</div>
-      </div>
-      <div style="color:#e07070;font-size:0.85rem;flex-shrink:0;">-${fmtUsdP(parseFloat(k.amount) || 0)}</div>
-      <button onclick="deleteCost('${c.id}','${k.id}')" title="Efase" style="background:none;border:1px solid rgba(220,80,80,0.3);border-radius:6px;color:#e07070;font-size:0.75rem;padding:3px 7px;cursor:pointer;flex-shrink:0;">🗑</button>
-    </div>`).join('');
-  return `
-    <div style="margin:6px 0 10px;padding:12px;border-radius:12px;background:rgba(76,175,151,0.07);border:1px solid rgba(76,175,151,0.3);">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <span style="${lbl}">BENEFIS</span>
-        <button onclick="openCostModal('${c.id}')" style="background:rgba(76,175,151,0.15);border:1px solid rgba(76,175,151,0.45);border-radius:8px;color:#4caf97;font-size:0.76rem;padding:5px 10px;cursor:pointer;">+ Kou</button>
-      </div>
-      <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:#ddd8cc;padding:2px 0;"><span>Total depans</span><span>${fmtUsdP(dep)}</span></div>
-      <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:#ddd8cc;padding:2px 0;"><span>Kou founisè ak lòt</span><span style="color:#e07070;">-${fmtUsdP(cost)}</span></div>
-      <div style="display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid rgba(255,255,255,0.12);margin-top:6px;padding-top:8px;">
-        <span style="font-weight:700;color:#ddd8cc;">Benefis</span>
-        <span style="text-align:right;"><b style="color:${col};font-size:1.05rem;">${fmtUsdP(pr)}</b><br><b style="color:${col};font-size:0.9rem;">${fmtHtgP(pr * tx)}</b></span>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:0.72rem;color:rgba(200,190,175,0.55);">
-        <span>Taux HTG</span>
-        <input type="text" inputmode="decimal" value="${tx}" onchange="setProfitTaux(this.value)" style="width:70px;background:#111;border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:#ddd8cc;padding:4px 8px;font-size:0.8rem;" />
-      </div>
-      ${rows ? `<div style="margin-top:8px;">${rows}</div>` : ''}
-    </div>`;
-}
-
-function openCostModal(clientId) {
-  const old = document.getElementById('costModal'); if (old) old.remove();
-  const m = document.createElement('div');
-  m.id = 'costModal';
-  m.style.cssText = 'position:fixed;inset:0;z-index:8888;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);backdrop-filter:blur(3px);';
-  const inp = 'width:100%;box-sizing:border-box;background:#111;border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:#ddd8cc;padding:9px 11px;font-size:0.95rem;margin-bottom:12px;';
-  const lb = 'font-size:0.78rem;color:rgba(200,190,175,0.6);display:block;margin-bottom:4px;';
-  m.innerHTML = `
-    <div style="background:#1a1520;border:1px solid rgba(76,175,151,0.4);border-radius:16px;padding:24px 22px;max-width:320px;width:90%;box-shadow:0 0 40px rgba(0,0,0,0.6);">
-      <div style="font-family:'Rajdhani',sans-serif;font-size:1rem;font-weight:700;color:#ddd8cc;margin-bottom:14px;">💸 Ajoute yon kou</div>
-      <label style="${lb}">Montan peye an $</label>
-      <input id="costAmount" type="number" min="0.01" step="0.01" placeholder="0.00" style="${inp}" />
-      <label style="${lb}">Deskripsyon</label>
-      <input id="costDesc" type="text" placeholder="Eks: Founisè kolis" style="${inp}margin-bottom:18px;" />
-      <div style="display:flex;gap:10px;">
-        <button onclick="saveCost('${clientId}')" style="flex:1;background:rgba(76,175,151,0.15);border:1px solid rgba(76,175,151,0.45);border-radius:10px;color:#4caf97;padding:10px;font-size:0.9rem;cursor:pointer;font-family:'Rajdhani',sans-serif;font-weight:600;">✔ Anrejistre</button>
-        <button onclick="document.getElementById('costModal').remove()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:10px;color:#aaa;padding:10px 16px;font-size:0.9rem;cursor:pointer;">Anile</button>
-      </div>
-    </div>`;
-  document.body.appendChild(m);
-  const a = document.getElementById('costAmount'); if (a) a.focus();
-}
-
-function saveCost(clientId) {
-  const amount = parseFloat(String(document.getElementById('costAmount')?.value || '').replace(',', '.'));
-  if (!(amount > 0)) { showToast('⚠️ Montan obligatwa'); return; }
-  const desc = (document.getElementById('costDesc')?.value || '').trim() || 'Kou';
-  const list = getCustomers();
-  const c = list.find(x => x.id === clientId);
-  if (!c) return;
-  if (!c.costs) c.costs = [];
-  c.costs.push({ id: uid(), amount, desc, date: Date.now() });
-  c.updatedAt = Date.now();
-  saveCustomers(list);
-  document.getElementById('costModal')?.remove();
-  openCustomerDetail(clientId);
-  showToast('✅ Kou anrejistre');
-}
-
-function deleteCost(clientId, costId) {
-  if (!confirm('Efase kou sa a ?')) return;
-  const list = getCustomers();
-  const c = list.find(x => x.id === clientId);
-  if (!c) return;
-  c.costs = (c.costs || []).filter(k => k.id !== costId);
-  c.updatedAt = Date.now();
-  saveCustomers(list);
-  openCustomerDetail(clientId);
-  showToast('🗑️ Kou efase');
-}
-
-/* Benefis total — tout kliyan */
-function showProfitModal() {
-  const old = document.getElementById('profitModal'); if (old) old.remove();
-  const list = getCustomers();
-  const tx = getProfitTaux();
-  let dep = 0, cost = 0;
-  const rows = list.map(c => {
-    const d = getTotalDepenses(c), k = getTotalCosts(c);
-    dep += d; cost += k;
-    return { name: c.name, d, k, p: d - k };
-  }).filter(r => r.d > 0 || r.k > 0).sort((a, b) => b.p - a.p);
-  const pr = dep - cost, col = pr >= 0 ? '#4caf97' : '#e07070';
-  const rowsHtml = rows.length ? rows.map(r => `
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-top:1px solid rgba(255,255,255,0.06);">
-      <div style="min-width:0;flex:1;"><div style="font-size:0.84rem;color:#ddd8cc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${custEsc(r.name)}</div>
-        <div style="font-size:0.68rem;color:rgba(200,190,175,0.45);">${fmtUsdP(r.d)} − ${fmtUsdP(r.k)}</div></div>
-      <div style="text-align:right;flex-shrink:0;color:${r.p >= 0 ? '#4caf97' : '#e07070'};font-size:0.84rem;font-weight:700;">${fmtUsdP(r.p)}<br><span style="font-size:0.72rem;font-weight:600;">${fmtHtgP(r.p * tx)}</span></div>
-    </div>`).join('') : `<div style="color:rgba(200,190,175,0.5);font-size:0.85rem;padding:10px 0;text-align:center;">Okenn done ankò.</div>`;
-  const m = document.createElement('div');
-  m.id = 'profitModal';
-  m.style.cssText = 'position:fixed;inset:0;z-index:8800;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.75);backdrop-filter:blur(3px);';
-  m.innerHTML = `
-    <div style="background:#1a1520;border:1px solid rgba(76,175,151,0.4);border-radius:16px;padding:20px 18px;max-width:380px;width:92%;max-height:86vh;overflow-y:auto;box-shadow:0 0 40px rgba(0,0,0,0.6);">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <div style="font-family:'Rajdhani',sans-serif;font-size:1.05rem;font-weight:700;color:#ddd8cc;">💹 Benefis total</div>
-        <button onclick="document.getElementById('profitModal').remove()" style="background:none;border:0;color:#aaa;font-size:1rem;cursor:pointer;">✕</button>
-      </div>
-      <div style="display:flex;justify-content:space-between;font-size:0.88rem;color:#ddd8cc;padding:2px 0;"><span>Total depans kliyan</span><span>${fmtUsdP(dep)}</span></div>
-      <div style="display:flex;justify-content:space-between;font-size:0.88rem;color:#ddd8cc;padding:2px 0;"><span>Total kou</span><span style="color:#e07070;">-${fmtUsdP(cost)}</span></div>
-      <div style="display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid rgba(255,255,255,0.12);margin-top:6px;padding-top:8px;">
-        <span style="font-weight:700;color:#ddd8cc;">Benefis</span>
-        <span style="text-align:right;"><b style="color:${col};font-size:1.15rem;">${fmtUsdP(pr)}</b><br><b style="color:${col};font-size:0.95rem;">${fmtHtgP(pr * tx)}</b></span>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;margin:10px 0 12px;font-size:0.74rem;color:rgba(200,190,175,0.55);">
-        <span>Taux HTG</span>
-        <input type="text" inputmode="decimal" value="${tx}" onchange="setProfitTaux(this.value)" style="width:70px;background:#111;border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:#ddd8cc;padding:4px 8px;font-size:0.8rem;" />
-      </div>
-      <div style="font-size:0.68rem;font-weight:700;letter-spacing:0.08em;color:rgba(200,190,175,0.5);font-family:'Rajdhani',sans-serif;">PA KLIYAN</div>
-      ${rowsHtml}
-    </div>`;
-  document.body.appendChild(m);
-  m.addEventListener('click', e => { if (e.target === m) m.remove(); });
 }
 
 /* ── Helpers locaux ─────────────────────────── */

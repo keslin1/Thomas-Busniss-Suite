@@ -187,12 +187,11 @@
       <div class="cm-tabs">
         <button class="cm-tab active" data-sort="recent" onclick="sortCustomers('recent',this)">🕑 Dènye aktivite</button>
         <button class="cm-tab" data-sort="name" onclick="sortCustomers('name',this)">🔤 Non kliyan</button>
-        <button class="cm-tab cm-tab-bilan" onclick="showBilanModal()">📊 Bilan</button>
       </div>
       <div class="cm-actions">
         <button class="cm-act" onclick="emailAllCustomers()"><span class="ico">📧</span><span>Email tout</span></button>
-        <button class="cm-act" onclick="exportCustomersPDF()"><span class="ico">📄</span><span>PDF</span></button>
-        <button class="cm-act" onclick="showProfitModal()"><span class="ico">💹</span><span>Benefis</span></button>
+        <button class="cm-act" onclick="exportCustomersPDF()"><span class="ico">📄</span><span>Ekspòte dosye kliyan</span></button>
+        <button class="cm-act cm-act-bilan" onclick="showBilanModal()"><span class="ico">📊</span><span>Bilan</span></button>
         <button class="cm-act" onclick="openTrash()"><span class="ico">🗑</span><span>Corbeille <span class="trash-count"></span></span></button>
       </div>
     </div>
@@ -394,19 +393,19 @@
       <!-- D. Peman -->
       <div style="padding:12px 14px 0;font-size:0.68rem;font-weight:800;color:rgba(212,175,55,0.7);letter-spacing:0.1em;font-family:'Rajdhani',sans-serif;">D. PEMAN</div>
       <div id="fkAchaBlock" style="display:none;">
-        <div style="padding:2px 16px 0;font-size:0.66rem;color:rgba(200,190,175,0.5);">Fich Acha sèlman — balans × 135 antre nan Total HTG</div>
+        <div style="padding:2px 16px 0;font-size:0.66rem;color:rgba(200,190,175,0.5);">Fich Acha sèlman. Balans = Montan acha a moins Vèsman, li antre nan Total HTG × 135</div>
         <div class="two-col" style="padding:4px 14px 0;">
           <div>
-            <label class="pos-label">Montan acha a vini</label>
-            <input type="text" id="fkPay" maxlength="6" placeholder="6 kar." class="form-input" />
+            <label class="pos-label">Montan acha a</label>
+            <input type="text" id="fkPay" maxlength="6" placeholder="Eks: 10" class="form-input" oninput="fkAutoBal()" />
           </div>
           <div>
-            <label class="pos-label">Montan m bay</label>
-            <input type="text" id="fkPaid" maxlength="6" placeholder="6 kar." class="form-input" />
+            <label class="pos-label">Vèsman</label>
+            <input type="text" id="fkPaid" maxlength="6" placeholder="Eks: 8" class="form-input" oninput="fkAutoBal()" />
           </div>
         </div>
         <div class="pos-field-group">
-          <label class="pos-label">Balans mwen genyen</label>
+          <label class="pos-label">Balans m' te genyen</label>
           <input type="text" id="fkBal" maxlength="6" placeholder="Eks: 35 oswa -35" class="form-input" oninput="fkRecalc()" />
         </div>
       </div>
